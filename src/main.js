@@ -19,57 +19,90 @@ const TOPICS = [
     questions:[
       { q:'PER(주가수익비율)이 낮다는 것은 일반적으로 무엇을 의미할까요?',
         choices:['회사가 곧 상장폐지된다','주가가 이익 대비 저평가되어 있을 가능성이 높다','배당금을 지급하지 않는다는 뜻이다','무조건 좋은 주식이라는 뜻이다'],
-        correct:1, explain:'PER이 낮으면 순이익 대비 주가가 낮다는 뜻으로 저평가 신호일 수 있지만, 업종 특성도 함께 봐야 해요.' },
+        correct:1, explain:'PER이 낮으면 순이익 대비 주가가 낮다는 뜻으로 저평가 신호일 수 있지만, 업종 특성도 함께 봐야 해요.', difficulty:'medium' },
       { q:"배당금이란 무엇인가요?",
         choices:['주식을 살 때 내는 수수료','주가가 오른 만큼의 차익','회사가 이익의 일부를 주주에게 나눠주는 돈','거래에 부과되는 세금'],
-        correct:2, explain:'배당은 기업이 벌어들인 이익을 주주에게 현금 등으로 분배하는 것이에요.' },
+        correct:2, explain:'배당은 기업이 벌어들인 이익을 주주에게 현금 등으로 분배하는 것이에요.', difficulty:'easy' },
       { q:"'분산투자'의 주된 목적은 무엇인가요?",
         choices:['특정 종목 하락에 따른 손실 위험을 줄이기 위해','세금을 아예 내지 않기 위해','매매 수수료를 없애기 위해','상장폐지를 막기 위해'],
-        correct:0, explain:'여러 자산에 나눠 투자하면 한 종목의 급락이 전체 자산에 주는 충격을 줄일 수 있어요.' },
+        correct:0, explain:'여러 자산에 나눠 투자하면 한 종목의 급락이 전체 자산에 주는 충격을 줄일 수 있어요.', difficulty:'easy' },
       { q:"코스피(KOSPI)는 무엇을 나타내는 지수인가요?",
         choices:['원/달러 환율','시중은행 기준금리','한국 부동산 가격 지수','유가증권시장 상장 주식들의 전반적 가격 흐름'],
-        correct:3, explain:'코스피는 한국 유가증권시장 상장 종목들의 시가총액 변화를 지수화한 지표예요.' },
+        correct:3, explain:'코스피는 한국 유가증권시장 상장 종목들의 시가총액 변화를 지수화한 지표예요.', difficulty:'medium' },
       { q:"'시가총액'은 어떻게 계산하나요?",
         choices:['주가 × 발행주식수','매출액 − 비용','부채총액 + 자본총액','주가 ÷ 액면가'],
-        correct:0, explain:'시가총액은 현재 주가에 발행된 총 주식 수를 곱해 회사의 시장 가치를 나타내요.' }
+        correct:0, explain:'시가총액은 현재 주가에 발행된 총 주식 수를 곱해 회사의 시장 가치를 나타내요.', difficulty:'hard' }
     ]},
   { id:'realestate', name:'부동산', desc:'전월세, LTV, 청약 기초', color:'#c9701a', bg:'#faeadb', icon:'house',
     questions:[
       { q:"'전세'와 '월세'의 가장 큰 차이는 무엇인가요?",
         choices:['등기 여부','보증금 규모와 매달 임대료 지불 여부','부과되는 세금 종류','계약 기간의 유무'],
-        correct:1, explain:'전세는 큰 보증금을 맡기고 월세 부담이 없는 반면, 월세는 보증금이 작은 대신 매달 임대료를 내요.' },
+        correct:1, explain:'전세는 큰 보증금을 맡기고 월세 부담이 없는 반면, 월세는 보증금이 작은 대신 매달 임대료를 내요.', difficulty:'easy' },
       { q:"'LTV(주택담보대출비율)'가 의미하는 것은?",
         choices:['대출 금리','집값 대비 대출 가능 금액의 비율','전세보증금 반환 비율','주택 재산세율'],
-        correct:1, explain:'LTV는 담보가치(집값) 대비 얼마까지 대출받을 수 있는지를 나타내는 비율이에요.' },
+        correct:1, explain:'LTV는 담보가치(집값) 대비 얼마까지 대출받을 수 있는지를 나타내는 비율이에요.', difficulty:'medium' },
       { q:"청약통장의 주된 목적은 무엇인가요?",
         choices:['대출 금리를 낮추기 위해','전세보증금을 보호받기 위해','신규 분양 아파트 청약 자격을 얻기 위해','재산세를 감면받기 위해'],
-        correct:2, explain:'청약통장은 일정 요건을 채우면 신규 분양 주택 청약에 신청할 자격을 줘요.' },
+        correct:2, explain:'청약통장은 일정 요건을 채우면 신규 분양 주택 청약에 신청할 자격을 줘요.', difficulty:'easy' },
       { q:"'등기부등본'에서 확인할 수 없는 것은?",
         choices:['소유자 정보','근저당권 설정 여부','집주인의 소득 수준','압류·가압류 여부'],
-        correct:2, explain:'등기부등본은 부동산의 권리관계를 보여주는 서류로, 소유자의 소득 정보는 나오지 않아요.' },
+        correct:2, explain:'등기부등본은 부동산의 권리관계를 보여주는 서류로, 소유자의 소득 정보는 나오지 않아요.', difficulty:'medium' },
       { q:"'재건축'과 '재개발'의 차이로 옳은 것은?",
         choices:['재건축은 노후 건물 자체를, 재개발은 주변 기반시설까지 포함해 정비한다','재건축은 상업지역만 대상으로 한다','재개발은 세금 감면이 전혀 없다','둘은 완전히 동일한 절차다'],
-        correct:0, explain:'재건축은 건물 위주로, 재개발은 도로·상하수도 등 기반시설까지 포함해 지역 전체를 정비해요.' }
+        correct:0, explain:'재건축은 건물 위주로, 재개발은 도로·상하수도 등 기반시설까지 포함해 지역 전체를 정비해요.', difficulty:'hard' }
     ]},
   { id:'fund', name:'펀드', desc:'ETF, 운용보수, 기준가 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'fund',
     questions:[
       { q:"'펀드'란 무엇인가요?",
         choices:['은행이 원금을 보장하는 예금 상품','정부가 발행하는 채권','여러 투자자의 돈을 모아 전문가가 대신 운용하는 상품','개인이 직접 매매하는 주식 계좌'],
-        correct:2, explain:'펀드는 다수의 투자자 자금을 모아 전문 운용사가 주식·채권 등에 투자하는 간접투자 상품이에요.' },
+        correct:2, explain:'펀드는 다수의 투자자 자금을 모아 전문 운용사가 주식·채권 등에 투자하는 간접투자 상품이에요.', difficulty:'easy' },
       { q:"'ETF'의 특징으로 옳은 것은?",
         choices:['하루에 한 번만 가격이 정해지는 예금','원금이 보장되는 채권','부동산 실물을 직접 소유하는 상품','주식처럼 거래소에서 실시간 매매가 가능한 펀드'],
-        correct:3, explain:'ETF는 지수 등을 추종하며 주식처럼 실시간으로 사고팔 수 있는 상장지수펀드예요.' },
+        correct:3, explain:'ETF는 지수 등을 추종하며 주식처럼 실시간으로 사고팔 수 있는 상장지수펀드예요.', difficulty:'medium' },
       { q:"펀드의 '운용보수'란 무엇인가요?",
         choices:['펀드를 운용해주는 대가로 지불하는 수수료','원금 손실을 보전해주는 금액','세금 환급액','배당금의 일종'],
-        correct:0, explain:'운용보수는 자산운용사가 펀드를 관리·운용하는 대가로 매년 일정 비율 부과하는 비용이에요.' },
+        correct:0, explain:'운용보수는 자산운용사가 펀드를 관리·운용하는 대가로 매년 일정 비율 부과하는 비용이에요.', difficulty:'easy' },
       { q:"'액티브 펀드'와 '패시브 펀드'의 차이는?",
         choices:['액티브는 원금보장, 패시브는 미보장','패시브는 해외투자만 가능','액티브는 매니저가 초과 수익을 노리고, 패시브는 지수를 그대로 추종','둘 다 완전히 동일한 전략을 사용'],
-        correct:2, explain:'액티브 펀드는 시장 대비 초과수익을 목표로 적극 운용하고, 패시브 펀드는 특정 지수를 그대로 따라가요.' },
+        correct:2, explain:'액티브 펀드는 시장 대비 초과수익을 목표로 적극 운용하고, 패시브 펀드는 특정 지수를 그대로 따라가요.', difficulty:'medium' },
       { q:"펀드 투자 시 '기준가'란 무엇인가요?",
         choices:['펀드 가입 최소 금액','펀드 1좌의 현재 평가 가격','판매사가 받는 수수료율','환매 시 부과되는 세금'],
-        correct:1, explain:'기준가는 펀드 자산을 좌수로 나눈 값으로, 매입·환매 시 기준이 되는 가격이에요.' }
+        correct:1, explain:'기준가는 펀드 자산을 좌수로 나눈 값으로, 매입·환매 시 기준이 되는 가격이에요.', difficulty:'hard' }
     ]}
 ];
+
+// 난이도 3단계 — 정답이면 한 단계 올리고, 오답이면 한 단계 내려서 다음 문제를 고른다.
+const DIFF_ORDER = ['easy','medium','hard'];
+const DIFF_LABEL = { easy:'쉬움', medium:'보통', hard:'어려움' };
+
+// 누적 정답 수 기준 등급. 세션을 넘나들며 쌓이는 학습량을 반영한다.
+const LEVELS = [
+  { key:'beginner', name:'초급', min:0 },
+  { key:'intermediate', name:'중급', min:15 },
+  { key:'advanced', name:'고급', min:40 }
+];
+
+function getLevelInfo(totalCorrect){
+  let level = LEVELS[0];
+  for(const lv of LEVELS){ if(totalCorrect >= lv.min) level = lv; }
+  const next = LEVELS[LEVELS.indexOf(level)+1];
+  let progress = 1, remain = 0;
+  if(next){
+    remain = next.min - totalCorrect;
+    progress = Math.min(1, (totalCorrect - level.min) / (next.min - level.min));
+  }
+  return { level, next, progress, remain };
+}
+
+// pool에서 목표 난이도(targetIdx)에 가장 가까운 문제를 골라 꺼낸다.
+function pickAdaptive(pool, targetIdx){
+  let bestPos = 0, bestDiff = Infinity;
+  pool.forEach((q, pos) => {
+    const diff = Math.abs(DIFF_ORDER.indexOf(q.difficulty) - targetIdx);
+    if(diff < bestDiff){ bestDiff = diff; bestPos = pos; }
+  });
+  return pool.splice(bestPos, 1)[0];
+}
 
 // 데모용 랭킹 데이터 — 실제 서비스에서는 백엔드 API로 대체해야 해요.
 const RANKING = {
@@ -81,7 +114,9 @@ let userKey = 'guest';
 let state = {
   screen:'home', tab:'home',
   topic:null, qIndex:0, answered:false, selected:null, sessionScore:0,
-  cash:0, streak:0, rankPeriod:'daily', wrongNote:[]
+  cash:0, streak:0, rankPeriod:'daily', wrongNote:[],
+  totalCorrect:0,
+  pool:[], queue:[], diffTarget:1, levelBefore:null, leveledUp:false, levelAfterName:''
 };
 
 function storageKey(){ return `point-quiz:${userKey}`; }
@@ -94,6 +129,7 @@ function loadState(){
       state.cash = saved.cash ?? 0;
       state.streak = saved.streak ?? 0;
       state.wrongNote = saved.wrongNote ?? [];
+      state.totalCorrect = saved.totalCorrect ?? 0;
     }
   }catch(e){ /* 저장된 값이 없거나 손상된 경우 기본값 사용 */ }
 }
@@ -101,7 +137,7 @@ function loadState(){
 function saveState(){
   try{
     localStorage.setItem(storageKey(), JSON.stringify({
-      cash: state.cash, streak: state.streak, wrongNote: state.wrongNote
+      cash: state.cash, streak: state.streak, wrongNote: state.wrongNote, totalCorrect: state.totalCorrect
     }));
   }catch(e){ /* 저장 실패는 무시 — 다음 세션에 이어지지 않을 뿐 */ }
 }
@@ -134,6 +170,11 @@ function startTopic(topic){
   state.answered = false;
   state.selected = null;
   state.sessionScore = 0;
+  state.pool = [...topic.questions];
+  state.diffTarget = 1; // 보통 난이도부터 시작
+  state.queue = [pickAdaptive(state.pool, state.diffTarget)];
+  state.levelBefore = getLevelInfo(state.totalCorrect).level;
+  state.leveledUp = false;
   go('quiz');
 }
 
@@ -141,12 +182,15 @@ function pickChoice(idx){
   if(state.answered) return;
   state.answered = true;
   state.selected = idx;
-  const q = state.topic.questions[state.qIndex];
+  const q = state.queue[state.qIndex];
   if(idx===q.correct){
     state.sessionScore++;
     state.cash += 20;
+    state.totalCorrect++;
+    state.diffTarget = Math.min(DIFF_ORDER.length-1, state.diffTarget+1);
   } else {
     state.wrongNote.push({topic:state.topic.name, q, chosen:idx});
+    state.diffTarget = Math.max(0, state.diffTarget-1);
   }
   saveState();
   render();
@@ -158,10 +202,16 @@ function nextQuestion(){
     state.qIndex++;
     state.answered = false;
     state.selected = null;
+    if(state.pool.length){
+      state.queue.push(pickAdaptive(state.pool, state.diffTarget));
+    }
     render();
   } else {
     state.streak += 1;
     saveState();
+    const afterLevel = getLevelInfo(state.totalCorrect).level;
+    state.leveledUp = afterLevel.key !== state.levelBefore.key;
+    state.levelAfterName = afterLevel.name;
     go('result');
   }
 }
@@ -187,6 +237,7 @@ function homeHTML(){
     </div>
     <p class="greet">오늘도 5문제, 3분이면 충분해요</p>
     <p class="greet-sub">관심 있는 주제를 골라 퀴즈를 시작해 보세요</p>
+    ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
       ${TOPICS.map(t=>`
@@ -203,9 +254,23 @@ function homeHTML(){
   </div>`;
 }
 
+function levelCardHTML(){
+  const info = getLevelInfo(state.totalCorrect);
+  const pct = Math.round(info.progress*100);
+  const sub = info.next ? `${info.next.name}까지 ${info.remain}문제` : '최고 등급 달성';
+  return `
+  <div class="level-card">
+    <div class="level-card-top">
+      <span class="level-badge">${info.level.name}</span>
+      <span class="level-sub">${sub}</span>
+    </div>
+    <div class="level-track"><div class="level-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
 function quizHTML(){
   const total = state.topic.questions.length;
-  const q = state.topic.questions[state.qIndex];
+  const q = state.queue[state.qIndex];
   const pct = Math.round(((state.qIndex + (state.answered?1:0)) / total) * 100);
   return `
   <div class="quiz-head">
@@ -214,7 +279,10 @@ function quizHTML(){
     <div class="qcount">${state.qIndex+1} / ${total}</div>
   </div>
   <div class="scroll">
-    <p class="section-label">${state.topic.name}</p>
+    <div class="quiz-topic-row">
+      <p class="section-label">${state.topic.name}</p>
+      <span class="diff-badge diff-${q.difficulty}">${DIFF_LABEL[q.difficulty]}</span>
+    </div>
     <p class="qtext">${q.q}</p>
     <div class="choices">
       ${q.choices.map((c,i)=>{
@@ -243,6 +311,7 @@ function resultHTML(){
     <div class="result-score">${state.sessionScore}<span style="font-size:1.2rem;color:var(--ink-soft)"> / ${total}</span></div>
     <p class="result-title">${state.sessionScore===total? '전부 맞혔어요! 완벽해요' : '오늘도 한 걸음 성장했어요'}</p>
     <p class="result-sub">${state.topic.name} 퀴즈 세션이 끝났어요</p>
+    ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 캐시</div></div>
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
