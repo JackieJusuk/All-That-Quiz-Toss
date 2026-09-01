@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.ait
+.claude/scheduled_tasks.lock

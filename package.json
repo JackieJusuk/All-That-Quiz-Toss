@@ -1,0 +1,19 @@
+{
+  "name": "point-quiz",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && ait build",
+    "preview": "vite preview",
+    "deploy": "ait deploy"
+  },
+  "dependencies": {
+    "@apps-in-toss/web-framework": "^3.1.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@apps-in-toss/devtools": "^3.1.1"
+  }
+}
