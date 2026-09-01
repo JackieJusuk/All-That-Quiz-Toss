@@ -5,7 +5,13 @@ import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 
 const app = express();
-const client = new Anthropic();
+// ID 연동(identity-linked) API 키는 요청마다 어느 워크스페이스에서 실행할지
+// anthropic-workspace-id 헤더로 명시해야 한다 (Console > 조직 설정 > 워크스페이스에서 확인).
+const client = new Anthropic({
+  defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID
+    ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
+    : undefined,
+});
 
 // 로그인(앱 진입)마다 다른 문제가 나오도록, 퀴즈 시작 시 서버가 매번 새 문항을 생성한다.
 const TOPIC_BRIEFS = {
