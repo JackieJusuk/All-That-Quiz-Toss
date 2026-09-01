@@ -116,8 +116,39 @@ let state = {
   topic:null, qIndex:0, answered:false, selected:null, sessionScore:0,
   cash:0, streak:0, rankPeriod:'daily', wrongNote:[],
   totalCorrect:0,
-  pool:[], queue:[], diffTarget:1, levelBefore:null, leveledUp:false, levelAfterName:''
+  pool:[], queue:[], totalQuestions:0, diffTarget:1, loadingQuestions:false,
+  levelBefore:null, leveledUp:false, levelAfterName:''
 };
+
+// 로그인(앱 진입)마다 다른 문제가 나오도록, 서버(AI)에서 매번 새 문항을 받아온다.
+// 같은 로그인 세션 안에서 같은 주제를 다시 고르면 이미 받은 문항을 재사용한다.
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const generatedCache = {};
+
+function isValidQuestionSet(list){
+  return Array.isArray(list) && list.length === 5 && list.every(q =>
+    q && typeof q.q === 'string' &&
+    Array.isArray(q.choices) && q.choices.length === 4 &&
+    Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 &&
+    typeof q.explain === 'string' &&
+    DIFF_ORDER.includes(q.difficulty)
+  );
+}
+
+async function getTopicQuestions(topic){
+  if(generatedCache[topic.id]) return generatedCache[topic.id];
+  try{
+    const res = await fetch(`${API_BASE}/api/questions?topic=${encodeURIComponent(topic.id)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    if(!isValidQuestionSet(data.questions)) throw new Error('malformed response');
+    generatedCache[topic.id] = data.questions;
+    return data.questions;
+  }catch(e){
+    console.warn('AI 문제 생성을 불러오지 못해 기본 문제은행으로 대체합니다.', e);
+    return topic.questions;
+  }
+}
 
 function storageKey(){ return `point-quiz:${userKey}`; }
 
@@ -164,18 +195,29 @@ function go(screen, extra){
   render();
 }
 
-function startTopic(topic){
+async function startTopic(topic){
   state.topic = topic;
   state.qIndex = 0;
   state.answered = false;
   state.selected = null;
   state.sessionScore = 0;
-  state.pool = [...topic.questions];
-  state.diffTarget = 1; // 보통 난이도부터 시작
-  state.queue = [pickAdaptive(state.pool, state.diffTarget)];
+  state.pool = [];
+  state.queue = [];
+  state.totalQuestions = 0;
   state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.leveledUp = false;
+  state.loadingQuestions = true;
   go('quiz');
+
+  const questions = await getTopicQuestions(topic);
+  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
+
+  state.pool = [...questions];
+  state.totalQuestions = questions.length;
+  state.diffTarget = 1; // 보통 난이도부터 시작
+  state.queue = [pickAdaptive(state.pool, state.diffTarget)];
+  state.loadingQuestions = false;
+  render();
 }
 
 function pickChoice(idx){
@@ -197,7 +239,7 @@ function pickChoice(idx){
 }
 
 function nextQuestion(){
-  const total = state.topic.questions.length;
+  const total = state.totalQuestions;
   if(state.qIndex < total-1){
     state.qIndex++;
     state.answered = false;
@@ -269,7 +311,14 @@ function levelCardHTML(){
 }
 
 function quizHTML(){
-  const total = state.topic.questions.length;
+  if(state.loadingQuestions || !state.queue.length){
+    return `
+    <div class="quiz-head">
+      <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
+    </div>
+    <div class="empty"><b>새 문제를 준비하고 있어요</b><span>AI가 이번 세션의 새로운 문제를 만들고 있어요</span></div>`;
+  }
+  const total = state.totalQuestions;
   const q = state.queue[state.qIndex];
   const pct = Math.round(((state.qIndex + (state.answered?1:0)) / total) * 100);
   return `
@@ -304,7 +353,7 @@ function quizHTML(){
 }
 
 function resultHTML(){
-  const total = state.topic.questions.length;
+  const total = state.totalQuestions;
   const earned = state.sessionScore*20;
   return `
   <div class="result-wrap">
