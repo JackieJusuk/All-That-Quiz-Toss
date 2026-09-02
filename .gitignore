@@ -3,3 +3,4 @@ dist/
 *.ait
 .claude/scheduled_tasks.lock
 .env
+deploy-qr.png

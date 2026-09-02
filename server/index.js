@@ -1,10 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 
 const app = express();
+// 토스 미니앱 웹뷰(별도 오리진)에서 호출하는 공개 읽기 전용 API라 모든 오리진을 허용한다.
+app.use(cors());
 // ID 연동(identity-linked) API 키는 요청마다 어느 워크스페이스에서 실행할지
 // anthropic-workspace-id 헤더로 명시해야 한다 (Console > 조직 설정 > 워크스페이스에서 확인).
 const client = new Anthropic({
