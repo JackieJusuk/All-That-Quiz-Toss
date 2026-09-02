@@ -116,17 +116,18 @@ let state = {
   topic:null, qIndex:0, answered:false, selected:null, sessionScore:0,
   cash:0, streak:0, rankPeriod:'daily', wrongNote:[],
   totalCorrect:0,
-  pool:[], queue:[], totalQuestions:0, diffTarget:1, loadingQuestions:false,
+  queue:[], diffTarget:1, loadingQuestions:false, answeredCount:0,
   levelBefore:null, leveledUp:false, levelAfterName:''
 };
 
-// 로그인(앱 진입)마다 다른 문제가 나오도록, 서버(AI)에서 매번 새 문항을 받아온다.
-// 같은 로그인 세션 안에서 같은 주제를 다시 고르면 이미 받은 문항을 재사용한다.
+// 로그인(앱 진입) 시에는 기본 1문제만 생성해서 보여주고, "문제 더 풀기"를 요청할 때마다
+// 서버(AI)에서 1문제씩 추가로 받아온다 — 매번 다른 문제가 출제된다.
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-const generatedCache = {};
+// AI 생성이 실패했을 때만 쓰는 정적 문제은행 — 주제별로 소진된 문제를 추적해 중복 없이 순환한다.
+const staticFallbackPools = {};
 
-function isValidQuestionSet(list){
-  return Array.isArray(list) && list.length === 5 && list.every(q =>
+function isValidQuestionSet(list, expectedCount){
+  return Array.isArray(list) && list.length === expectedCount && list.every(q =>
     q && typeof q.q === 'string' &&
     Array.isArray(q.choices) && q.choices.length === 4 &&
     Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 &&
@@ -135,18 +136,31 @@ function isValidQuestionSet(list){
   );
 }
 
-async function getTopicQuestions(topic){
-  if(generatedCache[topic.id]) return generatedCache[topic.id];
+function pickFromStaticFallback(topic, count, diffTargetIdx){
+  if(!staticFallbackPools[topic.id] || !staticFallbackPools[topic.id].length){
+    staticFallbackPools[topic.id] = [...topic.questions];
+  }
+  const picked = [];
+  for(let i=0;i<count;i++){
+    if(!staticFallbackPools[topic.id].length){
+      staticFallbackPools[topic.id] = [...topic.questions];
+    }
+    picked.push(pickAdaptive(staticFallbackPools[topic.id], diffTargetIdx));
+  }
+  return picked;
+}
+
+async function fetchQuestions(topic, count, diffTargetIdx){
   try{
-    const res = await fetch(`${API_BASE}/api/questions?topic=${encodeURIComponent(topic.id)}`);
+    const difficulty = DIFF_ORDER[diffTargetIdx] ?? 'medium';
+    const res = await fetch(`${API_BASE}/api/questions?topic=${encodeURIComponent(topic.id)}&count=${count}&difficulty=${difficulty}`);
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
-    if(!isValidQuestionSet(data.questions)) throw new Error('malformed response');
-    generatedCache[topic.id] = data.questions;
+    if(!isValidQuestionSet(data.questions, count)) throw new Error('malformed response');
     return data.questions;
   }catch(e){
     console.warn('AI 문제 생성을 불러오지 못해 기본 문제은행으로 대체합니다.', e);
-    return topic.questions;
+    return pickFromStaticFallback(topic, count, diffTargetIdx);
   }
 }
 
@@ -201,21 +215,18 @@ async function startTopic(topic){
   state.answered = false;
   state.selected = null;
   state.sessionScore = 0;
-  state.pool = [];
   state.queue = [];
-  state.totalQuestions = 0;
+  state.diffTarget = 1; // 보통 난이도부터 시작
   state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.leveledUp = false;
   state.loadingQuestions = true;
   go('quiz');
 
-  const questions = await getTopicQuestions(topic);
+  // 로그인(앱 진입) 후 첫 진입은 기본 1문제만 생성한다.
+  const [first] = await fetchQuestions(topic, 1, state.diffTarget);
   if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
 
-  state.pool = [...questions];
-  state.totalQuestions = questions.length;
-  state.diffTarget = 1; // 보통 난이도부터 시작
-  state.queue = [pickAdaptive(state.pool, state.diffTarget)];
+  state.queue = [first];
   state.loadingQuestions = false;
   render();
 }
@@ -238,24 +249,32 @@ function pickChoice(idx){
   render();
 }
 
-function nextQuestion(){
-  const total = state.totalQuestions;
-  if(state.qIndex < total-1){
-    state.qIndex++;
-    state.answered = false;
-    state.selected = null;
-    if(state.pool.length){
-      state.queue.push(pickAdaptive(state.pool, state.diffTarget));
-    }
-    render();
-  } else {
-    state.streak += 1;
-    saveState();
-    const afterLevel = getLevelInfo(state.totalCorrect).level;
-    state.leveledUp = afterLevel.key !== state.levelBefore.key;
-    state.levelAfterName = afterLevel.name;
-    go('result');
-  }
+// "문제 더 풀기" — 요청이 있을 때만 다음 문제를 새로 생성한다.
+async function continueQuiz(){
+  const topic = state.topic;
+  state.loadingQuestions = true;
+  render();
+
+  const [next] = await fetchQuestions(topic, 1, state.diffTarget);
+  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
+
+  state.queue.push(next);
+  state.qIndex++;
+  state.answered = false;
+  state.selected = null;
+  state.loadingQuestions = false;
+  render();
+}
+
+// "결과 보기" — 지금까지 푼 만큼만으로 세션을 마무리한다.
+function finishQuiz(){
+  state.streak += 1;
+  saveState();
+  const afterLevel = getLevelInfo(state.totalCorrect).level;
+  state.leveledUp = afterLevel.key !== state.levelBefore.key;
+  state.levelAfterName = afterLevel.name;
+  state.answeredCount = state.qIndex + 1;
+  go('result');
 }
 
 function renderTabbar(){
@@ -277,8 +296,8 @@ function homeHTML(){
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.cash.toLocaleString()}</div><div class="l">보유 캐시</div></div></div>
     </div>
-    <p class="greet">오늘도 5문제, 3분이면 충분해요</p>
-    <p class="greet-sub">관심 있는 주제를 골라 퀴즈를 시작해 보세요</p>
+    <p class="greet">오늘의 첫 문제, 가볍게 풀어봐요</p>
+    <p class="greet-sub">정답을 확인한 뒤 원하면 이어서 더 풀 수 있어요</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -318,14 +337,11 @@ function quizHTML(){
     </div>
     <div class="empty"><b>새 문제를 준비하고 있어요</b><span>AI가 이번 세션의 새로운 문제를 만들고 있어요</span></div>`;
   }
-  const total = state.totalQuestions;
   const q = state.queue[state.qIndex];
-  const pct = Math.round(((state.qIndex + (state.answered?1:0)) / total) * 100);
   return `
   <div class="quiz-head">
     <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
-    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-    <div class="qcount">${state.qIndex+1} / ${total}</div>
+    <div class="qcount">${state.qIndex+1}번째 문제</div>
   </div>
   <div class="scroll">
     <div class="quiz-topic-row">
@@ -347,13 +363,15 @@ function quizHTML(){
     </div>
     ${state.answered? `<div class="explain"><b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}</div>` : ''}
   </div>
+  ${state.answered ? `
   <div class="quiz-foot">
-    <button class="btn-primary" id="quiz-next" ${state.answered?'':'disabled'}>${state.qIndex<total-1?'다음 문제':'결과 보기'}</button>
-  </div>`;
+    <button class="btn-primary" id="quiz-continue">문제 더 풀기</button>
+    <button class="btn-ghost" id="quiz-finish">결과 보기</button>
+  </div>` : ''}`;
 }
 
 function resultHTML(){
-  const total = state.totalQuestions;
+  const total = state.answeredCount;
   const earned = state.sessionScore*20;
   return `
   <div class="result-wrap">
@@ -435,8 +453,10 @@ function bindScreenEvents(){
   });
   const closeBtn = screenEl.querySelector('#quiz-close');
   if(closeBtn) closeBtn.addEventListener('click', ()=> go('home'));
-  const nextBtn = screenEl.querySelector('#quiz-next');
-  if(nextBtn) nextBtn.addEventListener('click', nextQuestion);
+  const continueBtn = screenEl.querySelector('#quiz-continue');
+  if(continueBtn) continueBtn.addEventListener('click', continueQuiz);
+  const finishBtn = screenEl.querySelector('#quiz-finish');
+  if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
   const rwBtn = screenEl.querySelector('#result-wrong');
   if(rwBtn) rwBtn.addEventListener('click', ()=> go('wrongnote'));
   const rhBtn = screenEl.querySelector('#result-home');

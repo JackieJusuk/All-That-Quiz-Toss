@@ -194,24 +194,11 @@ body{
   cursor:pointer;
   flex:none;
 }
-.progress-track{
-  flex:1;
-  height:6px;
-  background:var(--surface-2);
-  border-radius:999px;
-  overflow:hidden;
-}
-.progress-fill{
-  height:100%;
-  background:var(--accent);
-  border-radius:999px;
-  transition:width 0.25s ease;
-}
 .qcount{
   font-family:var(--font-mono);
   font-size:0.78rem;
   color:var(--ink-soft);
-  flex:none;
+  flex:1;
   font-variant-numeric:tabular-nums;
 }
 
