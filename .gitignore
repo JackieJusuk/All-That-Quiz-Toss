@@ -4,3 +4,5 @@ dist/
 .claude/scheduled_tasks.lock
 .env
 deploy-qr.png
+worker/.dev.vars
+worker/.wrangler/
