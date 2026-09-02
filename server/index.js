@@ -1,6 +1,20 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+
+const app = express();
+// 토스 미니앱 웹뷰(별도 오리진)에서 호출하는 공개 읽기 전용 API라 모든 오리진을 허용한다.
+app.use(cors());
+// ID 연동(identity-linked) API 키는 요청마다 어느 워크스페이스에서 실행할지
+// anthropic-workspace-id 헤더로 명시해야 한다 (Console > 조직 설정 > 워크스페이스에서 확인).
+const client = new Anthropic({
+  defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID
+    ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
+    : undefined,
+});
 
 // 로그인(앱 진입)마다, 그리고 "문제 더 풀기" 요청마다 다른 문제가 나오도록
 // 퀴즈 화면은 기본 1문제만 생성해서 보여주고, 이어서 요청이 올 때마다 1문제씩 추가로 생성한다.
@@ -22,23 +36,23 @@ const questionSchema = z.object({
 
 // Sonnet은 이따금 문제/선택지를 요청보다 1개 더 만들어 정확한 길이 스키마를 어길 때가 있다.
 // 검증은 느슨하게(최소 개수) 받고, 서버에서 초과분을 안전하게 다듬는다.
-function buildSchema(count) {
+function buildSchema(count){
   return z.object({ questions: z.array(questionSchema).min(count) });
 }
 
 // 초과 생성분을 정리한다. 정답이 잘려나가는 위치라 안전하게 다듬을 수 없으면 null을 반환해 재시도를 유도한다.
-function normalizeQuizSet(raw, count) {
+function normalizeQuizSet(raw, count){
   const questions = raw.questions.slice(0, count).map(q => {
-    if (q.choices.length < 4 || q.correct > q.choices.length - 1) return null;
-    if (q.correct > 3) return null; // 정답이 잘려나가는 위치면 다듬지 않고 실패 처리
+    if(q.choices.length < 4 || q.correct > q.choices.length - 1) return null;
+    if(q.correct > 3) return null; // 정답이 잘려나가는 위치면 다듬지 않고 실패 처리
     const choices = q.choices.length > 4 ? q.choices.slice(0, 4) : q.choices;
     return { q: q.q, choices, correct: q.correct, explain: q.explain, difficulty: q.difficulty };
   });
-  if (questions.length !== count || questions.some(q => q === null)) return null;
+  if(questions.length !== count || questions.some(q => q === null)) return null;
   return { questions };
 }
 
-async function generateQuizSet(client, brief, count, difficulty) {
+async function generateQuizSet(brief, count, difficulty){
   const diffInstruction = count === 1
     ? `난이도는 ${DIFF_KO[difficulty] || DIFF_KO.medium} 수준으로 만들고, difficulty 필드는 "${difficulty || 'medium'}"으로 표기하세요.`
     : '난이도는 easy/medium/hard를 골고루 섞어주세요.';
@@ -71,55 +85,28 @@ async function generateQuizSet(client, brief, count, difficulty) {
   throw lastErr;
 }
 
-// 토스 미니앱 웹뷰(별도 오리진)에서 호출하는 공개 읽기 전용 API라 모든 오리진을 허용한다.
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+app.get('/api/questions', async (req, res) => {
+  const topicId = String(req.query.topic || '');
+  const brief = TOPIC_BRIEFS[topicId];
+  if (!brief) {
+    res.status(400).json({ error: 'invalid_topic' });
+    return;
+  }
+  const count = Math.min(5, Math.max(1, parseInt(req.query.count, 10) || 1));
+  const difficulty = ['easy', 'medium', 'hard'].includes(req.query.difficulty)
+    ? req.query.difficulty
+    : 'medium';
 
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-  });
-}
+  try {
+    const questions = await generateQuizSet(brief, count, difficulty);
+    res.json(questions);
+  } catch (err) {
+    console.error('question generation failed:', err);
+    res.status(502).json({ error: 'generation_failed' });
+  }
+});
 
-export default {
-  async fetch(request, env) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS_HEADERS });
-    }
-
-    const url = new URL(request.url);
-    if (url.pathname !== '/api/questions') {
-      return json({ error: 'not_found' }, 404);
-    }
-
-    const topicId = url.searchParams.get('topic') || '';
-    const brief = TOPIC_BRIEFS[topicId];
-    if (!brief) {
-      return json({ error: 'invalid_topic' }, 400);
-    }
-    const count = Math.min(5, Math.max(1, parseInt(url.searchParams.get('count'), 10) || 1));
-    const difficultyParam = url.searchParams.get('difficulty');
-    const difficulty = ['easy', 'medium', 'hard'].includes(difficultyParam) ? difficultyParam : 'medium';
-
-    // ID 연동(identity-linked) API 키는 요청마다 어느 워크스페이스에서 실행할지
-    // anthropic-workspace-id 헤더로 명시해야 한다 (Console > 조직 설정 > 워크스페이스에서 확인).
-    const client = new Anthropic({
-      apiKey: env.ANTHROPIC_API_KEY,
-      defaultHeaders: env.ANTHROPIC_WORKSPACE_ID
-        ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE_ID }
-        : undefined,
-    });
-
-    try {
-      const questions = await generateQuizSet(client, brief, count, difficulty);
-      return json(questions);
-    } catch (err) {
-      console.error('question generation failed:', err);
-      return json({ error: 'generation_failed' }, 502);
-    }
-  },
-};
+const port = process.env.PORT || 8787;
+app.listen(port, () => {
+  console.log(`quiz question API listening on http://localhost:${port}`);
+});
