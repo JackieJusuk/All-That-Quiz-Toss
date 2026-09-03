@@ -502,6 +502,17 @@ body{
 }
 .rank-row.me .rank-avatar{background:var(--accent); color:#fff;}
 .rank-name{flex:1; font-size:0.9rem; font-weight:600;}
+.badge-friend{
+  display:inline-block;
+  margin-left:0.3rem;
+  padding:0.1rem 0.4rem;
+  border-radius:999px;
+  background:var(--good-soft);
+  color:var(--good);
+  font-size:0.7rem;
+  font-weight:700;
+  vertical-align:middle;
+}
 .rank-score{
   font-family:var(--font-mono);
   font-size:0.86rem;

@@ -3,8 +3,6 @@ import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd } from '@app
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
 const AD_GROUP_ID = import.meta.env.VITE_AD_GROUP_ID || 'ait-ad-test-rewarded-id';
-// 서버(AD_BONUS_CAP)와 동일한 값 — 안내 문구 표시용.
-const AD_BONUS_CAP = 3;
 
 // 보상형 광고를 끝까지 시청했을 때만 true를 반환한다(userEarnedReward 이벤트 기준).
 function watchRewardedAd(){
@@ -107,11 +105,13 @@ function pickFallbackQuestion(topic, difficulty){
 }
 
 let userKey = 'guest';
+// 초대 링크(intoss://cash-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
+let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
-  points:0, streak:0, totalCorrect:0, answeredToday:false,
-  dailyLimit:1, attemptsUsedToday:0, adViewsToday:0, canWatchAd:false, watchingAd:false,
+  points:0, streak:0, totalCorrect:0,
+  hasAdTicket:false, needsAd:false, watchingAd:false,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
@@ -137,7 +137,7 @@ async function saveNickname(nickname){
   const res = await fetch(`${API_BASE}/api/profile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userKey, nickname }),
+    body: JSON.stringify({ userKey, nickname, ref: pendingRef }),
   });
   if(!res.ok) throw new Error(`status ${res.status}`);
   const data = await res.json();
@@ -149,22 +149,18 @@ async function fetchStatus(){
     const res = await fetch(`${API_BASE}/api/status?userKey=${encodeURIComponent(userKey)}`);
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
-    state.answeredToday = data.answeredToday;
     state.totalCorrect = data.totalCorrect;
     state.streak = data.streak;
     state.points = data.points;
-    state.dailyLimit = data.dailyLimit ?? 1;
-    state.attemptsUsedToday = data.attemptsUsedToday ?? 0;
-    state.adViewsToday = data.adViewsToday ?? 0;
-    state.canWatchAd = data.canWatchAd ?? false;
+    state.hasAdTicket = data.hasAdTicket ?? false;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
 }
 
-// 보상형 광고를 끝까지 보면 오늘 문제 풀 기회 1회 + 1포인트를 추가로 얻는다.
-async function watchAdForBonus(){
-  if(state.watchingAd || !state.canWatchAd) return;
+// 보상형 광고를 끝까지 보면 +10포인트와 함께 문제 풀이권을 1개 얻는다. 풀이 횟수 제한은 없다.
+async function watchAdThenFetchQuestion(){
+  if(state.watchingAd) return;
   state.watchingAd = true;
   render();
   try{
@@ -184,16 +180,29 @@ async function watchAdForBonus(){
       state.points = data.points;
       state.totalCorrect = data.totalCorrect;
       state.streak = data.streak;
-      state.dailyLimit = data.dailyLimit;
-      state.attemptsUsedToday = data.attemptsUsedToday;
-      state.adViewsToday = data.adViewsToday;
-      state.canWatchAd = data.canWatchAd;
-      state.answeredToday = state.attemptsUsedToday >= state.dailyLimit;
+      state.hasAdTicket = data.hasAdTicket ?? true;
     }
   }catch(e){
     console.warn('광고 시청에 실패했습니다.', e);
   }
   state.watchingAd = false;
+
+  if(state.hasAdTicket && state.topic){
+    state.needsAd = false;
+    state.loadingQuestions = true;
+    render();
+    const difficulty = state.levelBefore.difficulty;
+    const q = await fetchQuestion(state.topic, difficulty);
+    if(state.screen==='quiz' && state.topic){
+      if(q === 'ad_required'){
+        state.needsAd = true;
+        state.question = null;
+      }else{
+        state.question = q;
+      }
+      state.loadingQuestions = false;
+    }
+  }
   render();
 }
 
@@ -204,7 +213,7 @@ async function fetchQuestion(topic, difficulty){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
     });
-    if(res.status === 403) return 'limit_reached';
+    if(res.status === 403) return 'ad_required';
     if(!res.ok) throw new Error(`status ${res.status}`);
     const q = await res.json();
     if(!q || typeof q.q !== 'string' || !Array.isArray(q.choices) || q.choices.length !== 4) throw new Error('malformed response');
@@ -218,12 +227,11 @@ async function fetchQuestion(topic, difficulty){
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
-    // 포인트 = 출석 1포인트 + 정답 1포인트.
+    // 포인트 = 정답 시 10포인트 (오답은 없음).
     state.totalCorrect += correct ? 1 : 0;
-    state.points += 1 + (correct ? 1 : 0);
+    state.points += correct ? 10 : 0;
     state.streak += 1;
-    state.attemptsUsedToday += 1;
-    state.answeredToday = state.attemptsUsedToday >= state.dailyLimit;
+    state.hasAdTicket = false;
     return;
   }
   try{
@@ -237,14 +245,9 @@ async function recordAnswer(topic, question, correct){
     state.totalCorrect = stats.totalCorrect;
     state.streak = stats.streak;
     state.points = stats.points;
-    state.dailyLimit = stats.dailyLimit ?? state.dailyLimit;
-    state.attemptsUsedToday = stats.attemptsUsedToday ?? state.attemptsUsedToday;
-    state.adViewsToday = stats.adViewsToday ?? state.adViewsToday;
-    state.canWatchAd = stats.canWatchAd ?? state.canWatchAd;
-    state.answeredToday = stats.answeredToday ?? true;
+    state.hasAdTicket = stats.hasAdTicket ?? false;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
-    state.answeredToday = true;
   }
 }
 
@@ -309,7 +312,7 @@ async function shareWithFriend(){
   const name = state.nickname || '친구';
   try{
     await Share.sendMessage({
-      message: `[포인트퀴즈] ${name}님이 오늘의 투자 퀴즈에 도전했어요! 나도 하루 1문제 도전해보기\nintoss://cash-quiz`,
+      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 나도 도전해보기\nintoss://cash-quiz?ref=${encodeURIComponent(userKey)}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -327,24 +330,32 @@ async function openWrongnote(){
 }
 
 async function startTopic(topic){
-  if(state.answeredToday) return;
   state.topic = topic;
   state.answered = false;
   state.selected = null;
   state.question = null;
+  state.needsAd = false;
   state.leveledUp = false;
   state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.loadingQuestions = true;
   go('quiz');
 
+  if(!state.hasAdTicket){
+    // 문제 풀이권(광고 시청권)이 없으면 먼저 광고를 봐야 한다. 풀이 횟수 자체엔 제한이 없다.
+    state.needsAd = true;
+    state.loadingQuestions = false;
+    render();
+    return;
+  }
+
   const difficulty = state.levelBefore.difficulty;
   const q = await fetchQuestion(topic, difficulty);
   if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
 
-  if(q === 'limit_reached'){
-    state.answeredToday = true;
+  if(q === 'ad_required'){
+    state.needsAd = true;
     state.loadingQuestions = false;
-    go('home');
+    render();
     return;
   }
   state.question = q;
@@ -397,27 +408,11 @@ function homeHTML(){
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div></div>
     </div>`;
 
-  if(state.answeredToday){
-    return `
-    <div class="scroll">
-      ${topChips}
-      ${levelCardHTML()}
-      <div class="empty">
-        <b>${state.nickname}님, 오늘 남아있는 퀴즈 ${Math.max(0, AD_BONUS_CAP - state.adViewsToday)}개입니다</b>
-        <span>${state.canWatchAd ? `광고를 보면 퀴즈를 한 번 더 풀 수 있어요. 광고는 하루에 최대 ${AD_BONUS_CAP}번만 보실 수 있습니다.` : '내일 새로운 문제로 다시 만나요'}</span>
-      </div>
-      ${state.canWatchAd ? `
-      <button class="btn-primary" id="home-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 한 번 더 풀기 (+1P)'}</button>
-      ` : ''}
-      <button class="btn-ghost" id="home-share">친구에게 공유하기</button>
-    </div>`;
-  }
-
   return `
   <div class="scroll">
     ${topChips}
     <p class="greet">${state.nickname}님, 오늘의 문제를 풀어봐요</p>
-    <p class="greet-sub">기본 1문제 · 광고를 보면 최대 ${1 + AD_BONUS_CAP}문제까지 도전할 수 있어요</p>
+    <p class="greet-sub">광고를 보면 문제를 풀 수 있어요 · 풀이 횟수 제한 없음</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -432,6 +427,7 @@ function homeHTML(){
         </button>
       `).join('')}
     </div>
+    <button class="btn-ghost" id="home-share">친구에게 공유하기</button>
   </div>`;
 }
 
@@ -450,18 +446,31 @@ function levelCardHTML(){
 }
 
 function quizHTML(){
+  if(state.needsAd){
+    return `
+    <div class="quiz-head">
+      <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
+    </div>
+    <div class="empty">
+      <b>광고를 보면 문제를 풀 수 있어요</b>
+      <span>광고 시청 +10P, 정답을 맞히면 +10P를 더 받아요</span>
+    </div>
+    <div class="quiz-foot">
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 문제 풀기'}</button>
+    </div>`;
+  }
   if(state.loadingQuestions || !state.question){
     return `
     <div class="quiz-head">
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
-    <div class="empty"><b>오늘의 문제를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
+    <div class="empty"><b>문제를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
   }
   const q = state.question;
   return `
   <div class="quiz-head">
     <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
-    <div class="qcount">오늘의 문제</div>
+    <div class="qcount">문제</div>
   </div>
   <div class="scroll">
     <div class="quiz-topic-row">
@@ -492,12 +501,12 @@ function quizHTML(){
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
-  const earned = 1 + (wasCorrect ? 1 : 0); // 출석 1포인트 + 정답 1포인트
+  const earned = wasCorrect ? 10 : 0; // 정답 시에만 10포인트 (오답은 포인트 없음)
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
-    <p class="result-title">${wasCorrect ? '오늘의 문제를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    <p class="result-sub">내일 새로운 문제로 다시 만나요</p>
+    <p class="result-title">${wasCorrect ? '문제를 맞혔어요' : '오늘도 하나 배워가요'}</p>
+    <p class="result-sub">광고를 보면 다음 문제도 이어서 풀 수 있어요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 포인트</div></div>
@@ -557,7 +566,7 @@ function rankingHTML(){
       <div class="rank-row ${r.me?'me':''}">
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
-        <div class="rank-name">${r.label}${r.me?' (나)':''}</div>
+        <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}</div>
         <div class="rank-score">${r.score.toLocaleString()}포인트</div>
       </div>
     `).join('')}
@@ -605,8 +614,8 @@ function bindScreenEvents(){
   if(rsBtn) rsBtn.addEventListener('click', shareWithFriend);
   const hsBtn = screenEl.querySelector('#home-share');
   if(hsBtn) hsBtn.addEventListener('click', shareWithFriend);
-  const waBtn = screenEl.querySelector('#home-watch-ad');
-  if(waBtn) waBtn.addEventListener('click', watchAdForBonus);
+  const waBtn = screenEl.querySelector('#quiz-watch-ad');
+  if(waBtn) waBtn.addEventListener('click', watchAdThenFetchQuestion);
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
   });
@@ -646,6 +655,12 @@ async function submitNickname(){
 
 async function init(){
   mountShell();
+
+  // 초대 링크의 ?ref= 값을 읽어둔다. 딥링크 파라미터는 웹뷰 URL 쿼리스트링으로 전달된다.
+  try{
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if(ref) pendingRef = ref;
+  }catch(e){ /* URL 파싱 실패는 무시 — 초대 배지만 못 붙을 뿐 앱 동작엔 영향 없음 */ }
 
   // 포인트퀴즈는 비게임(퀴즈/교육) 카테고리라 getAnonymousKey를 사용해요.
   // 콘솔 미등록 상태나 개발 서버(devtools mock)에서도 동작해요.

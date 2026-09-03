@@ -158,29 +158,42 @@ async function ensurePoolTopUp() {
   }
 }
 
-// 광고 시청으로 얻을 수 있는 하루 최대 추가 기회(=추가 포인트) 횟수.
-// 무제한 허용 시 "하루 1문제" 정책이 무의미해지므로 상한을 둔다.
-const AD_BONUS_CAP = 3;
+// ---- 보상 정책: 출석 10P + 광고 시청 10P + 정답 10P(오답은 없음). 퀴즈 풀이 횟수 제한은 없다. ----
+// 대신 퀴즈 하나를 풀려면 그 전에 광고를 1회 시청해야 한다(광고 시청 = 문제풀이권 1장 적립).
+const POINTS_PER_EVENT = 10;
 
-// 오늘 시도 가능 횟수(1 + 광고 시청 보너스)와 현재까지 쓴 횟수를 계산한다.
-async function getDailyStatus(userKey) {
-  const today = todayKST();
-  const [{ data: todayRows, error: e1 }, { data: adRows, error: e2 }] = await Promise.all([
-    supabase.from('used_questions').select('question_id').eq('user_key', userKey).eq('answered_date', today),
-    supabase.from('ad_views').select('id').eq('user_key', userKey).eq('viewed_date', today),
-  ]);
-  if (e1) throw e1;
-  if (e2) throw e2;
-  const attemptsUsedToday = todayRows.length;
-  const adViewsToday = adRows.length;
-  const dailyLimit = 1 + Math.min(adViewsToday, AD_BONUS_CAP);
-  return {
-    attemptsUsedToday,
-    adViewsToday,
-    dailyLimit,
-    canAttempt: attemptsUsedToday < dailyLimit,
-    canWatchAd: adViewsToday < AD_BONUS_CAP,
-  };
+// 아직 소비하지 않은(=아직 그 광고로 문제를 안 받은) 광고 시청 기록이 있는지 확인한다.
+async function hasUnconsumedAdTicket(userKey) {
+  const { data, error } = await supabase
+    .from('ad_views')
+    .select('id')
+    .eq('user_key', userKey)
+    .eq('consumed', false)
+    .limit(1);
+  if (error) throw error;
+  return data.length > 0;
+}
+
+// 가장 오래된 미소비 광고 시청권 1장을 소비 처리한다. 소비에 성공하면 true.
+async function consumeOneAdTicket(userKey) {
+  const { data, error } = await supabase
+    .from('ad_views')
+    .select('id')
+    .eq('user_key', userKey)
+    .eq('consumed', false)
+    .order('viewed_at', { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  if (!data.length) return false;
+  const { error: updErr } = await supabase.from('ad_views').update({ consumed: true }).eq('id', data[0].id);
+  if (updErr) throw updErr;
+  return true;
+}
+
+// 하루 1회 출석 기록. 이미 오늘 기록이 있으면(유니크 제약 위반) 조용히 무시한다.
+async function ensureAttendanceToday(userKey) {
+  const { error } = await supabase.from('attendance').insert({ user_key: userKey, checked_date: todayKST() });
+  if (error && error.code !== '23505') throw error;
 }
 
 // ---- 사용자 진행 통계 ----
@@ -204,17 +217,19 @@ function computeStreak(datesDesc, todayStr) {
 }
 
 async function computeUserStats(userKey) {
-  const [{ data, error }, { data: adData, error: adErr }] = await Promise.all([
+  const [{ data, error }, { data: adData, error: adErr }, { data: attData, error: attErr }] = await Promise.all([
     supabase.from('used_questions').select('answered_date, correct').eq('user_key', userKey),
     supabase.from('ad_views').select('id').eq('user_key', userKey),
+    supabase.from('attendance').select('id').eq('user_key', userKey),
   ]);
   if (error) throw error;
   if (adErr) throw adErr;
+  if (attErr) throw attErr;
   const totalCorrect = data.filter(r => r.correct).length;
   const datesDesc = [...new Set(data.map(r => r.answered_date))].sort().reverse();
   const streak = computeStreak(datesDesc, todayKST());
-  // 포인트 = 출석(문항 응답) 1포인트 + 정답 1포인트 + 광고 시청 1포인트.
-  const points = data.length + totalCorrect + adData.length;
+  // 포인트 = (출석 횟수 + 광고 시청 횟수 + 정답 횟수) * 10. 오답은 포인트를 얻지 못한다.
+  const points = (attData.length + adData.length + totalCorrect) * POINTS_PER_EVENT;
   return { totalCorrect, streak, points };
 }
 
@@ -253,20 +268,14 @@ async function pickQuestionForUser(topicId, difficulty, userKey) {
 
 // ---- 라우트 ----
 
-// 오늘 더 풀 수 있는지 + 현재 통계
+// 출석 기록(자동, 1일 1회) + 현재 통계 + 문제풀이권 보유 여부
 app.get('/api/status', async (req, res) => {
   const userKey = String(req.query.userKey || 'guest');
   try {
-    const daily = await getDailyStatus(userKey);
+    await ensureAttendanceToday(userKey);
+    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
     const stats = await computeUserStats(userKey);
-    res.json({
-      answeredToday: !daily.canAttempt,
-      dailyLimit: daily.dailyLimit,
-      attemptsUsedToday: daily.attemptsUsedToday,
-      adViewsToday: daily.adViewsToday,
-      canWatchAd: daily.canWatchAd,
-      ...stats,
-    });
+    res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('status failed:', err);
     res.status(502).json({ error: 'status_failed' });
@@ -274,35 +283,26 @@ app.get('/api/status', async (req, res) => {
 });
 
 // 광고 시청 리워드 — userEarnedReward 이벤트가 발생했을 때만 클라이언트가 호출한다.
+// 시청 1회 = 10포인트 + 문제풀이권 1장. 시청 횟수 제한은 없다.
 app.post('/api/ads/reward', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
   try {
-    const today = todayKST();
-    const daily = await getDailyStatus(userKey);
-    if (!daily.canWatchAd) {
-      res.status(403).json({ error: 'ad_bonus_limit_reached' });
-      return;
-    }
-    const { error: insErr } = await supabase.from('ad_views').insert({ user_key: userKey, viewed_date: today });
+    const { error: insErr } = await supabase
+      .from('ad_views')
+      .insert({ user_key: userKey, viewed_date: todayKST(), consumed: false });
     if (insErr) throw insErr;
 
-    const daily2 = await getDailyStatus(userKey);
+    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
     const stats = await computeUserStats(userKey);
-    res.json({
-      dailyLimit: daily2.dailyLimit,
-      attemptsUsedToday: daily2.attemptsUsedToday,
-      adViewsToday: daily2.adViewsToday,
-      canWatchAd: daily2.canWatchAd,
-      ...stats,
-    });
+    res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('ad reward failed:', err);
     res.status(502).json({ error: 'ad_reward_failed' });
   }
 });
 
-// 오늘의 문제 하나 받기 (하루 1문제 + 광고 보너스 기회만큼 허용)
+// 문제 하나 받기 — 문제풀이권(=미소비 광고 시청 기록)이 있어야 발급된다. 하루 개수 제한은 없다.
 app.post('/api/questions', async (req, res) => {
   ensurePoolTopUp().catch(e => console.error('background topup error', e));
 
@@ -316,9 +316,9 @@ app.post('/api/questions', async (req, res) => {
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
 
   try {
-    const daily = await getDailyStatus(userKey);
-    if (!daily.canAttempt) {
-      res.status(403).json({ error: 'daily_limit_reached' });
+    const consumed = await consumeOneAdTicket(userKey);
+    if (!consumed) {
+      res.status(403).json({ error: 'ad_required' });
       return;
     }
 
@@ -337,7 +337,7 @@ app.post('/api/questions', async (req, res) => {
   }
 });
 
-// 답변 기록 (오늘의 1문제 소비)
+// 답변 기록 — 문제풀이권은 이미 /api/questions에서 소비됐으므로 여기서는 결과만 기록한다.
 app.post('/api/questions/answer', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
@@ -350,28 +350,14 @@ app.post('/api/questions/answer', async (req, res) => {
   }
 
   try {
-    const today = todayKST();
-    const daily = await getDailyStatus(userKey);
-    if (!daily.canAttempt) {
-      res.status(403).json({ error: 'daily_limit_reached' });
-      return;
-    }
-
     const { error: insErr } = await supabase.from('used_questions').insert({
-      user_key: userKey, question_id: questionId, topic: topicId, correct, answered_date: today,
+      user_key: userKey, question_id: questionId, topic: topicId, correct, answered_date: todayKST(),
     });
     if (insErr) throw insErr;
 
-    const daily2 = await getDailyStatus(userKey);
+    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
     const stats = await computeUserStats(userKey);
-    res.json({
-      dailyLimit: daily2.dailyLimit,
-      attemptsUsedToday: daily2.attemptsUsedToday,
-      adViewsToday: daily2.adViewsToday,
-      canWatchAd: daily2.canWatchAd,
-      answeredToday: !daily2.canAttempt,
-      ...stats,
-    });
+    res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('answer record failed:', err);
     res.status(502).json({ error: 'record_failed' });
@@ -416,18 +402,28 @@ app.get('/api/profile', async (req, res) => {
 });
 
 // 닉네임 등록/변경 (최초 접속 시 1회 입력)
+// ref: 초대 링크(?ref=)로 들어온 경우의 초대자 user_key. 이미 초대 관계가 기록된 사용자는 덮어쓰지 않는다(최초 1회만 귀속).
 app.post('/api/profile', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
   const nickname = String(body.nickname || '').trim().slice(0, 12);
+  const ref = body.ref ? String(body.ref) : null;
   if (!nickname) {
     res.status(400).json({ error: 'invalid_nickname' });
     return;
   }
   try {
+    const { data: existing, error: findErr } = await supabase
+      .from('profiles')
+      .select('referred_by')
+      .eq('user_key', userKey)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    const referredBy = existing ? existing.referred_by : (ref && ref !== userKey ? ref : null);
+
     const { error } = await supabase
       .from('profiles')
-      .upsert({ user_key: userKey, nickname }, { onConflict: 'user_key' });
+      .upsert({ user_key: userKey, nickname, referred_by: referredBy }, { onConflict: 'user_key' });
     if (error) throw error;
     res.json({ nickname });
   } catch (err) {
@@ -446,36 +442,48 @@ app.get('/api/ranking', async (req, res) => {
     if (period === 'weekly') {
       fromDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     }
-    const [{ data, error }, { data: adData, error: adErr }] = await Promise.all([
+    const [{ data, error }, { data: adData, error: adErr }, { data: attData, error: attErr }] = await Promise.all([
       supabase.from('used_questions').select('user_key, correct').gte('answered_date', fromDate),
       supabase.from('ad_views').select('user_key').gte('viewed_date', fromDate),
+      supabase.from('attendance').select('user_key').gte('checked_date', fromDate),
     ]);
     if (error) throw error;
     if (adErr) throw adErr;
+    if (attErr) throw attErr;
 
-    // 포인트와 동일한 계산: 출석(응답) 1포인트 + 정답 1포인트 + 광고 시청 1포인트.
+    // 포인트와 동일한 계산: 출석/광고 시청/정답 각각 10포인트. 오답은 포인트 없음.
     const scores = {};
     for (const row of data) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + 1 + (row.correct ? 1 : 0);
+      if (!row.correct) continue;
+      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
     }
     for (const row of adData) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + 1;
+      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
+    }
+    for (const row of attData) {
+      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
     }
     const keys = Object.keys(scores);
     const nicknameMap = {};
+    const referredByMap = {};
     if (keys.length) {
       const { data: profiles, error: profErr } = await supabase
         .from('profiles')
-        .select('user_key, nickname')
+        .select('user_key, nickname, referred_by')
         .in('user_key', keys);
       if (profErr) throw profErr;
-      for (const p of profiles) nicknameMap[p.user_key] = p.nickname;
+      for (const p of profiles) {
+        nicknameMap[p.user_key] = p.nickname;
+        referredByMap[p.user_key] = p.referred_by;
+      }
     }
 
     const rows = keys
       .map(key => ({
         userKey: key,
         me: key === userKey,
+        // 실명 식별 없이, "내가 초대한 사람"인지 여부만 배지로 알려준다.
+        friend: referredByMap[key] === userKey,
         label: nicknameMap[key] || `사용자-${key.slice(-4)}`,
         score: scores[key],
       }))
