@@ -187,7 +187,7 @@ async function computeUserStats(userKey) {
   const totalCorrect = data.filter(r => r.correct).length;
   const datesDesc = [...new Set(data.map(r => r.answered_date))].sort().reverse();
   const streak = computeStreak(datesDesc, todayKST());
-  // 포인트 = 출석(하루 1문항 응답) 1점 + 정답 1점. 하루 제한 덕분에 data.length가 곧 출석 일수와 같다.
+  // 포인트 = 출석(하루 1문항 응답) 1포인트 + 정답 1포인트. 하루 제한 덕분에 data.length가 곧 출석 일수와 같다.
   const points = data.length + totalCorrect;
   return { totalCorrect, streak, points };
 }
@@ -399,7 +399,7 @@ app.get('/api/ranking', async (req, res) => {
       .gte('answered_date', fromDate);
     if (error) throw error;
 
-    // 포인트와 동일한 계산: 출석(응답) 1점 + 정답 1점.
+    // 포인트와 동일한 계산: 출석(응답) 1포인트 + 정답 1포인트.
     const scores = {};
     for (const row of data) {
       scores[row.user_key] = (scores[row.user_key] || 0) + 1 + (row.correct ? 1 : 0);

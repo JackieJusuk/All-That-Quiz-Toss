@@ -144,7 +144,7 @@ async function fetchQuestion(topic, difficulty){
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
-    // 포인트 = 출석 1점 + 정답 1점.
+    // 포인트 = 출석 1포인트 + 정답 1포인트.
     state.totalCorrect += correct ? 1 : 0;
     state.points += 1 + (correct ? 1 : 0);
     state.streak += 1;
@@ -409,7 +409,7 @@ function quizHTML(){
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
-  const earned = 1 + (wasCorrect ? 1 : 0); // 출석 1점 + 정답 1점
+  const earned = 1 + (wasCorrect ? 1 : 0); // 출석 1포인트 + 정답 1포인트
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
