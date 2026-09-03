@@ -76,7 +76,7 @@ let userKey = 'guest';
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
-  cash:0, streak:0, totalCorrect:0, answeredToday:false,
+  points:0, streak:0, totalCorrect:0, answeredToday:false,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
@@ -117,7 +117,7 @@ async function fetchStatus(){
     state.answeredToday = data.answeredToday;
     state.totalCorrect = data.totalCorrect;
     state.streak = data.streak;
-    state.cash = data.cash;
+    state.points = data.points;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
@@ -144,8 +144,9 @@ async function fetchQuestion(topic, difficulty){
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
+    // 포인트 = 출석 1점 + 정답 1점.
     state.totalCorrect += correct ? 1 : 0;
-    state.cash = state.totalCorrect * 20;
+    state.points += 1 + (correct ? 1 : 0);
     state.streak += 1;
     state.answeredToday = true;
     return;
@@ -160,7 +161,7 @@ async function recordAnswer(topic, question, correct){
     const stats = await res.json();
     state.totalCorrect = stats.totalCorrect;
     state.streak = stats.streak;
-    state.cash = stats.cash;
+    state.points = stats.points;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
   }
@@ -301,7 +302,7 @@ function homeHTML(){
   const topChips = `
     <div class="top-chips">
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
-      <div class="chip gold">${ICONS.coin}<div><div class="v">${state.cash.toLocaleString()}</div><div class="l">보유 캐시</div></div></div>
+      <div class="chip gold">${ICONS.coin}<div><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div></div>
     </div>`;
 
   if(state.answeredToday){
@@ -395,7 +396,7 @@ function quizHTML(){
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
-  const earned = wasCorrect ? 20 : 0;
+  const earned = 1 + (wasCorrect ? 1 : 0); // 출석 1점 + 정답 1점
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
@@ -403,7 +404,7 @@ function resultHTML(){
     <p class="result-sub">내일 새로운 문제로 다시 만나요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
-      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 캐시</div></div>
+      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 포인트</div></div>
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
     </div>
     <div class="result-actions">
@@ -460,7 +461,7 @@ function rankingHTML(){
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
         <div class="rank-name">${r.label}${r.me?' (나)':''}</div>
-        <div class="rank-score">${r.score.toLocaleString()}점</div>
+        <div class="rank-score">${r.score.toLocaleString()}포인트</div>
       </div>
     `).join('')}
   </div>`;
