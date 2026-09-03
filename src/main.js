@@ -403,8 +403,8 @@ function homeHTML(){
       ${topChips}
       ${levelCardHTML()}
       <div class="empty">
-        <b>${state.nickname}님, 오늘의 퀴즈를 다 풀었어요</b>
-        <span>${state.canWatchAd ? '광고를 보면 오늘 한 번 더 풀 수 있어요' : '내일 새로운 문제로 다시 만나요'}</span>
+        <b>${state.nickname}님, 오늘 남아있는 퀴즈 ${Math.max(0, AD_BONUS_CAP - state.adViewsToday)}개입니다</b>
+        <span>${state.canWatchAd ? `광고를 보면 퀴즈를 한 번 더 풀 수 있어요. 광고는 하루에 최대 ${AD_BONUS_CAP}번만 보실 수 있습니다.` : '내일 새로운 문제로 다시 만나요'}</span>
       </div>
       ${state.canWatchAd ? `
       <button class="btn-primary" id="home-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 한 번 더 풀기 (+1P)'}</button>
