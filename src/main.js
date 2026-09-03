@@ -1,4 +1,38 @@
-import { getAnonymousKey, Share } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
+
+// 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
+// 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
+const AD_GROUP_ID = import.meta.env.VITE_AD_GROUP_ID || 'ait-ad-test-rewarded-id';
+// 서버(AD_BONUS_CAP)와 동일한 값 — 안내 문구 표시용.
+const AD_BONUS_CAP = 3;
+
+// 보상형 광고를 끝까지 시청했을 때만 true를 반환한다(userEarnedReward 이벤트 기준).
+function watchRewardedAd(){
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    loadFullScreenAd({
+      options: { adGroupId: AD_GROUP_ID },
+      onEvent: (event) => {
+        if(event.type === 'loaded'){
+          showFullScreenAd({
+            options: { adGroupId: AD_GROUP_ID },
+            onEvent: (event2) => {
+              if(event2.type === 'userEarnedReward'){
+                settled = true;
+                resolve(true);
+              } else if(event2.type === 'dismissed' && !settled){
+                settled = true;
+                resolve(false);
+              }
+            },
+            onError: (err) => { if(!settled){ settled = true; reject(err); } },
+          });
+        }
+      },
+      onError: (err) => { if(!settled){ settled = true; reject(err); } },
+    });
+  });
+}
 
 const ICONS = {
   home: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>',
@@ -77,6 +111,7 @@ let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0, answeredToday:false,
+  dailyLimit:1, attemptsUsedToday:0, adViewsToday:0, canWatchAd:false, watchingAd:false,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
@@ -118,9 +153,48 @@ async function fetchStatus(){
     state.totalCorrect = data.totalCorrect;
     state.streak = data.streak;
     state.points = data.points;
+    state.dailyLimit = data.dailyLimit ?? 1;
+    state.attemptsUsedToday = data.attemptsUsedToday ?? 0;
+    state.adViewsToday = data.adViewsToday ?? 0;
+    state.canWatchAd = data.canWatchAd ?? false;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
+}
+
+// 보상형 광고를 끝까지 보면 오늘 문제 풀 기회 1회 + 1포인트를 추가로 얻는다.
+async function watchAdForBonus(){
+  if(state.watchingAd || !state.canWatchAd) return;
+  state.watchingAd = true;
+  render();
+  try{
+    const earned = await watchRewardedAd();
+    if(!earned){
+      state.watchingAd = false;
+      render();
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/ads/reward`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey }),
+    });
+    if(res.ok){
+      const data = await res.json();
+      state.points = data.points;
+      state.totalCorrect = data.totalCorrect;
+      state.streak = data.streak;
+      state.dailyLimit = data.dailyLimit;
+      state.attemptsUsedToday = data.attemptsUsedToday;
+      state.adViewsToday = data.adViewsToday;
+      state.canWatchAd = data.canWatchAd;
+      state.answeredToday = state.attemptsUsedToday >= state.dailyLimit;
+    }
+  }catch(e){
+    console.warn('광고 시청에 실패했습니다.', e);
+  }
+  state.watchingAd = false;
+  render();
 }
 
 async function fetchQuestion(topic, difficulty){
@@ -148,7 +222,8 @@ async function recordAnswer(topic, question, correct){
     state.totalCorrect += correct ? 1 : 0;
     state.points += 1 + (correct ? 1 : 0);
     state.streak += 1;
-    state.answeredToday = true;
+    state.attemptsUsedToday += 1;
+    state.answeredToday = state.attemptsUsedToday >= state.dailyLimit;
     return;
   }
   try{
@@ -162,10 +237,15 @@ async function recordAnswer(topic, question, correct){
     state.totalCorrect = stats.totalCorrect;
     state.streak = stats.streak;
     state.points = stats.points;
+    state.dailyLimit = stats.dailyLimit ?? state.dailyLimit;
+    state.attemptsUsedToday = stats.attemptsUsedToday ?? state.attemptsUsedToday;
+    state.adViewsToday = stats.adViewsToday ?? state.adViewsToday;
+    state.canWatchAd = stats.canWatchAd ?? state.canWatchAd;
+    state.answeredToday = stats.answeredToday ?? true;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
+    state.answeredToday = true;
   }
-  state.answeredToday = true;
 }
 
 async function fetchRanking(period){
@@ -324,8 +404,11 @@ function homeHTML(){
       ${levelCardHTML()}
       <div class="empty">
         <b>${state.nickname}님, 오늘의 퀴즈를 다 풀었어요</b>
-        <span>내일 새로운 문제로 다시 만나요</span>
+        <span>${state.canWatchAd ? '광고를 보면 오늘 한 번 더 풀 수 있어요' : '내일 새로운 문제로 다시 만나요'}</span>
       </div>
+      ${state.canWatchAd ? `
+      <button class="btn-primary" id="home-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 한 번 더 풀기 (+1P)'}</button>
+      ` : ''}
       <button class="btn-ghost" id="home-share">친구에게 공유하기</button>
     </div>`;
   }
@@ -334,7 +417,7 @@ function homeHTML(){
   <div class="scroll">
     ${topChips}
     <p class="greet">${state.nickname}님, 오늘의 문제를 풀어봐요</p>
-    <p class="greet-sub">하루에 딱 1문제만 풀 수 있어요</p>
+    <p class="greet-sub">기본 1문제 · 광고를 보면 최대 ${1 + AD_BONUS_CAP}문제까지 도전할 수 있어요</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -522,6 +605,8 @@ function bindScreenEvents(){
   if(rsBtn) rsBtn.addEventListener('click', shareWithFriend);
   const hsBtn = screenEl.querySelector('#home-share');
   if(hsBtn) hsBtn.addEventListener('click', shareWithFriend);
+  const waBtn = screenEl.querySelector('#home-watch-ad');
+  if(waBtn) waBtn.addEventListener('click', watchAdForBonus);
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
   });
