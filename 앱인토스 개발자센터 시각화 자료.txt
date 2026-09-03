@@ -1,1 +1,9 @@
-https://claude.ai/code/artifact/2866e339-6971-4e17-878d-db7615a2766d
+1. https://claude.ai/code/artifact/2866e339-6971-4e17-878d-db7615a2766d
+
+2. ask user input 방식으로 내게 물어서 요구명세서 작성
+
+이 폴더에 있는 requirements.md를 읽어서 내가 원하는게 맞는지 확인을 하기 위한 인터렉티브 목업을 만들어 줘
+
+
+
+

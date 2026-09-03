@@ -14,6 +14,7 @@ const ICONS = {
   fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>'
 };
 
+// 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
 const TOPICS = [
   { id:'stock', name:'주식', desc:'PER, 배당, 분산투자 기초', color:'#3d5afe', bg:'#e8ecff', icon:'stock',
     questions:[
@@ -23,15 +24,6 @@ const TOPICS = [
       { q:"배당금이란 무엇인가요?",
         choices:['주식을 살 때 내는 수수료','주가가 오른 만큼의 차익','회사가 이익의 일부를 주주에게 나눠주는 돈','거래에 부과되는 세금'],
         correct:2, explain:'배당은 기업이 벌어들인 이익을 주주에게 현금 등으로 분배하는 것이에요.', difficulty:'easy' },
-      { q:"'분산투자'의 주된 목적은 무엇인가요?",
-        choices:['특정 종목 하락에 따른 손실 위험을 줄이기 위해','세금을 아예 내지 않기 위해','매매 수수료를 없애기 위해','상장폐지를 막기 위해'],
-        correct:0, explain:'여러 자산에 나눠 투자하면 한 종목의 급락이 전체 자산에 주는 충격을 줄일 수 있어요.', difficulty:'easy' },
-      { q:"코스피(KOSPI)는 무엇을 나타내는 지수인가요?",
-        choices:['원/달러 환율','시중은행 기준금리','한국 부동산 가격 지수','유가증권시장 상장 주식들의 전반적 가격 흐름'],
-        correct:3, explain:'코스피는 한국 유가증권시장 상장 종목들의 시가총액 변화를 지수화한 지표예요.', difficulty:'medium' },
-      { q:"'시가총액'은 어떻게 계산하나요?",
-        choices:['주가 × 발행주식수','매출액 − 비용','부채총액 + 자본총액','주가 ÷ 액면가'],
-        correct:0, explain:'시가총액은 현재 주가에 발행된 총 주식 수를 곱해 회사의 시장 가치를 나타내요.', difficulty:'hard' }
     ]},
   { id:'realestate', name:'부동산', desc:'전월세, LTV, 청약 기초', color:'#c9701a', bg:'#faeadb', icon:'house',
     questions:[
@@ -41,15 +33,6 @@ const TOPICS = [
       { q:"'LTV(주택담보대출비율)'가 의미하는 것은?",
         choices:['대출 금리','집값 대비 대출 가능 금액의 비율','전세보증금 반환 비율','주택 재산세율'],
         correct:1, explain:'LTV는 담보가치(집값) 대비 얼마까지 대출받을 수 있는지를 나타내는 비율이에요.', difficulty:'medium' },
-      { q:"청약통장의 주된 목적은 무엇인가요?",
-        choices:['대출 금리를 낮추기 위해','전세보증금을 보호받기 위해','신규 분양 아파트 청약 자격을 얻기 위해','재산세를 감면받기 위해'],
-        correct:2, explain:'청약통장은 일정 요건을 채우면 신규 분양 주택 청약에 신청할 자격을 줘요.', difficulty:'easy' },
-      { q:"'등기부등본'에서 확인할 수 없는 것은?",
-        choices:['소유자 정보','근저당권 설정 여부','집주인의 소득 수준','압류·가압류 여부'],
-        correct:2, explain:'등기부등본은 부동산의 권리관계를 보여주는 서류로, 소유자의 소득 정보는 나오지 않아요.', difficulty:'medium' },
-      { q:"'재건축'과 '재개발'의 차이로 옳은 것은?",
-        choices:['재건축은 노후 건물 자체를, 재개발은 주변 기반시설까지 포함해 정비한다','재건축은 상업지역만 대상으로 한다','재개발은 세금 감면이 전혀 없다','둘은 완전히 동일한 절차다'],
-        correct:0, explain:'재건축은 건물 위주로, 재개발은 도로·상하수도 등 기반시설까지 포함해 지역 전체를 정비해요.', difficulty:'hard' }
     ]},
   { id:'fund', name:'펀드', desc:'ETF, 운용보수, 기준가 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'fund',
     questions:[
@@ -59,27 +42,16 @@ const TOPICS = [
       { q:"'ETF'의 특징으로 옳은 것은?",
         choices:['하루에 한 번만 가격이 정해지는 예금','원금이 보장되는 채권','부동산 실물을 직접 소유하는 상품','주식처럼 거래소에서 실시간 매매가 가능한 펀드'],
         correct:3, explain:'ETF는 지수 등을 추종하며 주식처럼 실시간으로 사고팔 수 있는 상장지수펀드예요.', difficulty:'medium' },
-      { q:"펀드의 '운용보수'란 무엇인가요?",
-        choices:['펀드를 운용해주는 대가로 지불하는 수수료','원금 손실을 보전해주는 금액','세금 환급액','배당금의 일종'],
-        correct:0, explain:'운용보수는 자산운용사가 펀드를 관리·운용하는 대가로 매년 일정 비율 부과하는 비용이에요.', difficulty:'easy' },
-      { q:"'액티브 펀드'와 '패시브 펀드'의 차이는?",
-        choices:['액티브는 원금보장, 패시브는 미보장','패시브는 해외투자만 가능','액티브는 매니저가 초과 수익을 노리고, 패시브는 지수를 그대로 추종','둘 다 완전히 동일한 전략을 사용'],
-        correct:2, explain:'액티브 펀드는 시장 대비 초과수익을 목표로 적극 운용하고, 패시브 펀드는 특정 지수를 그대로 따라가요.', difficulty:'medium' },
-      { q:"펀드 투자 시 '기준가'란 무엇인가요?",
-        choices:['펀드 가입 최소 금액','펀드 1좌의 현재 평가 가격','판매사가 받는 수수료율','환매 시 부과되는 세금'],
-        correct:1, explain:'기준가는 펀드 자산을 좌수로 나눈 값으로, 매입·환매 시 기준이 되는 가격이에요.', difficulty:'hard' }
-    ]}
+    ]},
 ];
 
-// 난이도 3단계 — 정답이면 한 단계 올리고, 오답이면 한 단계 내려서 다음 문제를 고른다.
-const DIFF_ORDER = ['easy','medium','hard'];
 const DIFF_LABEL = { easy:'쉬움', medium:'보통', hard:'어려움' };
 
-// 누적 정답 수 기준 등급. 세션을 넘나들며 쌓이는 학습량을 반영한다.
+// 누적 정답 수 기준 등급. 등급이 오르면 다음 문제 난이도도 함께 올라간다.
 const LEVELS = [
-  { key:'beginner', name:'초급', min:0 },
-  { key:'intermediate', name:'중급', min:15 },
-  { key:'advanced', name:'고급', min:40 }
+  { key:'beginner', name:'초급', min:0, difficulty:'easy' },
+  { key:'intermediate', name:'중급', min:15, difficulty:'medium' },
+  { key:'advanced', name:'고급', min:40, difficulty:'hard' },
 ];
 
 function getLevelInfo(totalCorrect){
@@ -94,106 +66,106 @@ function getLevelInfo(totalCorrect){
   return { level, next, progress, remain };
 }
 
-// pool에서 목표 난이도(targetIdx)에 가장 가까운 문제를 골라 꺼낸다.
-function pickAdaptive(pool, targetIdx){
-  let bestPos = 0, bestDiff = Infinity;
-  pool.forEach((q, pos) => {
-    const diff = Math.abs(DIFF_ORDER.indexOf(q.difficulty) - targetIdx);
-    if(diff < bestDiff){ bestDiff = diff; bestPos = pos; }
-  });
-  return pool.splice(bestPos, 1)[0];
+function pickFallbackQuestion(topic, difficulty){
+  const matched = topic.questions.filter(q => q.difficulty === difficulty);
+  const list = matched.length ? matched : topic.questions;
+  return { ...list[Math.floor(Math.random() * list.length)], id: null };
 }
-
-// 데모용 랭킹 데이터 — 실제 서비스에서는 백엔드 API로 대체해야 해요.
-const RANKING = {
-  daily:[ ['1','민지','980'],['2','현우','860'],['3','서연','790'],['5','도윤','610'],['6','하은','540'] ],
-  weekly:[ ['1','서연','5210'],['2','민지','4980'],['4','현우','4310'],['5','지호','3990'],['6','도윤','3540'] ]
-};
 
 let userKey = 'guest';
 let state = {
   screen:'home', tab:'home',
-  topic:null, qIndex:0, answered:false, selected:null, sessionScore:0,
-  cash:0, streak:0, rankPeriod:'daily', wrongNote:[],
-  totalCorrect:0,
-  queue:[], diffTarget:1, loadingQuestions:false, answeredCount:0,
-  levelBefore:null, leveledUp:false, levelAfterName:''
+  topic:null, question:null, answered:false, selected:false, recording:false,
+  cash:0, streak:0, totalCorrect:0, answeredToday:false,
+  rankPeriod:'daily', rankingRows:[], rankingLoading:false,
+  wrongNoteItems:[], wrongnoteLoading:false,
+  loadingQuestions:false,
+  levelBefore:null, leveledUp:false, levelAfterName:'',
 };
 
-// 로그인(앱 진입) 시에는 기본 1문제만 생성해서 보여주고, "문제 더 풀기"를 요청할 때마다
-// 서버(AI)에서 1문제씩 추가로 받아온다 — 매번 다른 문제가 출제된다.
+// 하루 1문제 제한, 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-// AI 생성이 실패했을 때만 쓰는 정적 문제은행 — 주제별로 소진된 문제를 추적해 중복 없이 순환한다.
-const staticFallbackPools = {};
-// 이번 세션에 이미 출제된 문제를 주제별로 기록해서, 서버에 "이건 반복하지 마" 힌트로 함께 보낸다.
-const askedQuestionsByTopic = {};
 
-function isValidQuestionSet(list, expectedCount){
-  return Array.isArray(list) && list.length === expectedCount && list.every(q =>
-    q && typeof q.q === 'string' &&
-    Array.isArray(q.choices) && q.choices.length === 4 &&
-    Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 &&
-    typeof q.explain === 'string' &&
-    DIFF_ORDER.includes(q.difficulty)
-  );
-}
-
-function pickFromStaticFallback(topic, count, diffTargetIdx){
-  if(!staticFallbackPools[topic.id] || !staticFallbackPools[topic.id].length){
-    staticFallbackPools[topic.id] = [...topic.questions];
-  }
-  const picked = [];
-  for(let i=0;i<count;i++){
-    if(!staticFallbackPools[topic.id].length){
-      staticFallbackPools[topic.id] = [...topic.questions];
-    }
-    picked.push(pickAdaptive(staticFallbackPools[topic.id], diffTargetIdx));
-  }
-  return picked;
-}
-
-async function fetchQuestions(topic, count, diffTargetIdx){
+async function fetchStatus(){
   try{
-    const difficulty = DIFF_ORDER[diffTargetIdx] ?? 'medium';
-    const avoidQuestions = askedQuestionsByTopic[topic.id] || [];
+    const res = await fetch(`${API_BASE}/api/status?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    state.answeredToday = data.answeredToday;
+    state.totalCorrect = data.totalCorrect;
+    state.streak = data.streak;
+    state.cash = data.cash;
+  }catch(e){
+    console.warn('사용자 상태를 불러오지 못했습니다.', e);
+  }
+}
+
+async function fetchQuestion(topic, difficulty){
+  try{
     const res = await fetch(`${API_BASE}/api/questions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: topic.id, count, difficulty, avoidQuestions }),
+      body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
     });
+    if(res.status === 403) return 'limit_reached';
     if(!res.ok) throw new Error(`status ${res.status}`);
-    const data = await res.json();
-    if(!isValidQuestionSet(data.questions, count)) throw new Error('malformed response');
-    if(!askedQuestionsByTopic[topic.id]) askedQuestionsByTopic[topic.id] = [];
-    askedQuestionsByTopic[topic.id].push(...data.questions.map(q => q.q));
-    return data.questions;
+    const q = await res.json();
+    if(!q || typeof q.q !== 'string' || !Array.isArray(q.choices) || q.choices.length !== 4) throw new Error('malformed response');
+    return q;
   }catch(e){
-    console.warn('AI 문제 생성을 불러오지 못해 기본 문제은행으로 대체합니다.', e);
-    return pickFromStaticFallback(topic, count, diffTargetIdx);
+    console.warn('AI 문제를 불러오지 못해 기본 문제은행으로 대체합니다.', e);
+    return pickFallbackQuestion(topic, difficulty);
   }
 }
 
-function storageKey(){ return `point-quiz:${userKey}`; }
-
-function loadState(){
+async function recordAnswer(topic, question, correct){
+  if(!question.id){
+    // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
+    state.totalCorrect += correct ? 1 : 0;
+    state.cash = state.totalCorrect * 20;
+    state.streak += 1;
+    state.answeredToday = true;
+    return;
+  }
   try{
-    const raw = localStorage.getItem(storageKey());
-    if(raw){
-      const saved = JSON.parse(raw);
-      state.cash = saved.cash ?? 0;
-      state.streak = saved.streak ?? 0;
-      state.wrongNote = saved.wrongNote ?? [];
-      state.totalCorrect = saved.totalCorrect ?? 0;
-    }
-  }catch(e){ /* 저장된 값이 없거나 손상된 경우 기본값 사용 */ }
+    const res = await fetch(`${API_BASE}/api/questions/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey, questionId: question.id, topic: topic.id, correct }),
+    });
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const stats = await res.json();
+    state.totalCorrect = stats.totalCorrect;
+    state.streak = stats.streak;
+    state.cash = stats.cash;
+  }catch(e){
+    console.warn('결과 기록에 실패했습니다.', e);
+  }
+  state.answeredToday = true;
 }
 
-function saveState(){
+async function fetchRanking(period){
   try{
-    localStorage.setItem(storageKey(), JSON.stringify({
-      cash: state.cash, streak: state.streak, wrongNote: state.wrongNote, totalCorrect: state.totalCorrect
-    }));
-  }catch(e){ /* 저장 실패는 무시 — 다음 세션에 이어지지 않을 뿐 */ }
+    const res = await fetch(`${API_BASE}/api/ranking?period=${period}&userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    state.rankingRows = data.rows;
+  }catch(e){
+    console.warn('랭킹을 불러오지 못했습니다.', e);
+    state.rankingRows = [];
+  }
+}
+
+async function fetchWrongnote(){
+  try{
+    const res = await fetch(`${API_BASE}/api/wrongnote?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    state.wrongNoteItems = data.items;
+  }catch(e){
+    console.warn('오답노트를 불러오지 못했습니다.', e);
+    state.wrongNoteItems = [];
+  }
 }
 
 const screenEl = document.createElement('div');
@@ -218,71 +190,70 @@ function go(screen, extra){
   render();
 }
 
+async function openRanking(){
+  state.screen = 'ranking';
+  state.tab = 'ranking';
+  state.rankingLoading = true;
+  render();
+  await fetchRanking(state.rankPeriod);
+  state.rankingLoading = false;
+  render();
+}
+
+async function openWrongnote(){
+  state.screen = 'wrongnote';
+  state.tab = 'wrongnote';
+  state.wrongnoteLoading = true;
+  render();
+  await fetchWrongnote();
+  state.wrongnoteLoading = false;
+  render();
+}
+
 async function startTopic(topic){
+  if(state.answeredToday) return;
   state.topic = topic;
-  state.qIndex = 0;
   state.answered = false;
   state.selected = null;
-  state.sessionScore = 0;
-  state.queue = [];
-  state.diffTarget = 1; // 보통 난이도부터 시작
-  state.levelBefore = getLevelInfo(state.totalCorrect).level;
+  state.question = null;
   state.leveledUp = false;
+  state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.loadingQuestions = true;
   go('quiz');
 
-  // 로그인(앱 진입) 후 첫 진입은 기본 1문제만 생성한다.
-  const [first] = await fetchQuestions(topic, 1, state.diffTarget);
+  const difficulty = state.levelBefore.difficulty;
+  const q = await fetchQuestion(topic, difficulty);
   if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
 
-  state.queue = [first];
+  if(q === 'limit_reached'){
+    state.answeredToday = true;
+    state.loadingQuestions = false;
+    go('home');
+    return;
+  }
+  state.question = q;
   state.loadingQuestions = false;
   render();
 }
 
-function pickChoice(idx){
+async function pickChoice(idx){
   if(state.answered) return;
   state.answered = true;
   state.selected = idx;
-  const q = state.queue[state.qIndex];
-  if(idx===q.correct){
-    state.sessionScore++;
-    state.cash += 20;
-    state.totalCorrect++;
-    state.diffTarget = Math.min(DIFF_ORDER.length-1, state.diffTarget+1);
-  } else {
-    state.wrongNote.push({topic:state.topic.name, q, chosen:idx});
-    state.diffTarget = Math.max(0, state.diffTarget-1);
-  }
-  saveState();
-  render();
-}
-
-// "문제 더 풀기" — 요청이 있을 때만 다음 문제를 새로 생성한다.
-async function continueQuiz(){
-  const topic = state.topic;
-  state.loadingQuestions = true;
+  state.recording = true;
   render();
 
-  const [next] = await fetchQuestions(topic, 1, state.diffTarget);
-  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
-
-  state.queue.push(next);
-  state.qIndex++;
-  state.answered = false;
-  state.selected = null;
-  state.loadingQuestions = false;
-  render();
-}
-
-// "결과 보기" — 지금까지 푼 만큼만으로 세션을 마무리한다.
-function finishQuiz(){
-  state.streak += 1;
-  saveState();
+  const q = state.question;
+  const correct = idx === q.correct;
+  await recordAnswer(state.topic, q, correct);
   const afterLevel = getLevelInfo(state.totalCorrect).level;
   state.leveledUp = afterLevel.key !== state.levelBefore.key;
   state.levelAfterName = afterLevel.name;
-  state.answeredCount = state.qIndex + 1;
+  state.recording = false;
+  render();
+}
+
+function finishQuiz(){
   go('result');
 }
 
@@ -294,19 +265,39 @@ function renderTabbar(){
     `<button class="tab ${state.tab===key?'active':''}" data-tab="${key}">${ICONS[ic]}<span>${label}</span></button>`
   ).join('');
   tabbarEl.querySelectorAll('[data-tab]').forEach(btn=>{
-    btn.addEventListener('click', ()=> go(btn.dataset.tab));
+    btn.addEventListener('click', ()=>{
+      const tab = btn.dataset.tab;
+      if(tab==='ranking') openRanking();
+      else if(tab==='wrongnote') openWrongnote();
+      else go(tab);
+    });
   });
 }
 
 function homeHTML(){
-  return `
-  <div class="scroll">
+  const topChips = `
     <div class="top-chips">
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.cash.toLocaleString()}</div><div class="l">보유 캐시</div></div></div>
-    </div>
-    <p class="greet">오늘의 첫 문제, 가볍게 풀어봐요</p>
-    <p class="greet-sub">정답을 확인한 뒤 원하면 이어서 더 풀 수 있어요</p>
+    </div>`;
+
+  if(state.answeredToday){
+    return `
+    <div class="scroll">
+      ${topChips}
+      ${levelCardHTML()}
+      <div class="empty">
+        <b>오늘의 퀴즈를 다 풀었어요</b>
+        <span>내일 새로운 문제로 다시 만나요</span>
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="scroll">
+    ${topChips}
+    <p class="greet">오늘의 문제, 가볍게 풀어봐요</p>
+    <p class="greet-sub">하루에 딱 1문제만 풀 수 있어요</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -339,18 +330,18 @@ function levelCardHTML(){
 }
 
 function quizHTML(){
-  if(state.loadingQuestions || !state.queue.length){
+  if(state.loadingQuestions || !state.question){
     return `
     <div class="quiz-head">
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
-    <div class="empty"><b>새 문제를 준비하고 있어요</b><span>AI가 이번 세션의 새로운 문제를 만들고 있어요</span></div>`;
+    <div class="empty"><b>오늘의 문제를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
   }
-  const q = state.queue[state.qIndex];
+  const q = state.question;
   return `
   <div class="quiz-head">
     <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
-    <div class="qcount">${state.qIndex+1}번째 문제</div>
+    <div class="qcount">오늘의 문제</div>
   </div>
   <div class="scroll">
     <div class="quiz-topic-row">
@@ -372,21 +363,21 @@ function quizHTML(){
     </div>
     ${state.answered? `<div class="explain"><b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}</div>` : ''}
   </div>
-  ${state.answered ? `
+  ${state.answered && !state.recording ? `
   <div class="quiz-foot">
-    <button class="btn-primary" id="quiz-continue">문제 더 풀기</button>
-    <button class="btn-ghost" id="quiz-finish">결과 보기</button>
+    <button class="btn-primary" id="quiz-finish">결과 보기</button>
   </div>` : ''}`;
 }
 
 function resultHTML(){
-  const total = state.answeredCount;
-  const earned = state.sessionScore*20;
+  const q = state.question;
+  const wasCorrect = state.selected === q.correct;
+  const earned = wasCorrect ? 20 : 0;
   return `
   <div class="result-wrap">
-    <div class="result-score">${state.sessionScore}<span style="font-size:1.2rem;color:var(--ink-soft)"> / ${total}</span></div>
-    <p class="result-title">${state.sessionScore===total? '전부 맞혔어요! 완벽해요' : '오늘도 한 걸음 성장했어요'}</p>
-    <p class="result-sub">${state.topic.name} 퀴즈 세션이 끝났어요</p>
+    <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
+    <p class="result-title">${wasCorrect ? '오늘의 문제를 맞혔어요' : '오늘도 하나 배워가요'}</p>
+    <p class="result-sub">내일 새로운 문제로 다시 만나요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 캐시</div></div>
@@ -400,12 +391,15 @@ function resultHTML(){
 }
 
 function wrongnoteHTML(){
-  if(state.wrongNote.length===0){
+  if(state.wrongnoteLoading){
+    return `<div class="empty"><b>불러오는 중이에요</b></div>`;
+  }
+  if(state.wrongNoteItems.length===0){
     return `<div class="empty"><b>아직 틀린 문제가 없어요</b><span>퀴즈를 풀면 틀린 문제가 여기에 모여요</span></div>`;
   }
   return `<div class="scroll">
-    <p class="section-label">틀린 문제 ${state.wrongNote.length}개</p>
-    ${state.wrongNote.map((w,i)=>`
+    <p class="section-label">틀린 문제 ${state.wrongNoteItems.length}개</p>
+    ${state.wrongNoteItems.map((w,i)=>`
       <div class="wnote-item" data-wnote="${i}">
         <button class="wnote-head">
           <span class="wnote-tag">${w.topic}</span>
@@ -422,21 +416,28 @@ function wrongnoteHTML(){
 }
 
 function rankingHTML(){
-  const rows = [...RANKING[state.rankPeriod]];
-  const myScore = state.wrongNote ? (state.cash) : 0; // 데모: 보유 캐시를 임시 점수로 표시
-  rows.push(['·','나', String(myScore), true]);
-  rows.sort((a,b)=> Number(b[2]) - Number(a[2]));
+  if(state.rankingLoading){
+    return `<div class="scroll">
+      <div class="seg">
+        <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
+        <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
+      </div>
+      <div class="empty"><b>불러오는 중이에요</b></div>
+    </div>`;
+  }
+  const rows = state.rankingRows;
   return `<div class="scroll">
     <div class="seg">
       <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
       <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
     </div>
-    ${rows.map((r,i)=>`
-      <div class="rank-row ${r[3]?'me':''}">
+    ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 문제를 풀어 랭킹에 참여해보세요</span></div>` :
+    rows.map((r,i)=>`
+      <div class="rank-row ${r.me?'me':''}">
         <div class="rank-num">${i+1}</div>
-        <div class="rank-avatar">${r[1][0]}</div>
-        <div class="rank-name">${r[1]}${r[3]?' (나)':''}</div>
-        <div class="rank-score">${Number(r[2]).toLocaleString()}점</div>
+        <div class="rank-avatar">${r.label[0]}</div>
+        <div class="rank-name">${r.label}</div>
+        <div class="rank-score">${r.score.toLocaleString()}점</div>
       </div>
     `).join('')}
   </div>`;
@@ -462,19 +463,24 @@ function bindScreenEvents(){
   });
   const closeBtn = screenEl.querySelector('#quiz-close');
   if(closeBtn) closeBtn.addEventListener('click', ()=> go('home'));
-  const continueBtn = screenEl.querySelector('#quiz-continue');
-  if(continueBtn) continueBtn.addEventListener('click', continueQuiz);
   const finishBtn = screenEl.querySelector('#quiz-finish');
   if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
   const rwBtn = screenEl.querySelector('#result-wrong');
-  if(rwBtn) rwBtn.addEventListener('click', ()=> go('wrongnote'));
+  if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rhBtn = screenEl.querySelector('#result-home');
   if(rhBtn) rhBtn.addEventListener('click', ()=> go('home'));
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
   });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
-    el.addEventListener('click', ()=>{ state.rankPeriod = el.dataset.period; render(); });
+    el.addEventListener('click', async ()=>{
+      state.rankPeriod = el.dataset.period;
+      state.rankingLoading = true;
+      render();
+      await fetchRanking(state.rankPeriod);
+      state.rankingLoading = false;
+      render();
+    });
   });
 }
 
@@ -492,7 +498,7 @@ async function init(){
     console.warn('getAnonymousKey 호출 실패, guest 키로 진행합니다.', e);
   }
 
-  loadState();
+  await fetchStatus();
   go('home');
 }
 
