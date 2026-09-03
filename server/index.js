@@ -343,7 +343,45 @@ app.get('/api/wrongnote', async (req, res) => {
   }
 });
 
-// 랭킹 (일간/주간 실제 집계)
+// 닉네임 조회
+app.get('/api/profile', async (req, res) => {
+  const userKey = String(req.query.userKey || 'guest');
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('nickname')
+      .eq('user_key', userKey)
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ nickname: data ? data.nickname : null });
+  } catch (err) {
+    console.error('profile fetch failed:', err);
+    res.status(502).json({ error: 'profile_fetch_failed' });
+  }
+});
+
+// 닉네임 등록/변경 (최초 접속 시 1회 입력)
+app.post('/api/profile', async (req, res) => {
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const nickname = String(body.nickname || '').trim().slice(0, 12);
+  if (!nickname) {
+    res.status(400).json({ error: 'invalid_nickname' });
+    return;
+  }
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ user_key: userKey, nickname }, { onConflict: 'user_key' });
+    if (error) throw error;
+    res.json({ nickname });
+  } catch (err) {
+    console.error('profile save failed:', err);
+    res.status(502).json({ error: 'profile_save_failed' });
+  }
+});
+
+// 랭킹 (일간/주간 실제 집계, 닉네임 표시)
 app.get('/api/ranking', async (req, res) => {
   const period = req.query.period === 'weekly' ? 'weekly' : 'daily';
   const userKey = String(req.query.userKey || 'guest');
@@ -364,12 +402,23 @@ app.get('/api/ranking', async (req, res) => {
       if (!row.correct) continue;
       scores[row.user_key] = (scores[row.user_key] || 0) + 1;
     }
-    const rows = Object.entries(scores)
-      .map(([key, score]) => ({
+    const keys = Object.keys(scores);
+    const nicknameMap = {};
+    if (keys.length) {
+      const { data: profiles, error: profErr } = await supabase
+        .from('profiles')
+        .select('user_key, nickname')
+        .in('user_key', keys);
+      if (profErr) throw profErr;
+      for (const p of profiles) nicknameMap[p.user_key] = p.nickname;
+    }
+
+    const rows = keys
+      .map(key => ({
         userKey: key,
         me: key === userKey,
-        label: key === userKey ? '나' : `사용자-${key.slice(-4)}`,
-        score,
+        label: nicknameMap[key] || `사용자-${key.slice(-4)}`,
+        score: scores[key],
       }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 20);

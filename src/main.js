@@ -81,10 +81,33 @@ let state = {
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
+  nickname:null, savingNickname:false,
 };
 
 // 하루 1문제 제한, 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+
+async function fetchProfile(){
+  try{
+    const res = await fetch(`${API_BASE}/api/profile?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    state.nickname = data.nickname;
+  }catch(e){
+    console.warn('닉네임을 불러오지 못했습니다.', e);
+  }
+}
+
+async function saveNickname(nickname){
+  const res = await fetch(`${API_BASE}/api/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userKey, nickname }),
+  });
+  if(!res.ok) throw new Error(`status ${res.status}`);
+  const data = await res.json();
+  state.nickname = data.nickname;
+}
 
 async function fetchStatus(){
   try{
@@ -258,7 +281,7 @@ function finishQuiz(){
 }
 
 function renderTabbar(){
-  if(state.screen==='quiz' || state.screen==='result'){ tabbarEl.style.display='none'; return; }
+  if(state.screen==='quiz' || state.screen==='result' || state.screen==='onboarding'){ tabbarEl.style.display='none'; return; }
   tabbarEl.style.display='flex';
   const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note']];
   tabbarEl.innerHTML = tabs.map(([key,label,ic])=>
@@ -287,7 +310,7 @@ function homeHTML(){
       ${topChips}
       ${levelCardHTML()}
       <div class="empty">
-        <b>오늘의 퀴즈를 다 풀었어요</b>
+        <b>${state.nickname}님, 오늘의 퀴즈를 다 풀었어요</b>
         <span>내일 새로운 문제로 다시 만나요</span>
       </div>
     </div>`;
@@ -296,7 +319,7 @@ function homeHTML(){
   return `
   <div class="scroll">
     ${topChips}
-    <p class="greet">오늘의 문제, 가볍게 풀어봐요</p>
+    <p class="greet">${state.nickname}님, 오늘의 문제를 풀어봐요</p>
     <p class="greet-sub">하루에 딱 1문제만 풀 수 있어요</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
@@ -436,15 +459,26 @@ function rankingHTML(){
       <div class="rank-row ${r.me?'me':''}">
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
-        <div class="rank-name">${r.label}</div>
+        <div class="rank-name">${r.label}${r.me?' (나)':''}</div>
         <div class="rank-score">${r.score.toLocaleString()}점</div>
       </div>
     `).join('')}
   </div>`;
 }
 
+function onboardingHTML(){
+  return `
+  <div class="onboard-wrap">
+    <p class="greet">닉네임을 알려주세요</p>
+    <p class="greet-sub">홈 화면과 랭킹에 표시돼요</p>
+    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" placeholder="예: 투자초보" />
+    <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'시작하기'}</button>
+  </div>`;
+}
+
 function render(){
-  if(state.screen==='home') screenEl.innerHTML = homeHTML();
+  if(state.screen==='onboarding') screenEl.innerHTML = onboardingHTML();
+  else if(state.screen==='home') screenEl.innerHTML = homeHTML();
   else if(state.screen==='quiz') screenEl.innerHTML = quizHTML();
   else if(state.screen==='result') screenEl.innerHTML = resultHTML();
   else if(state.screen==='wrongnote') screenEl.innerHTML = wrongnoteHTML();
@@ -482,6 +516,28 @@ function bindScreenEvents(){
       render();
     });
   });
+  const nicknameBtn = screenEl.querySelector('#nickname-submit');
+  if(nicknameBtn) nicknameBtn.addEventListener('click', submitNickname);
+  const nicknameInput = screenEl.querySelector('#nickname-input');
+  if(nicknameInput) nicknameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submitNickname(); });
+}
+
+async function submitNickname(){
+  if(state.savingNickname) return;
+  const input = screenEl.querySelector('#nickname-input');
+  const value = input ? input.value.trim() : '';
+  if(!value) return;
+  state.savingNickname = true;
+  render();
+  try{
+    await saveNickname(value);
+  }catch(e){
+    console.warn('닉네임 저장에 실패했습니다.', e);
+    state.nickname = value; // 서버 저장이 실패해도 이번 세션 안에서는 입력값으로 진행
+  }
+  state.savingNickname = false;
+  await fetchStatus();
+  go('home');
 }
 
 async function init(){
@@ -498,6 +554,11 @@ async function init(){
     console.warn('getAnonymousKey 호출 실패, guest 키로 진행합니다.', e);
   }
 
+  await fetchProfile();
+  if(!state.nickname){
+    go('onboarding');
+    return;
+  }
   await fetchStatus();
   go('home');
 }
