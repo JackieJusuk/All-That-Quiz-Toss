@@ -18,7 +18,7 @@ function watchRewardedAd(){
               if(event2.type === 'userEarnedReward'){
                 settled = true;
                 resolve(true);
-              } else if(event2.type === 'dismissed' && !settled){
+              } else if((event2.type === 'dismissed' || event2.type === 'failedToShow') && !settled){
                 settled = true;
                 resolve(false);
               }
@@ -111,7 +111,7 @@ let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0,
-  hasAdTicket:false, needsAd:false, watchingAd:false,
+  hasAdTicket:false, needsAd:false, watchingAd:false, adError:null,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
@@ -119,7 +119,7 @@ let state = {
   nickname:null, savingNickname:false,
 };
 
-// 하루 1문제 제한, 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
+// 문제풀이권(광고 게이팅), 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 async function fetchProfile(){
@@ -162,11 +162,13 @@ async function fetchStatus(){
 async function watchAdThenFetchQuestion(){
   if(state.watchingAd) return;
   state.watchingAd = true;
+  state.adError = null;
   render();
   try{
     const earned = await watchRewardedAd();
     if(!earned){
       state.watchingAd = false;
+      state.adError = '광고를 끝까지 보지 못했어요. 다시 시도해주세요.';
       render();
       return;
     }
@@ -184,6 +186,7 @@ async function watchAdThenFetchQuestion(){
     }
   }catch(e){
     console.warn('광고 시청에 실패했습니다.', e);
+    state.adError = '광고를 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
   }
   state.watchingAd = false;
 
@@ -335,6 +338,7 @@ async function startTopic(topic){
   state.selected = null;
   state.question = null;
   state.needsAd = false;
+  state.adError = null;
   state.leveledUp = false;
   state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.loadingQuestions = true;
@@ -452,8 +456,9 @@ function quizHTML(){
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
     <div class="empty">
-      <b>광고를 보면 문제를 풀 수 있어요</b>
+      <b>광고 보시고 다시 풀 수 있어요</b>
       <span>광고 시청 +10P, 정답을 맞히면 +10P를 더 받아요</span>
+      ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
       <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 문제 풀기'}</button>

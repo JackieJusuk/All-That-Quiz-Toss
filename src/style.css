@@ -442,6 +442,7 @@ body{
 }
 .empty b{color:var(--ink); font-size:1rem;}
 .empty span{font-size:0.85rem;}
+.ad-error{color:var(--bad); font-size:0.82rem;}
 
 /* ---- ranking screen ---- */
 .seg{
