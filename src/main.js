@@ -1,4 +1,4 @@
-import { getAnonymousKey } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share } from '@apps-in-toss/web-framework';
 
 const ICONS = {
   home: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>',
@@ -224,6 +224,18 @@ async function openRanking(){
   render();
 }
 
+// 친구에게 초대 메시지를 공유한다(토스 공유 시트를 열어 사용자가 직접 대상을 고름).
+async function shareWithFriend(){
+  const name = state.nickname || '친구';
+  try{
+    await Share.sendMessage({
+      message: `[포인트퀴즈] ${name}님이 오늘의 투자 퀴즈에 도전했어요! 나도 하루 1문제 도전해보기\nintoss://cash-quiz`,
+    });
+  }catch(e){
+    console.warn('공유하기 실패', e);
+  }
+}
+
 async function openWrongnote(){
   state.screen = 'wrongnote';
   state.tab = 'wrongnote';
@@ -314,6 +326,7 @@ function homeHTML(){
         <b>${state.nickname}님, 오늘의 퀴즈를 다 풀었어요</b>
         <span>내일 새로운 문제로 다시 만나요</span>
       </div>
+      <button class="btn-ghost" id="home-share">친구에게 공유하기</button>
     </div>`;
   }
 
@@ -409,6 +422,7 @@ function resultHTML(){
     </div>
     <div class="result-actions">
       <button class="btn-primary" id="result-wrong">오답노트 보기</button>
+      <button class="btn-ghost" id="result-share">친구에게 공유하기</button>
       <button class="btn-ghost" id="result-home">홈으로</button>
     </div>
   </div>`;
@@ -504,6 +518,10 @@ function bindScreenEvents(){
   if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rhBtn = screenEl.querySelector('#result-home');
   if(rhBtn) rhBtn.addEventListener('click', ()=> go('home'));
+  const rsBtn = screenEl.querySelector('#result-share');
+  if(rsBtn) rsBtn.addEventListener('click', shareWithFriend);
+  const hsBtn = screenEl.querySelector('#home-share');
+  if(hsBtn) hsBtn.addEventListener('click', shareWithFriend);
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
   });
