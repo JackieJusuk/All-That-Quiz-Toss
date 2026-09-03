@@ -125,6 +125,8 @@ let state = {
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 // AI 생성이 실패했을 때만 쓰는 정적 문제은행 — 주제별로 소진된 문제를 추적해 중복 없이 순환한다.
 const staticFallbackPools = {};
+// 이번 세션에 이미 출제된 문제를 주제별로 기록해서, 서버에 "이건 반복하지 마" 힌트로 함께 보낸다.
+const askedQuestionsByTopic = {};
 
 function isValidQuestionSet(list, expectedCount){
   return Array.isArray(list) && list.length === expectedCount && list.every(q =>
@@ -153,10 +155,17 @@ function pickFromStaticFallback(topic, count, diffTargetIdx){
 async function fetchQuestions(topic, count, diffTargetIdx){
   try{
     const difficulty = DIFF_ORDER[diffTargetIdx] ?? 'medium';
-    const res = await fetch(`${API_BASE}/api/questions?topic=${encodeURIComponent(topic.id)}&count=${count}&difficulty=${difficulty}`);
+    const avoidQuestions = askedQuestionsByTopic[topic.id] || [];
+    const res = await fetch(`${API_BASE}/api/questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: topic.id, count, difficulty, avoidQuestions }),
+    });
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
     if(!isValidQuestionSet(data.questions, count)) throw new Error('malformed response');
+    if(!askedQuestionsByTopic[topic.id]) askedQuestionsByTopic[topic.id] = [];
+    askedQuestionsByTopic[topic.id].push(...data.questions.map(q => q.q));
     return data.questions;
   }catch(e){
     console.warn('AI 문제 생성을 불러오지 못해 기본 문제은행으로 대체합니다.', e);
