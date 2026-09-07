@@ -311,11 +311,21 @@ async function openRanking(){
 }
 
 // 친구에게 초대 메시지를 공유한다(토스 공유 시트를 열어 사용자가 직접 대상을 고름).
+// intoss://는 커스텀 스킴이라 카카오톡/문자 등 대부분의 공유 대상 앱이 자동으로 링크 처리를 못 해
+// 받는 사람이 문자열에서 URL만 잘라내야 접속되는 문제가 있었다. Share.createLink로 실제 클릭 가능한
+// https:// 링크를 발급받아 대신 사용한다.
 async function shareWithFriend(){
   const name = state.nickname || '친구';
+  const deepLink = `intoss://cash-quiz?ref=${encodeURIComponent(userKey)}`;
+  let link = deepLink;
+  try{
+    link = await Share.createLink({ path: deepLink });
+  }catch(e){
+    console.warn('공유 링크 생성 실패, 딥링크로 대체합니다.', e);
+  }
   try{
     await Share.sendMessage({
-      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 나도 도전해보기\nintoss://cash-quiz?ref=${encodeURIComponent(userKey)}`,
+      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
