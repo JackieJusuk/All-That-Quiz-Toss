@@ -425,8 +425,8 @@ function homeHTML(){
   return `
   <div class="scroll">
     ${topChips}
-    <p class="greet">${state.nickname}님, 오늘의 문제를 풀어봐요</p>
-    <p class="greet-sub">광고를 보면 문제를 풀 수 있어요 · 풀이 횟수 제한 없음</p>
+    <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
+    <p class="greet-sub">광고를 보면 퀴즈를 풀 수 있어요 · 풀이 횟수 제한 없음</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -448,7 +448,7 @@ function homeHTML(){
 function levelCardHTML(){
   const info = getLevelInfo(state.totalCorrect);
   const pct = Math.round(info.progress*100);
-  const sub = info.next ? `${info.next.name}까지 ${info.remain}문제` : '최고 등급 달성';
+  const sub = info.next ? `${info.next.name}까지 ${info.remain}퀴즈` : '최고 등급 달성';
   return `
   <div class="level-card">
     <div class="level-card-top">
@@ -471,7 +471,7 @@ function quizHTML(){
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
-      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 문제 풀기'}</button>
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 퀴즈 풀기'}</button>
     </div>`;
   }
   if(state.loadingQuestions || !state.question){
@@ -479,13 +479,13 @@ function quizHTML(){
     <div class="quiz-head">
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
-    <div class="empty"><b>문제를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
+    <div class="empty"><b>퀴즈를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
   }
   const q = state.question;
   return `
   <div class="quiz-head">
     <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
-    <div class="qcount">문제</div>
+    <div class="qcount">퀴즈</div>
   </div>
   <div class="scroll">
     <div class="quiz-topic-row">
@@ -520,8 +520,8 @@ function resultHTML(){
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
-    <p class="result-title">${wasCorrect ? '문제를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    <p class="result-sub">광고를 보면 다음 문제도 이어서 풀 수 있어요</p>
+    <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
+    <p class="result-sub">광고를 보면 다음 퀴즈도 이어서 풀 수 있어요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 포인트</div></div>
@@ -540,10 +540,10 @@ function wrongnoteHTML(){
     return `<div class="empty"><b>불러오는 중이에요</b></div>`;
   }
   if(state.wrongNoteItems.length===0){
-    return `<div class="empty"><b>아직 틀린 문제가 없어요</b><span>퀴즈를 풀면 틀린 문제가 여기에 모여요</span></div>`;
+    return `<div class="empty"><b>아직 틀린 퀴즈가 없어요</b><span>퀴즈를 풀면 틀린 퀴즈가 여기에 모여요</span></div>`;
   }
   return `<div class="scroll">
-    <p class="section-label">틀린 문제 ${state.wrongNoteItems.length}개</p>
+    <p class="section-label">틀린 퀴즈 ${state.wrongNoteItems.length}개</p>
     ${state.wrongNoteItems.map((w,i)=>`
       <div class="wnote-item" data-wnote="${i}">
         <button class="wnote-head">
@@ -576,7 +576,7 @@ function rankingHTML(){
       <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
       <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
     </div>
-    ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 문제를 풀어 랭킹에 참여해보세요</span></div>` :
+    ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 퀴즈를 풀어 랭킹에 참여해보세요</span></div>` :
     rows.map((r,i)=>`
       <div class="rank-row ${r.me?'me':''}">
         <div class="rank-num">${i+1}</div>

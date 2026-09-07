@@ -272,9 +272,12 @@ async function pickQuestionForUser(topicId, difficulty, userKey) {
 app.get('/api/status', async (req, res) => {
   const userKey = String(req.query.userKey || 'guest');
   try {
-    await ensureAttendanceToday(userKey);
-    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
-    const stats = await computeUserStats(userKey);
+    // 출석 기록과 티켓 조회는 서로 무관하니 동시에 보내 왕복 횟수를 줄인다.
+    const [, hasAdTicket] = await Promise.all([
+      ensureAttendanceToday(userKey),
+      hasUnconsumedAdTicket(userKey),
+    ]);
+    const stats = await computeUserStats(userKey); // 방금 기록한 출석을 집계해야 하므로 위 작업 이후에 실행
     res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('status failed:', err);
@@ -293,8 +296,11 @@ app.post('/api/ads/reward', async (req, res) => {
       .insert({ user_key: userKey, viewed_date: todayKST(), consumed: false });
     if (insErr) throw insErr;
 
-    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
-    const stats = await computeUserStats(userKey);
+    // 방금 넣은 광고 시청 기록을 각자 독립적으로 집계하므로 동시에 조회한다.
+    const [hasAdTicket, stats] = await Promise.all([
+      hasUnconsumedAdTicket(userKey),
+      computeUserStats(userKey),
+    ]);
     res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('ad reward failed:', err);
@@ -355,8 +361,10 @@ app.post('/api/questions/answer', async (req, res) => {
     });
     if (insErr) throw insErr;
 
-    const hasAdTicket = await hasUnconsumedAdTicket(userKey);
-    const stats = await computeUserStats(userKey);
+    const [hasAdTicket, stats] = await Promise.all([
+      hasUnconsumedAdTicket(userKey),
+      computeUserStats(userKey),
+    ]);
     res.json({ hasAdTicket, ...stats });
   } catch (err) {
     console.error('answer record failed:', err);
