@@ -466,8 +466,8 @@ function quizHTML(){
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
     <div class="empty">
-      <b>광고 보시고 다시 풀 수 있어요</b>
-      <span>광고 시청 +10P, 정답을 맞히면 +10P를 더 받아요</span>
+      <b>광고를 보시면 퀴즈를 풀 수 있어요</b>
+      <span>광고 시청 +10포인트, 정답을 맞히면 +10포인트를 더 받아요.</span>
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
