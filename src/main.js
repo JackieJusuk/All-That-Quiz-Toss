@@ -563,7 +563,8 @@ function resultHTML(){
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
     </div>
     <div class="result-actions">
-      <button class="btn-primary" id="result-wrong">오답노트 보기</button>
+      <button class="btn-primary" id="result-next">새로운 퀴즈 풀기</button>
+      <button class="btn-ghost" id="result-wrong">오답노트 보기</button>
       <button class="btn-ghost" id="result-share">친구에게 공유하기</button>
       <button class="btn-ghost" id="result-home">홈으로</button>
     </div>
@@ -658,6 +659,8 @@ function bindScreenEvents(){
   if(closeBtn) closeBtn.addEventListener('click', ()=> go('home'));
   const finishBtn = screenEl.querySelector('#quiz-finish');
   if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
+  const rnBtn = screenEl.querySelector('#result-next');
+  if(rnBtn) rnBtn.addEventListener('click', ()=> startTopic(state.topic));
   const rwBtn = screenEl.querySelector('#result-wrong');
   if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rhBtn = screenEl.querySelector('#result-home');
