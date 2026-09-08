@@ -440,9 +440,9 @@ app.post('/api/profile', async (req, res) => {
   }
 });
 
-// 랭킹 (일간/주간 실제 집계, 닉네임 표시)
+// 랭킹 (일간/주간/전체 실제 집계, 닉네임 표시)
 app.get('/api/ranking', async (req, res) => {
-  const period = req.query.period === 'weekly' ? 'weekly' : 'daily';
+  const period = ['weekly', 'all'].includes(req.query.period) ? req.query.period : 'daily';
   const userKey = String(req.query.userKey || 'guest');
   try {
     const today = todayKST();
@@ -450,10 +450,13 @@ app.get('/api/ranking', async (req, res) => {
     if (period === 'weekly') {
       fromDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     }
+    // 전체(누적) 랭킹은 기간 제한 없이 처음부터 지금까지의 기록을 모두 합산한다.
+    const withDateFilter = (q, col) => (period === 'all' ? q : q.gte(col, fromDate));
+
     const [{ data, error }, { data: adData, error: adErr }, { data: attData, error: attErr }] = await Promise.all([
-      supabase.from('used_questions').select('user_key, correct').gte('answered_date', fromDate),
-      supabase.from('ad_views').select('user_key').gte('viewed_date', fromDate),
-      supabase.from('attendance').select('user_key').gte('checked_date', fromDate),
+      withDateFilter(supabase.from('used_questions').select('user_key, correct'), 'answered_date'),
+      withDateFilter(supabase.from('ad_views').select('user_key'), 'viewed_date'),
+      withDateFilter(supabase.from('attendance').select('user_key'), 'checked_date'),
     ]);
     if (error) throw error;
     if (adErr) throw adErr;

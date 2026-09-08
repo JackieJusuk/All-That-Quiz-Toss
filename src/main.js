@@ -560,22 +560,24 @@ function wrongnoteHTML(){
   </div>`;
 }
 
+function rankSegHTML(){
+  return `<div class="seg">
+    <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
+    <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
+    <button class="${state.rankPeriod==='all'?'active':''}" data-period="all">전체</button>
+  </div>`;
+}
+
 function rankingHTML(){
   if(state.rankingLoading){
     return `<div class="scroll">
-      <div class="seg">
-        <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
-        <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
-      </div>
+      ${rankSegHTML()}
       <div class="empty"><b>불러오는 중이에요</b></div>
     </div>`;
   }
   const rows = state.rankingRows;
   return `<div class="scroll">
-    <div class="seg">
-      <button class="${state.rankPeriod==='daily'?'active':''}" data-period="daily">일간</button>
-      <button class="${state.rankPeriod==='weekly'?'active':''}" data-period="weekly">주간</button>
-    </div>
+    ${rankSegHTML()}
     ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 퀴즈를 풀어 랭킹에 참여해보세요</span></div>` :
     rows.map((r,i)=>`
       <div class="rank-row ${r.me?'me':''}">
