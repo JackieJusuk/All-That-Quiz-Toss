@@ -660,7 +660,12 @@ function bindScreenEvents(){
   const finishBtn = screenEl.querySelector('#quiz-finish');
   if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
   const rnBtn = screenEl.querySelector('#result-next');
-  if(rnBtn) rnBtn.addEventListener('click', ()=> startTopic(state.topic));
+  if(rnBtn) rnBtn.addEventListener('click', async ()=>{
+    const topic = state.topic;
+    await startTopic(topic);
+    // 문제풀이권이 없어 광고 시청이 필요한 상태면, 버튼을 한 번 더 누르게 하지 않고 바로 광고로 이어간다.
+    if(state.needsAd && state.topic===topic) watchAdThenFetchQuestion();
+  });
   const rwBtn = screenEl.querySelector('#result-wrong');
   if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rhBtn = screenEl.querySelector('#result-home');
