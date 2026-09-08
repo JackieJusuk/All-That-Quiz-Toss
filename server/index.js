@@ -308,6 +308,37 @@ app.post('/api/ads/reward', async (req, res) => {
   }
 });
 
+// 문제 미리보기 — 광고 시청 중에 화면에 보여줄 문제를 미리 받아둔다. 티켓을 쓰지도, 풀이 기록을
+// 남기지도 않는 순수 조회라 광고 시청 여부와 무관하게 언제든 호출할 수 있다. 실제 소비/기록은
+// 광고 보상이 확정된 뒤 /api/questions·/api/questions/answer가 그대로 담당한다.
+app.post('/api/questions/peek', async (req, res) => {
+  ensurePoolTopUp().catch(e => console.error('background topup error', e));
+
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const topicId = String(body.topic || '');
+  if (!TOPIC_LABELS[topicId]) {
+    res.status(400).json({ error: 'invalid_topic' });
+    return;
+  }
+  const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
+
+  try {
+    const question = await pickQuestionForUser(topicId, difficulty, userKey);
+    res.json({
+      id: question.id,
+      q: question.q,
+      choices: question.choices,
+      correct: question.correct,
+      explain: question.explain,
+      difficulty: question.difficulty,
+    });
+  } catch (err) {
+    console.error('question peek failed:', err);
+    res.status(502).json({ error: 'generation_failed' });
+  }
+});
+
 // 문제 하나 받기 — 문제풀이권(=미소비 광고 시청 기록)이 있어야 발급된다. 하루 개수 제한은 없다.
 app.post('/api/questions', async (req, res) => {
   ensurePoolTopUp().catch(e => console.error('background topup error', e));

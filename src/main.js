@@ -111,7 +111,7 @@ let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0,
-  hasAdTicket:false, needsAd:false, watchingAd:false, adError:null,
+  hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
@@ -192,21 +192,50 @@ async function watchAdThenFetchQuestion(){
 
   if(state.hasAdTicket && state.topic){
     state.needsAd = false;
-    state.loadingQuestions = true;
-    render();
     const difficulty = state.levelBefore.difficulty;
-    const q = await fetchQuestion(state.topic, difficulty);
-    if(state.screen==='quiz' && state.topic){
-      if(q === 'ad_required'){
-        state.needsAd = true;
-        state.question = null;
-      }else{
-        state.question = q;
-      }
+    const prefetched = state.prefetched;
+    state.prefetched = null;
+
+    if(prefetched && prefetched.topicId === state.topic.id && prefetched.difficulty === difficulty){
+      // 광고 재생 중에 미리 받아둔 문제가 있으면 로딩 없이 바로 보여준다.
+      // 문제풀이권 소비 자체는 화면에 영향 주지 않도록 뒤에서 마저 처리한다(실패해도 이미 보여준 문제는 그대로 유지).
+      state.question = prefetched.question;
       state.loadingQuestions = false;
+      fetchQuestion(state.topic, difficulty);
+    }else{
+      state.loadingQuestions = true;
+      render();
+      const q = await fetchQuestion(state.topic, difficulty);
+      if(state.screen==='quiz' && state.topic){
+        if(q === 'ad_required'){
+          state.needsAd = true;
+          state.question = null;
+        }else{
+          state.question = q;
+        }
+        state.loadingQuestions = false;
+      }
     }
   }
   render();
+}
+
+// 광고 시청권을 쓰지 않는 미리보기 조회. 광고가 재생되는 동안 미리 불러와두면
+// 광고가 끝난 직후 로딩 없이 바로 문제를 보여줄 수 있다. 실패해도 조용히 무시한다(뒷단 fetchQuestion이 안전망).
+async function peekQuestion(topic, difficulty){
+  try{
+    const res = await fetch(`${API_BASE}/api/questions/peek`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
+    });
+    if(!res.ok) return null;
+    const q = await res.json();
+    if(!q || typeof q.q !== 'string' || !Array.isArray(q.choices) || q.choices.length !== 4) return null;
+    return q;
+  }catch(e){
+    return null;
+  }
 }
 
 async function fetchQuestion(topic, difficulty){
@@ -349,20 +378,26 @@ async function startTopic(topic){
   state.question = null;
   state.needsAd = false;
   state.adError = null;
+  state.prefetched = null;
   state.leveledUp = false;
   state.levelBefore = getLevelInfo(state.totalCorrect).level;
   state.loadingQuestions = true;
   go('quiz');
 
+  const difficulty = state.levelBefore.difficulty;
+
   if(!state.hasAdTicket){
     // 문제 풀이권(광고 시청권)이 없으면 먼저 광고를 봐야 한다. 풀이 횟수 자체엔 제한이 없다.
+    // 광고가 재생되는 동안 화면 뒤에서 문제를 미리 받아두면, 광고가 끝난 직후 기다림 없이 바로 보여줄 수 있다.
     state.needsAd = true;
     state.loadingQuestions = false;
     render();
+    peekQuestion(topic, difficulty).then(q => {
+      if(q && state.topic === topic) state.prefetched = { topicId: topic.id, difficulty, question: q };
+    });
     return;
   }
 
-  const difficulty = state.levelBefore.difficulty;
   const q = await fetchQuestion(topic, difficulty);
   if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
 
