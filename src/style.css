@@ -190,6 +190,7 @@ body{
   border-radius:16px;
   padding:0.95rem 1rem;
   cursor:pointer;
+  color:var(--ink);
 }
 .topic-card:active{transform:scale(0.98);}
 .topic-ic{
