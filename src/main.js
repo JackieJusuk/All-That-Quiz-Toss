@@ -1,4 +1,4 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
@@ -344,11 +344,27 @@ function go(screen, extra){
 
 window.addEventListener('popstate', () => {
   // 쌓인 히스토리가 있을 때만 popstate가 발생하므로, 발생했다는 것 자체가 "루트가 아닌 화면에서
-  // 뒤로가기를 눌렀다"는 뜻이다. 루트(홈)에서 누르면 히스토리가 없어 여기까지 오지 않고
-  // 앱인토스가 기본 동작(미니앱 종료)으로 처리한다.
+  // 뒤로가기를 눌렀다"는 뜻이다.
   restoringFromHistory = true;
   go('home');
   restoringFromHistory = false;
+});
+
+// 네비게이션 바(화면 상단)의 뒤로가기 화살표는 브라우저 히스토리(popstate)가 아니라
+// 앱인토스 SDK의 전용 이벤트로 들어온다. 여기서 직접 처리하지 않으면 기기 하드웨어
+// 뒤로가기와 달리 "루트 화면에서 눌러도 미니앱이 종료되지 않는" 문제가 생긴다
+// (실제 심사 반려 사유였음). 루트(홈/온보딩)에서는 미니앱을 직접 닫고,
+// 그 외 화면에서는 홈으로 돌아간다.
+graniteEvent.addEventListener('backEvent', {
+  onEvent: () => {
+    if(isRootScreen(state.screen)){
+      Screen.close();
+    }else{
+      restoringFromHistory = true;
+      go('home');
+      restoringFromHistory = false;
+    }
+  },
 });
 
 async function openRanking(){
