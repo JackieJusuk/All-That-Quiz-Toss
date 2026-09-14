@@ -105,6 +105,17 @@ body{
 .chip .l{font-size:0.68rem; color:var(--ink-soft); line-height:1.1;}
 .chip.gold .v{color:var(--gold);}
 .chip.streak .v{color:#e2662a;}
+.chip.share{
+  flex:0 0 auto;
+  flex-direction:column;
+  justify-content:center;
+  gap:0.2rem;
+  padding:0.5rem 0.9rem;
+  color:var(--accent);
+  font-family:inherit;
+  cursor:pointer;
+}
+.chip.share .l{font-size:0.68rem; color:var(--accent); font-weight:700;}
 
 .greet{
   font-size:1.25rem;

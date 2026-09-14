@@ -64,7 +64,8 @@ const ICONS = {
   flame: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5c1 3-3.5 4-3.5 8a3.5 3.5 0 0 0 7 0c0-1.2-.5-2-1-2.7.7 3.5-1.2 4.2-1.2 4.2 1-2.3-.3-4-1.3-5A5 5 0 0 1 12 2.5Z"/><path d="M8 14.5A4 4 0 0 0 12 21a4 4 0 0 0 4-6.5"/></svg>',
   stock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 16l5-5 4 3 7-8"/><path d="M15 6h5v5"/></svg>',
   house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>',
-  fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>'
+  fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>',
+  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>'
 };
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
@@ -520,6 +521,7 @@ function homeHTML(){
     <div class="top-chips">
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div></div>
+      <button class="chip share" id="home-share">${ICONS.share}<span class="l">공유</span></button>
     </div>`;
 
   return `
@@ -541,7 +543,6 @@ function homeHTML(){
         </button>
       `).join('')}
     </div>
-    <button class="btn-ghost" id="home-share">친구에게 공유하기</button>
   </div>`;
 }
 
