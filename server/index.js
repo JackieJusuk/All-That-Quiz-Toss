@@ -23,6 +23,11 @@ function todayKST() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+// 알림 동의일 기준 "다음날" 날짜(KST). 알림은 동의한 다음날부터 발송을 시작한다.
+function nextDayKST() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 // ---- 문제 생성 (기존 로직 그대로) ----
 const TOPIC_LABELS = { stock: '주식 투자', realestate: '부동산 투자', fund: '펀드 투자' };
 
@@ -468,6 +473,32 @@ app.post('/api/profile', async (req, res) => {
   } catch (err) {
     console.error('profile save failed:', err);
     res.status(502).json({ error: 'profile_save_failed' });
+  }
+});
+
+// 매일 출석 알림 동의 여부 저장 (동의/비동의 모두 기록해서 구별한다).
+// 동의한 경우 time(HH:MM)도 함께 저장하고, 다음날부터 그 시간대에 알림을 보낼 수 있도록
+// notify_agreed_at(동의 시각)을 기준으로 "발송 시작일 = 동의한 날의 다음날"을 서버가 계산한다.
+app.post('/api/notification-preference', async (req, res) => {
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const agreed = Boolean(body.agreed);
+  const time = agreed && /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(body.time || '')) ? String(body.time) : null;
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        user_key: userKey,
+        notify_agreed: agreed,
+        notify_time: time,
+        notify_agreed_at: new Date().toISOString(),
+        notify_start_date: agreed ? nextDayKST() : null,
+      }, { onConflict: 'user_key' });
+    if (error) throw error;
+    res.json({ agreed, time });
+  } catch (err) {
+    console.error('notification preference save failed:', err);
+    res.status(502).json({ error: 'notification_preference_save_failed' });
   }
 });
 

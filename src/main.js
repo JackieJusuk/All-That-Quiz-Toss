@@ -1,8 +1,29 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, Notification } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
 const AD_GROUP_ID = import.meta.env.VITE_AD_GROUP_ID || 'ait-ad-test-rewarded-id';
+
+// 콘솔의 "스마트발송" 알림 템플릿 코드. 아직 콘솔에서 템플릿을 만들지 않았다면 비워둔다 —
+// 비어 있으면 동의 여부/시간대만 서버에 저장하고, SDK 동의 화면 호출은 건너뛴다.
+const NOTIFY_TEMPLATE_CODE = import.meta.env.VITE_NOTIFY_TEMPLATE_CODE || '';
+
+// 알림 동의 화면을 띄우고 사용자의 응답을 Promise로 받는다. 템플릿 코드가 없으면 호출 자체를 생략한다.
+function requestNotificationAgreement(){
+  return new Promise((resolve) => {
+    if(!NOTIFY_TEMPLATE_CODE){ resolve(null); return; }
+    let settled = false;
+    try{
+      Notification.requestAgreement({
+        options: { templateCode: NOTIFY_TEMPLATE_CODE },
+        onEvent: (result) => { if(!settled){ settled = true; resolve(result.type); } },
+        onError: (err) => { if(!settled){ settled = true; console.warn('알림 동의 요청에 실패했습니다.', err); resolve(null); } },
+      });
+    }catch(e){
+      if(!settled){ settled = true; console.warn('알림 동의 API를 사용할 수 없습니다.', e); resolve(null); }
+    }
+  });
+}
 
 // 보상형 광고를 끝까지 시청했을 때만 true를 반환한다(userEarnedReward 이벤트 기준).
 function watchRewardedAd(){
@@ -117,6 +138,7 @@ let state = {
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false,
+  onboardStep:'nickname', notifyTime:'09:00', savingNotify:false,
 };
 
 // 문제풀이권(광고 게이팅), 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
@@ -142,6 +164,15 @@ async function saveNickname(nickname){
   if(!res.ok) throw new Error(`status ${res.status}`);
   const data = await res.json();
   state.nickname = data.nickname;
+}
+
+async function saveNotificationPreference(agreed, time){
+  const res = await fetch(`${API_BASE}/api/notification-preference`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userKey, agreed, time: agreed ? time : null }),
+  });
+  if(!res.ok) throw new Error(`status ${res.status}`);
 }
 
 async function fetchStatus(){
@@ -662,6 +693,19 @@ function rankingHTML(){
 }
 
 function onboardingHTML(){
+  if(state.onboardStep === 'notify'){
+    return `
+    <div class="onboard-wrap">
+      <p class="greet">매일 출석 알림을 받으시겠어요?</p>
+      <p class="greet-sub">원하는 시간대에 퀴즈 풀 시간을 알려드려요</p>
+      <div class="notify-time-row">
+        <label for="notify-time-input" class="section-label">알림 받을 시간</label>
+        <input id="notify-time-input" class="notify-time-input" type="time" value="${state.notifyTime}" />
+      </div>
+      <button class="btn-primary" id="notify-agree" ${state.savingNotify?'disabled':''}>${state.savingNotify?'저장 중...':'알림 받을게요'}</button>
+      <button class="btn-ghost" id="notify-decline" ${state.savingNotify?'disabled':''}>받지 않을게요</button>
+    </div>`;
+  }
   return `
   <div class="onboard-wrap">
     <p class="greet">닉네임을 알려주세요</p>
@@ -730,6 +774,13 @@ function bindScreenEvents(){
   if(nicknameBtn) nicknameBtn.addEventListener('click', submitNickname);
   const nicknameInput = screenEl.querySelector('#nickname-input');
   if(nicknameInput) nicknameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submitNickname(); });
+  const notifyAgreeBtn = screenEl.querySelector('#notify-agree');
+  if(notifyAgreeBtn) notifyAgreeBtn.addEventListener('click', ()=>{
+    const timeInput = screenEl.querySelector('#notify-time-input');
+    submitNotifyChoice(true, timeInput && timeInput.value ? timeInput.value : state.notifyTime);
+  });
+  const notifyDeclineBtn = screenEl.querySelector('#notify-decline');
+  if(notifyDeclineBtn) notifyDeclineBtn.addEventListener('click', ()=> submitNotifyChoice(false, null));
 }
 
 async function submitNickname(){
@@ -746,6 +797,23 @@ async function submitNickname(){
     state.nickname = value; // 서버 저장이 실패해도 이번 세션 안에서는 입력값으로 진행
   }
   state.savingNickname = false;
+  state.onboardStep = 'notify';
+  render();
+}
+
+// 동의 여부와 상관없이 서버에 기록한다(동의 안 한 사용자도 구별해야 하므로).
+// 동의한 경우에만 SDK 알림 동의 화면(콘솔 템플릿 연동)을 함께 요청한다.
+async function submitNotifyChoice(agreed, time){
+  if(state.savingNotify) return;
+  state.savingNotify = true;
+  render();
+  try{
+    if(agreed) await requestNotificationAgreement();
+    await saveNotificationPreference(agreed, time);
+  }catch(e){
+    console.warn('알림 설정 저장에 실패했습니다.', e);
+  }
+  state.savingNotify = false;
   await fetchStatus();
   go('home');
 }
