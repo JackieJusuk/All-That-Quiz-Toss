@@ -320,20 +320,40 @@ function mountShell(){
   app.appendChild(tabbarEl);
 }
 
+// 뒤로가기(시스템 백버튼) 대응 — 'home'/'onboarding'을 루트로 보고, 루트에서 벗어날 때만
+// 브라우저 히스토리를 1칸 쌓는다. 그래야 기기 뒤로가기를 눌렀을 때 미니앱이 바로 꺼지지 않고
+// WebView가 그 히스토리를 되짚어 popstate를 발생시켜, 홈 화면으로 돌아오게 만들 수 있다.
+// (앱인토스 설정의 allowsBackForwardNavigationGestures도 WebView 자체 히스토리를 전제로 한다.)
+const isRootScreen = (screen) => screen === 'home' || screen === 'onboarding';
+let restoringFromHistory = false;
+
 function go(screen, extra){
+  const wasRoot = isRootScreen(state.screen);
   state.screen = screen;
   if(screen!=='quiz' && screen!=='result'){
     state.tab = screen==='wrongnote' ? 'wrongnote' : (screen==='ranking' ? 'ranking' : 'home');
   }
   Object.assign(state, extra||{});
+  if(!restoringFromHistory){
+    const isRootNow = isRootScreen(screen);
+    if(!wasRoot && isRootNow) history.replaceState({}, '');
+    else if(wasRoot && !isRootNow) history.pushState({}, '');
+  }
   render();
 }
 
+window.addEventListener('popstate', () => {
+  // 쌓인 히스토리가 있을 때만 popstate가 발생하므로, 발생했다는 것 자체가 "루트가 아닌 화면에서
+  // 뒤로가기를 눌렀다"는 뜻이다. 루트(홈)에서 누르면 히스토리가 없어 여기까지 오지 않고
+  // 앱인토스가 기본 동작(미니앱 종료)으로 처리한다.
+  restoringFromHistory = true;
+  go('home');
+  restoringFromHistory = false;
+});
+
 async function openRanking(){
-  state.screen = 'ranking';
-  state.tab = 'ranking';
   state.rankingLoading = true;
-  render();
+  go('ranking');
   await fetchRanking(state.rankPeriod);
   state.rankingLoading = false;
   render();
@@ -362,10 +382,8 @@ async function shareWithFriend(){
 }
 
 async function openWrongnote(){
-  state.screen = 'wrongnote';
-  state.tab = 'wrongnote';
   state.wrongnoteLoading = true;
-  render();
+  go('wrongnote');
   await fetchWrongnote();
   state.wrongnoteLoading = false;
   render();
