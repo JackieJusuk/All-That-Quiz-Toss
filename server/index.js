@@ -485,16 +485,23 @@ app.post('/api/notification-preference', async (req, res) => {
   const agreed = Boolean(body.agreed);
   const time = agreed && /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(body.time || '')) ? String(body.time) : null;
   try {
-    const { error } = await supabase
+    // profiles.nickname은 NOT NULL이라 upsert로 새 행을 만들 수는 없다 — 온보딩상
+    // 닉네임 저장이 알림 동의보다 항상 먼저 일어나므로, 여기서는 기존 행을 업데이트만 한다.
+    const { data, error } = await supabase
       .from('profiles')
-      .upsert({
-        user_key: userKey,
+      .update({
         notify_agreed: agreed,
         notify_time: time,
         notify_agreed_at: new Date().toISOString(),
         notify_start_date: agreed ? nextDayKST() : null,
-      }, { onConflict: 'user_key' });
+      })
+      .eq('user_key', userKey)
+      .select('user_key');
     if (error) throw error;
+    if (!data || data.length === 0) {
+      res.status(409).json({ error: 'profile_not_found' });
+      return;
+    }
     res.json({ agreed, time });
   } catch (err) {
     console.error('notification preference save failed:', err);
