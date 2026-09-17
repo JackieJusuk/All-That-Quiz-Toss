@@ -29,10 +29,12 @@ function requestNotificationAgreement(){
 function watchRewardedAd(){
   return new Promise((resolve, reject) => {
     let settled = false;
+    let shown = false; // 'loaded' 이벤트가 두 번 이상 발생해도 showFullScreenAd는 딱 한 번만 호출한다(광고 2연속 재생 방지).
     loadFullScreenAd({
       options: { adGroupId: AD_GROUP_ID },
       onEvent: (event) => {
-        if(event.type === 'loaded'){
+        if(event.type === 'loaded' && !shown){
+          shown = true;
           showFullScreenAd({
             options: { adGroupId: AD_GROUP_ID },
             onEvent: (event2) => {
