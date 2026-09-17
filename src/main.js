@@ -847,6 +847,12 @@ async function init(){
     go('onboarding');
     return;
   }
+  if(pendingRef){
+    // 이미 가입한 사용자가 초대 링크로 다시 들어온 경우에도 매번 초대 포인트를 반복 적립한다
+    // (어뷰징 방지 장치를 의도적으로 넣지 않은 프로모션 단계 정책 — requirements.md §9 참고).
+    // 곧이어 fetchStatus로 포인트를 보여줘야 하니, 반영이 끝난 뒤에 넘어가도록 기다린다.
+    try{ await saveNickname(state.nickname); }catch(e){ console.warn('재방문 초대 포인트 반영 실패', e); }
+  }
   await fetchStatus();
   go('home');
 }

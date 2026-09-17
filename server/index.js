@@ -456,9 +456,11 @@ app.get('/api/profile', async (req, res) => {
 });
 
 // 닉네임 등록/변경 (최초 접속 시 1회 입력)
-// ref: 초대 링크(?ref=)로 들어온 경우의 초대자 user_key. 이미 초대 관계가 기록된 사용자는 덮어쓰지 않는다(최초 1회만 귀속).
-// 신규 가입자가 유효한 ref와 함께 최초 가입하는 순간, 초대자/피초대자 모두에게 친구 초대 포인트를 적립한다
-// (referrals 테이블에 1행 기록 → computeUserStats가 양쪽 모두에게 10포인트씩 집계).
+// ref: 초대 링크(?ref=)로 들어온 경우의 초대자 user_key.
+// - profiles.referred_by("친구" 배지 표시용)는 최초 가입 시점 값을 그대로 유지한다(1회만 귀속, 덮어쓰지 않음).
+// - referrals(포인트 적립용)는 반대로, 유효한 ref가 올 때마다 매번 기록한다 — 어뷰징 방지 장치를
+//   의도적으로 넣지 않은 프로모션 단계 정책(사용자 확인, requirements.md §9 참고). 같은 두 사람이어도
+//   초대 링크로 다시 들어올 때마다 양쪽 모두 +10포인트가 반복 적립된다.
 app.post('/api/profile', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
@@ -475,7 +477,6 @@ app.post('/api/profile', async (req, res) => {
       .eq('user_key', userKey)
       .maybeSingle();
     if (findErr) throw findErr;
-    const isNewProfile = !existing;
     const referredBy = existing ? existing.referred_by : (ref && ref !== userKey ? ref : null);
 
     const { error } = await supabase
@@ -483,11 +484,11 @@ app.post('/api/profile', async (req, res) => {
       .upsert({ user_key: userKey, nickname, referred_by: referredBy }, { onConflict: 'user_key' });
     if (error) throw error;
 
-    if (isNewProfile && referredBy) {
+    if (ref && ref !== userKey) {
       const { error: refInsErr } = await supabase
         .from('referrals')
-        .insert({ referrer_key: referredBy, referred_key: userKey, created_date: todayKST() });
-      // 유니크 제약(중복 삽입) 등으로 실패해도 닉네임 저장 자체는 이미 끝났으니 무시하고 넘어간다.
+        .insert({ referrer_key: ref, referred_key: userKey, created_date: todayKST() });
+      // 실패해도 닉네임 저장 자체는 이미 끝났으니 무시하고 넘어간다.
       if (refInsErr) console.error('referral insert failed:', refInsErr);
     }
 
