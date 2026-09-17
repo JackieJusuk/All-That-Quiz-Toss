@@ -422,7 +422,7 @@ async function shareWithFriend(){
   }
   try{
     await Share.sendMessage({
-      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 나도 도전해보기\n${link}`,
+      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 친구도 나도 +10P! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -522,7 +522,8 @@ function homeHTML(){
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div></div>
       <button class="chip share" id="home-share">${ICONS.share}<span class="l">공유</span></button>
-    </div>`;
+    </div>
+    <p class="invite-hint">친구를 초대하면 친구도 나도 <b>+10P</b>!</p>`;
 
   return `
   <div class="scroll">

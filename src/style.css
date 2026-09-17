@@ -117,6 +117,14 @@ body{
 }
 .chip.share .l{font-size:0.68rem; color:var(--accent); font-weight:700;}
 
+.invite-hint{
+  font-size:0.78rem;
+  color:var(--gold);
+  font-weight:600;
+  margin:-0.4rem 0 0.9rem;
+}
+.invite-hint b{font-weight:800;}
+
 .greet{
   font-size:1.25rem;
   font-weight:900;

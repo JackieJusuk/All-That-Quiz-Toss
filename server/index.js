@@ -222,19 +222,29 @@ function computeStreak(datesDesc, todayStr) {
 }
 
 async function computeUserStats(userKey) {
-  const [{ data, error }, { data: adData, error: adErr }, { data: attData, error: attErr }] = await Promise.all([
+  const [
+    { data, error },
+    { data: adData, error: adErr },
+    { data: attData, error: attErr },
+    { data: refAsReferrer, error: refErr1 },
+    { data: refAsReferred, error: refErr2 },
+  ] = await Promise.all([
     supabase.from('used_questions').select('answered_date, correct').eq('user_key', userKey),
     supabase.from('ad_views').select('id').eq('user_key', userKey),
     supabase.from('attendance').select('id').eq('user_key', userKey),
+    supabase.from('referrals').select('id').eq('referrer_key', userKey),
+    supabase.from('referrals').select('id').eq('referred_key', userKey),
   ]);
   if (error) throw error;
   if (adErr) throw adErr;
   if (attErr) throw attErr;
+  if (refErr1) throw refErr1;
+  if (refErr2) throw refErr2;
   const totalCorrect = data.filter(r => r.correct).length;
   const datesDesc = [...new Set(data.map(r => r.answered_date))].sort().reverse();
   const streak = computeStreak(datesDesc, todayKST());
-  // 포인트 = (출석 횟수 + 광고 시청 횟수 + 정답 횟수) * 10. 오답은 포인트를 얻지 못한다.
-  const points = (attData.length + adData.length + totalCorrect) * POINTS_PER_EVENT;
+  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10. 오답은 포인트를 얻지 못한다.
+  const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT;
   return { totalCorrect, streak, points };
 }
 
@@ -447,6 +457,8 @@ app.get('/api/profile', async (req, res) => {
 
 // 닉네임 등록/변경 (최초 접속 시 1회 입력)
 // ref: 초대 링크(?ref=)로 들어온 경우의 초대자 user_key. 이미 초대 관계가 기록된 사용자는 덮어쓰지 않는다(최초 1회만 귀속).
+// 신규 가입자가 유효한 ref와 함께 최초 가입하는 순간, 초대자/피초대자 모두에게 친구 초대 포인트를 적립한다
+// (referrals 테이블에 1행 기록 → computeUserStats가 양쪽 모두에게 10포인트씩 집계).
 app.post('/api/profile', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
@@ -463,12 +475,22 @@ app.post('/api/profile', async (req, res) => {
       .eq('user_key', userKey)
       .maybeSingle();
     if (findErr) throw findErr;
+    const isNewProfile = !existing;
     const referredBy = existing ? existing.referred_by : (ref && ref !== userKey ? ref : null);
 
     const { error } = await supabase
       .from('profiles')
       .upsert({ user_key: userKey, nickname, referred_by: referredBy }, { onConflict: 'user_key' });
     if (error) throw error;
+
+    if (isNewProfile && referredBy) {
+      const { error: refInsErr } = await supabase
+        .from('referrals')
+        .insert({ referrer_key: referredBy, referred_key: userKey, created_date: todayKST() });
+      // 유니크 제약(중복 삽입) 등으로 실패해도 닉네임 저장 자체는 이미 끝났으니 무시하고 넘어간다.
+      if (refInsErr) console.error('referral insert failed:', refInsErr);
+    }
+
     res.json({ nickname });
   } catch (err) {
     console.error('profile save failed:', err);
@@ -522,16 +544,26 @@ app.get('/api/ranking', async (req, res) => {
     // 전체(누적) 랭킹은 기간 제한 없이 처음부터 지금까지의 기록을 모두 합산한다.
     const withDateFilter = (q, col) => (period === 'all' ? q : q.gte(col, fromDate));
 
-    const [{ data, error }, { data: adData, error: adErr }, { data: attData, error: attErr }] = await Promise.all([
+    const [
+      { data, error },
+      { data: adData, error: adErr },
+      { data: attData, error: attErr },
+      { data: refAsReferrerData, error: refErr1 },
+      { data: refAsReferredData, error: refErr2 },
+    ] = await Promise.all([
       withDateFilter(supabase.from('used_questions').select('user_key, correct'), 'answered_date'),
       withDateFilter(supabase.from('ad_views').select('user_key'), 'viewed_date'),
       withDateFilter(supabase.from('attendance').select('user_key'), 'checked_date'),
+      withDateFilter(supabase.from('referrals').select('referrer_key'), 'created_date'),
+      withDateFilter(supabase.from('referrals').select('referred_key'), 'created_date'),
     ]);
     if (error) throw error;
     if (adErr) throw adErr;
     if (attErr) throw attErr;
+    if (refErr1) throw refErr1;
+    if (refErr2) throw refErr2;
 
-    // 포인트와 동일한 계산: 출석/광고 시청/정답 각각 10포인트. 오답은 포인트 없음.
+    // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트. 오답은 포인트 없음.
     const scores = {};
     for (const row of data) {
       if (!row.correct) continue;
@@ -542,6 +574,12 @@ app.get('/api/ranking', async (req, res) => {
     }
     for (const row of attData) {
       scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
+    }
+    for (const row of refAsReferrerData) {
+      scores[row.referrer_key] = (scores[row.referrer_key] || 0) + POINTS_PER_EVENT;
+    }
+    for (const row of refAsReferredData) {
+      scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
     }
     const keys = Object.keys(scores);
     const nicknameMap = {};
