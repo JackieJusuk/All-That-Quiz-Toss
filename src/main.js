@@ -628,12 +628,24 @@ function friendPromoHTML(){
   </div>`;
 }
 
+function upcomingPromoHTML(){
+  return `
+  <div class="promo-card promo-card-upcoming">
+    <span class="promo-card-badge">미정</span>
+  </div>`;
+}
+
 function promotionHTML(){
   return `<div class="scroll">
     <p class="section-label">진행 중인 프로모션</p>
     <div class="promo-list">
       ${streakPromoHTML()}
       ${friendPromoHTML()}
+    </div>
+    <p class="section-label section-label-spaced">향후 프로모션</p>
+    <div class="promo-list">
+      ${upcomingPromoHTML()}
+      ${upcomingPromoHTML()}
     </div>
   </div>`;
 }

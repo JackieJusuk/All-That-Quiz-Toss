@@ -247,6 +247,17 @@ body{
 }
 .promo-card-sub b{color:var(--ink); font-weight:800;}
 
+.promo-card-upcoming{
+  background:var(--surface-2);
+  border:1.5px dashed var(--line);
+}
+.promo-card-upcoming .promo-card-badge{
+  color:var(--ink-soft);
+  margin-bottom:0;
+}
+
+.section-label-spaced{margin-top:1.1rem;}
+
 .section-label{
   font-family:var(--font-mono);
   font-size:0.68rem;
