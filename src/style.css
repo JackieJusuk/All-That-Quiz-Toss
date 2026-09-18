@@ -213,41 +213,42 @@ body{
   transition:width 0.25s ease;
 }
 
-.streak-promo{
+.promo-list{display:flex; flex-direction:column; gap:0.7rem;}
+.promo-card{
   background:var(--gold-soft);
   border:1px solid var(--gold);
   border-radius:14px;
-  padding:0.5rem 1rem;
-  margin-bottom:0.6rem;
+  padding:0.9rem 1.1rem;
 }
-.streak-promo-badge{
+.promo-card-badge{
   display:inline-block;
   font-weight:800;
-  font-size:0.8rem;
+  font-size:0.85rem;
   color:var(--gold);
-  margin-bottom:0.3rem;
+  margin-bottom:0.35rem;
 }
-.streak-promo-badge svg{vertical-align:-3px; margin-right:0.15rem;}
-.streak-promo-text{
-  font-size:0.88rem;
+.promo-card-badge svg{vertical-align:-3px; margin-right:0.15rem;}
+.promo-card-text{
+  font-size:0.92rem;
   color:var(--ink);
-  margin:0 0 0.4rem;
+  margin:0;
 }
-.streak-promo-text b{color:var(--gold); font-weight:800;}
-.streak-promo-track{
+.promo-card-text b{color:var(--gold); font-weight:800;}
+.promo-card-track{
   height:6px;
   background:var(--surface);
   border-radius:999px;
   overflow:hidden;
+  margin-top:0.6rem;
 }
-.streak-promo-fill{
+.promo-card-fill{
   height:100%;
   background:var(--gold);
   border-radius:999px;
   transition:width 0.25s ease;
 }
-.streak-promo-sub{
-  font-size:0.76rem;
+.promo-card-sub{
+  font-size:0.78rem;
   color:var(--ink-soft);
   margin:0.4rem 0 0;
 }

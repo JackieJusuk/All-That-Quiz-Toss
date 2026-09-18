@@ -67,7 +67,8 @@ const ICONS = {
   stock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 16l5-5 4 3 7-8"/><path d="M15 6h5v5"/></svg>',
   house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>',
   fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>',
-  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>'
+  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
+  gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
 };
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
@@ -381,7 +382,7 @@ function go(screen, extra){
   const wasRoot = isRootScreen(state.screen);
   state.screen = screen;
   if(screen!=='quiz' && screen!=='result'){
-    state.tab = screen==='wrongnote' ? 'wrongnote' : (screen==='ranking' ? 'ranking' : 'home');
+    state.tab = ['wrongnote','ranking','promotion'].includes(screen) ? screen : 'home';
   }
   Object.assign(state, extra||{});
   if(!restoringFromHistory){
@@ -445,6 +446,12 @@ async function shareWithFriend(){
   }catch(e){
     console.warn('공유하기 실패', e);
   }
+}
+
+async function openPromotion(){
+  go('promotion');
+  await fetchStatus();
+  render();
 }
 
 async function openWrongnote(){
@@ -546,7 +553,7 @@ function finishQuiz(){
 function renderTabbar(){
   if(state.screen==='quiz' || state.screen==='result' || state.screen==='onboarding'){ tabbarEl.style.display='none'; return; }
   tabbarEl.style.display='flex';
-  const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note']];
+  const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note'],['promotion','프로모션','gift']];
   tabbarEl.innerHTML = tabs.map(([key,label,ic])=>
     `<button class="tab ${state.tab===key?'active':''}" data-tab="${key}">${ICONS[ic]}<span>${label}</span></button>`
   ).join('');
@@ -555,6 +562,7 @@ function renderTabbar(){
       const tab = btn.dataset.tab;
       if(tab==='ranking') openRanking();
       else if(tab==='wrongnote') openWrongnote();
+      else if(tab==='promotion') openPromotion();
       else go(tab);
     });
   });
@@ -572,7 +580,6 @@ function homeHTML(){
   return `
   <div class="scroll">
     ${topChips}
-    ${streakPromoHTML()}
     <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
     <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
     ${levelCardHTML()}
@@ -601,11 +608,29 @@ function streakPromoHTML(){
     ? `오늘 ${days}일 연속 학습 보너스를 받았어요! 다음 목표까지 ${days}일`
     : `${done}/${days}일 · ${remain}일 남았어요`;
   return `
-  <div class="streak-promo">
-    <span class="streak-promo-badge">${ICONS.flame} 연속 학습 프로모션</span>
-    <p class="streak-promo-text">연속 <b>${days}일</b> 학습하면 <b>+100P</b> 보너스!</p>
-    <div class="streak-promo-track"><div class="streak-promo-fill" style="width:${pct}%"></div></div>
-    <p class="streak-promo-sub">${sub}</p>
+  <div class="promo-card">
+    <span class="promo-card-badge">${ICONS.flame} 연속 학습</span>
+    <p class="promo-card-text">연속 <b>${days}일</b> 출석할때마다 <b>+100P</b></p>
+    <div class="promo-card-track"><div class="promo-card-fill" style="width:${pct}%"></div></div>
+    <p class="promo-card-sub">${sub}</p>
+  </div>`;
+}
+
+function friendPromoHTML(){
+  return `
+  <div class="promo-card">
+    <span class="promo-card-badge">${ICONS.share} 친구 초대</span>
+    <p class="promo-card-text">친구를 초대하면 친구도 나도 <b>+10P</b>!</p>
+  </div>`;
+}
+
+function promotionHTML(){
+  return `<div class="scroll">
+    <p class="section-label">진행 중인 프로모션</p>
+    <div class="promo-list">
+      ${streakPromoHTML()}
+      ${friendPromoHTML()}
+    </div>
   </div>`;
 }
 
@@ -789,6 +814,7 @@ function render(){
   else if(state.screen==='result') screenEl.innerHTML = resultHTML();
   else if(state.screen==='wrongnote') screenEl.innerHTML = wrongnoteHTML();
   else if(state.screen==='ranking') screenEl.innerHTML = rankingHTML();
+  else if(state.screen==='promotion') screenEl.innerHTML = promotionHTML();
 
   renderTabbar();
   bindScreenEvents();
