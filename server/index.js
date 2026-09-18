@@ -167,6 +167,9 @@ async function ensurePoolTopUp() {
 // 문제풀이권(광고 시청 기록)이 없어도 퀴즈는 풀 수 있다 — 광고 없이 풀면 광고 시청 포인트(10P)만 못 받을 뿐이다.
 const POINTS_PER_EVENT = 10;
 const POINTS_WRONG_EVENT = 2;
+// 연속 학습(퀴즈를 푼 날짜 기준) 10일마다 100P 보너스. 끊기면 그 시점부터 다시 10일을 채워야 한다.
+const STREAK_BONUS_DAYS = 10;
+const STREAK_BONUS_POINTS = 100;
 
 // 아직 소비하지 않은(=아직 그 광고로 문제를 안 받은) 광고 시청 기록이 있는지 확인한다.
 async function hasUnconsumedAdTicket(userKey) {
@@ -222,6 +225,26 @@ function computeStreak(datesDesc, todayStr) {
   return streak;
 }
 
+// 연속된 날짜 구간(끊기면 새로 시작)마다 10일째, 20일째, ...에 보너스가 발생한 날짜를 모두 반환한다.
+function computeStreakBonusDates(datesAsc) {
+  const bonusDates = [];
+  let runStart = 0;
+  for (let i = 1; i <= datesAsc.length; i++) {
+    const isBreak = i === datesAsc.length || Math.round(
+      (new Date(`${datesAsc[i]}T00:00:00Z`) - new Date(`${datesAsc[i - 1]}T00:00:00Z`)) / (24 * 60 * 60 * 1000)
+    ) !== 1;
+    if (isBreak) {
+      const runLen = i - runStart;
+      const milestones = Math.floor(runLen / STREAK_BONUS_DAYS);
+      for (let m = 1; m <= milestones; m++) {
+        bonusDates.push(datesAsc[runStart + m * STREAK_BONUS_DAYS - 1]);
+      }
+      runStart = i;
+    }
+  }
+  return bonusDates;
+}
+
 async function computeUserStats(userKey) {
   const [
     { data, error },
@@ -243,12 +266,17 @@ async function computeUserStats(userKey) {
   if (refErr2) throw refErr2;
   const totalCorrect = data.filter(r => r.correct).length;
   const totalWrong = data.length - totalCorrect;
-  const datesDesc = [...new Set(data.map(r => r.answered_date))].sort().reverse();
+  const datesAsc = [...new Set(data.map(r => r.answered_date))].sort();
+  const datesDesc = [...datesAsc].reverse();
   const streak = computeStreak(datesDesc, todayKST());
-  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2.
+  const streakBonusCount = computeStreakBonusDates(datesAsc).length;
+  const rem = streak % STREAK_BONUS_DAYS;
+  const daysToNextStreakBonus = rem === 0 ? STREAK_BONUS_DAYS : STREAK_BONUS_DAYS - rem;
+  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100.
   const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
-    + totalWrong * POINTS_WRONG_EVENT;
-  return { totalCorrect, streak, points };
+    + totalWrong * POINTS_WRONG_EVENT
+    + streakBonusCount * STREAK_BONUS_POINTS;
+  return { totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus };
 }
 
 // ---- 문제 하나 뽑기: 안 쓴 문제 우선, 풀이 바닥나면 그때만 즉석 생성(자가치유) ----
@@ -554,18 +582,22 @@ app.get('/api/ranking', async (req, res) => {
       { data: attData, error: attErr },
       { data: refAsReferrerData, error: refErr1 },
       { data: refAsReferredData, error: refErr2 },
+      { data: allQuizDates, error: quizDatesErr },
     ] = await Promise.all([
       withDateFilter(supabase.from('used_questions').select('user_key, correct'), 'answered_date'),
       withDateFilter(supabase.from('ad_views').select('user_key'), 'viewed_date'),
       withDateFilter(supabase.from('attendance').select('user_key'), 'checked_date'),
       withDateFilter(supabase.from('referrals').select('referrer_key'), 'created_date'),
       withDateFilter(supabase.from('referrals').select('referred_key'), 'created_date'),
+      // 연속학습 보너스는 구간이 기간 밖에서 시작됐을 수도 있어 전체 날짜를 따로 조회해 직접 계산한다.
+      supabase.from('used_questions').select('user_key, answered_date'),
     ]);
     if (error) throw error;
     if (adErr) throw adErr;
     if (attErr) throw attErr;
     if (refErr1) throw refErr1;
     if (refErr2) throw refErr2;
+    if (quizDatesErr) throw quizDatesErr;
 
     // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트, 오답은 2포인트.
     const scores = {};
@@ -583,6 +615,18 @@ app.get('/api/ranking', async (req, res) => {
     }
     for (const row of refAsReferredData) {
       scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
+    }
+    const datesByUser = {};
+    for (const row of allQuizDates) {
+      if (!datesByUser[row.user_key]) datesByUser[row.user_key] = new Set();
+      datesByUser[row.user_key].add(row.answered_date);
+    }
+    for (const key of Object.keys(datesByUser)) {
+      const bonusDates = computeStreakBonusDates([...datesByUser[key]].sort());
+      const inRange = period === 'all' ? bonusDates : bonusDates.filter(d => d >= fromDate);
+      if (inRange.length) {
+        scores[key] = (scores[key] || 0) + inRange.length * STREAK_BONUS_POINTS;
+      }
     }
     const keys = Object.keys(scores);
     const nicknameMap = {};

@@ -144,7 +144,7 @@ let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
-  points:0, streak:0, totalCorrect:0,
+  points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10,
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
@@ -197,6 +197,8 @@ async function fetchStatus(){
     state.streak = data.streak;
     state.points = data.points;
     state.hasAdTicket = data.hasAdTicket ?? false;
+    state.streakBonusDays = data.streakBonusDays ?? 10;
+    state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
@@ -227,6 +229,8 @@ async function watchAdThenFetchQuestion(){
       state.totalCorrect = data.totalCorrect;
       state.streak = data.streak;
       state.hasAdTicket = data.hasAdTicket ?? true;
+      state.streakBonusDays = data.streakBonusDays ?? 10;
+      state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     }
   }catch(e){
     console.warn('광고 시청에 실패했습니다.', e);
@@ -321,6 +325,8 @@ async function recordAnswer(topic, question, correct){
     state.totalCorrect = stats.totalCorrect;
     state.streak = stats.streak;
     state.points = stats.points;
+    state.streakBonusDays = stats.streakBonusDays ?? 10;
+    state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
     state.hasAdTicket = stats.hasAdTicket ?? false;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
@@ -566,6 +572,7 @@ function homeHTML(){
   return `
   <div class="scroll">
     ${topChips}
+    ${streakPromoHTML()}
     <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
     <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
     ${levelCardHTML()}
@@ -582,6 +589,23 @@ function homeHTML(){
         </button>
       `).join('')}
     </div>
+  </div>`;
+}
+
+function streakPromoHTML(){
+  const days = state.streakBonusDays;
+  const remain = state.daysToNextStreakBonus;
+  const done = days - remain;
+  const pct = Math.round((done / days) * 100);
+  const sub = state.streak > 0 && done === 0
+    ? `오늘 ${days}일 연속 학습 보너스를 받았어요! 다음 목표까지 ${days}일`
+    : `${done}/${days}일 · ${remain}일 남았어요`;
+  return `
+  <div class="streak-promo">
+    <span class="streak-promo-badge">${ICONS.flame} 연속 학습 프로모션</span>
+    <p class="streak-promo-text">연속 <b>${days}일</b> 학습하면 <b>+100P</b> 보너스!</p>
+    <div class="streak-promo-track"><div class="streak-promo-fill" style="width:${pct}%"></div></div>
+    <p class="streak-promo-sub">${sub}</p>
   </div>`;
 }
 
