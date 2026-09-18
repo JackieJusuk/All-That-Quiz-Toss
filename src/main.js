@@ -128,6 +128,16 @@ function pickFallbackQuestion(topic, difficulty){
   return { ...list[Math.floor(Math.random() * list.length)], id: null };
 }
 
+// 닉네임을 아직 안 정한 사람에게 보여줄 추천 닉네임. 형용사+동물+숫자 조합.
+const NICK_ADJ = ['똑똑한','슬기로운','부지런한','현명한','알뜰한','씩씩한','용감한','성실한','꼼꼼한','느긋한'];
+const NICK_NOUN = ['다람쥐','부엉이','호랑이','여우','고양이','토끼','거북이','펭귄','너구리','수달'];
+function generateNickname(){
+  const adj = NICK_ADJ[Math.floor(Math.random() * NICK_ADJ.length)];
+  const noun = NICK_NOUN[Math.floor(Math.random() * NICK_NOUN.length)];
+  const num = Math.floor(Math.random() * 90) + 10;
+  return `${adj}${noun}${num}`.slice(0, 12);
+}
+
 let userKey = 'guest';
 // 초대 링크(intoss://cash-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
 let pendingRef = null;
@@ -140,7 +150,7 @@ let state = {
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
-  nickname:null, savingNickname:false,
+  nickname:null, savingNickname:false, suggestedNickname:null,
   onboardStep:'nickname', notifyTime:'09:00', savingNotify:false,
 };
 
@@ -737,12 +747,14 @@ function onboardingHTML(){
       <button class="btn-ghost" id="notify-decline" ${state.savingNotify?'disabled':''}>받지 않을게요</button>
     </div>`;
   }
+  if(!state.suggestedNickname) state.suggestedNickname = generateNickname();
   return `
   <div class="onboard-wrap">
     <p class="greet">닉네임을 알려주세요</p>
-    <p class="greet-sub">홈 화면과 랭킹에 표시돼요</p>
-    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" placeholder="예: 투자초보" />
+    <p class="greet-sub">홈 화면과 랭킹에 표시돼요. 마음에 들면 그대로, 아니면 바꿔보세요</p>
+    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 투자초보" />
     <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'시작하기'}</button>
+    <button class="btn-ghost" id="nickname-reroll" type="button">다른 닉네임 추천받기</button>
   </div>`;
 }
 
@@ -802,6 +814,11 @@ function bindScreenEvents(){
   if(nicknameBtn) nicknameBtn.addEventListener('click', submitNickname);
   const nicknameInput = screenEl.querySelector('#nickname-input');
   if(nicknameInput) nicknameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submitNickname(); });
+  const rerollBtn = screenEl.querySelector('#nickname-reroll');
+  if(rerollBtn) rerollBtn.addEventListener('click', ()=>{
+    state.suggestedNickname = generateNickname();
+    render();
+  });
   const notifyAgreeBtn = screenEl.querySelector('#notify-agree');
   if(notifyAgreeBtn) notifyAgreeBtn.addEventListener('click', ()=>{
     const timeInput = screenEl.querySelector('#notify-time-input');
