@@ -106,7 +106,7 @@ body{
 .chip.gold .v{color:var(--gold);}
 .chip.streak .v{color:#e2662a;}
 .chip.share{
-  flex:0 0 auto;
+  flex:1;
   flex-direction:column;
   justify-content:center;
   gap:0.2rem;

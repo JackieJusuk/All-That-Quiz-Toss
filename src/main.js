@@ -445,7 +445,7 @@ async function shareWithFriend(){
   }
   try{
     await Share.sendMessage({
-      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 친구도 나도 +10P! 나도 도전해보기\n${link}`,
+      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -507,7 +507,7 @@ async function startTopic(topic){
   render();
 }
 
-// 광고 없이 바로 퀴즈만 푼다. 문제풀이권을 쓰지 않으므로 광고 시청 포인트(+10P)는 받지 못한다.
+// 광고 없이 바로 퀴즈만 푼다. 문제풀이권을 쓰지 않으므로 광고 시청 포인트(+10포인트)는 받지 못한다.
 async function skipAdAndSolve(){
   const topic = state.topic;
   const difficulty = state.levelBefore.difficulty;
@@ -613,7 +613,7 @@ function streakPromoHTML(){
   return `
   <div class="promo-card">
     <span class="promo-card-badge">${ICONS.book} 연속 학습</span>
-    <p class="promo-card-text">연속 <b>${days}일</b> 출석할때마다 <b>+100P</b></p>
+    <p class="promo-card-text">연속 <b>${days}일</b> 출석할때마다 <b>+100포인트</b></p>
     <div class="promo-card-track"><div class="promo-card-fill" style="width:${pct}%"></div></div>
     <p class="promo-card-sub">${sub}</p>
   </div>`;
@@ -623,7 +623,7 @@ function friendPromoHTML(){
   return `
   <div class="promo-card">
     <span class="promo-card-badge">${ICONS.share} 친구 초대</span>
-    <p class="promo-card-text">친구를 초대하면 친구도 나도 <b>+10P</b>!</p>
+    <p class="promo-card-text">친구를 초대하면 친구도 나도 <b>+10포인트</b>!</p>
     <p class="promo-card-sub">지금까지 초대한 친구는 총 <b>${state.referralCount}명</b>입니다.</p>
   </div>`;
 }
@@ -664,7 +664,7 @@ function quizHTML(){
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
-      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 +10P 받기'}</button>
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 +10포인트 받기'}</button>
       <button class="btn-ghost" id="quiz-skip-ad" ${state.watchingAd?'disabled':''}>광고 없이 퀴즈만 풀기</button>
     </div>`;
   }
