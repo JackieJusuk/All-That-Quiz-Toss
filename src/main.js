@@ -582,9 +582,9 @@ function homeHTML(){
 
   return `
   <div class="scroll">
-    ${topChips}
     <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
     <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
+    ${topChips}
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">

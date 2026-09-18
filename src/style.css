@@ -75,24 +75,24 @@ body{
   flex:1;
   min-height:0;
   overflow-y:auto;
-  padding:0.85rem 0.85rem 1rem;
+  padding:0.55rem 0.85rem 0.7rem;
 }
 
 /* ---- home screen ---- */
 .top-chips{
   display:flex;
   gap:0.5rem;
-  margin-bottom:0.6rem;
+  margin-bottom:1rem;
 }
 .chip{
   flex:1;
   display:flex;
   align-items:center;
-  gap:0.4rem;
+  gap:0.35rem;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:12px;
-  padding:0.6rem 0.75rem;
+  padding:0.75rem 0.5rem;
 }
 .chip svg{flex:none;}
 .chip .v{
@@ -101,8 +101,9 @@ body{
   font-size:0.9rem;
   font-variant-numeric:tabular-nums;
   line-height:1.1;
+  white-space:nowrap;
 }
-.chip .l{font-size:0.68rem; color:var(--ink-soft); line-height:1.1;}
+.chip .l{font-size:0.66rem; color:var(--ink-soft); line-height:1.1; word-break:keep-all;}
 .chip.gold .v{color:var(--gold);}
 .chip.streak .v{color:#e2662a;}
 .chip.share{
@@ -110,7 +111,7 @@ body{
   flex-direction:column;
   justify-content:center;
   gap:0.2rem;
-  padding:0.5rem 0.9rem;
+  padding:0.6rem 0.9rem;
   color:var(--accent);
   font-family:inherit;
   cursor:pointer;
@@ -120,13 +121,13 @@ body{
 .greet{
   font-size:1.25rem;
   font-weight:900;
-  margin:0 0 0.2rem;
+  margin:0 0 0.3rem;
   text-wrap:balance;
 }
 .greet-sub{
   font-size:0.9rem;
   color:var(--ink-soft);
-  margin:0 0 0.6rem;
+  margin:0 0 1.1rem;
 }
 
 /* ---- onboarding (닉네임 입력) ---- */
@@ -181,14 +182,14 @@ body{
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:14px;
-  padding:0.5rem 1rem;
-  margin-bottom:0.6rem;
+  padding:0.85rem 1rem;
+  margin-bottom:1.1rem;
 }
 .level-card-top{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  margin-bottom:0.4rem;
+  margin-bottom:0.55rem;
 }
 .level-badge{font-weight:800; font-size:0.92rem; color:var(--accent);}
 .level-sub{font-size:0.76rem; color:var(--ink-soft);}
@@ -255,24 +256,24 @@ body{
   margin:0 0 0.6rem;
 }
 
-.topics{display:flex; flex-direction:column; gap:0.4rem;}
+.topics{display:flex; flex-direction:column; gap:0.65rem;}
 .topic-card{
   display:flex;
   align-items:center;
-  gap:0.8rem;
+  gap:0.9rem;
   width:100%;
   text-align:left;
   border:1px solid var(--line);
   background:var(--surface);
   border-radius:16px;
-  padding:0.6rem 1rem;
+  padding:0.95rem 1rem;
   cursor:pointer;
   color:var(--ink);
 }
 .topic-card:active{transform:scale(0.98);}
 .topic-ic{
   flex:none;
-  width:2.4rem;height:2.4rem;
+  width:2.7rem;height:2.7rem;
   border-radius:12px;
   display:flex;align-items:center;justify-content:center;
 }
