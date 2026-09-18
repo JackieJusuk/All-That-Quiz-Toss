@@ -163,9 +163,10 @@ async function ensurePoolTopUp() {
   }
 }
 
-// ---- 보상 정책: 출석 10P + 광고 시청 10P + 정답 10P(오답은 없음). 퀴즈 풀이 횟수 제한은 없다. ----
-// 대신 퀴즈 하나를 풀려면 그 전에 광고를 1회 시청해야 한다(광고 시청 = 문제풀이권 1장 적립).
+// ---- 보상 정책: 출석 10P + 광고 시청 10P + 정답 10P + 오답 2P. 퀴즈 풀이 횟수 제한은 없다. ----
+// 문제풀이권(광고 시청 기록)이 없어도 퀴즈는 풀 수 있다 — 광고 없이 풀면 광고 시청 포인트(10P)만 못 받을 뿐이다.
 const POINTS_PER_EVENT = 10;
+const POINTS_WRONG_EVENT = 2;
 
 // 아직 소비하지 않은(=아직 그 광고로 문제를 안 받은) 광고 시청 기록이 있는지 확인한다.
 async function hasUnconsumedAdTicket(userKey) {
@@ -241,10 +242,12 @@ async function computeUserStats(userKey) {
   if (refErr1) throw refErr1;
   if (refErr2) throw refErr2;
   const totalCorrect = data.filter(r => r.correct).length;
+  const totalWrong = data.length - totalCorrect;
   const datesDesc = [...new Set(data.map(r => r.answered_date))].sort().reverse();
   const streak = computeStreak(datesDesc, todayKST());
-  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10. 오답은 포인트를 얻지 못한다.
-  const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT;
+  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2.
+  const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
+    + totalWrong * POINTS_WRONG_EVENT;
   return { totalCorrect, streak, points };
 }
 
@@ -564,11 +567,10 @@ app.get('/api/ranking', async (req, res) => {
     if (refErr1) throw refErr1;
     if (refErr2) throw refErr2;
 
-    // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트. 오답은 포인트 없음.
+    // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트, 오답은 2포인트.
     const scores = {};
     for (const row of data) {
-      if (!row.correct) continue;
-      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
+      scores[row.user_key] = (scores[row.user_key] || 0) + (row.correct ? POINTS_PER_EVENT : POINTS_WRONG_EVENT);
     }
     for (const row of adData) {
       scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;

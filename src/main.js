@@ -293,9 +293,9 @@ async function fetchQuestion(topic, difficulty){
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
-    // 포인트 = 정답 시 10포인트 (오답은 없음).
+    // 포인트 = 정답 시 10포인트, 오답 시 2포인트.
     state.totalCorrect += correct ? 1 : 0;
-    state.points += correct ? 10 : 0;
+    state.points += correct ? 10 : 2;
     state.streak += 1;
     state.hasAdTicket = false;
     return;
@@ -487,6 +487,32 @@ async function startTopic(topic){
   render();
 }
 
+// 광고 없이 바로 퀴즈만 푼다. 문제풀이권을 쓰지 않으므로 광고 시청 포인트(+10P)는 받지 못한다.
+async function skipAdAndSolve(){
+  const topic = state.topic;
+  const difficulty = state.levelBefore.difficulty;
+  state.needsAd = false;
+  state.adError = null;
+
+  const prefetched = state.prefetched;
+  state.prefetched = null;
+  if(prefetched && prefetched.topicId === topic.id && prefetched.difficulty === difficulty){
+    // needsAd 화면을 보여주는 동안 미리 받아둔 문제가 있으면 로딩 없이 바로 보여준다.
+    state.question = prefetched.question;
+    state.loadingQuestions = false;
+    render();
+    return;
+  }
+
+  state.loadingQuestions = true;
+  render();
+  const q = await peekQuestion(topic, difficulty);
+  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
+  state.question = q || pickFallbackQuestion(topic, difficulty);
+  state.loadingQuestions = false;
+  render();
+}
+
 async function pickChoice(idx){
   if(state.answered) return;
   state.answered = true;
@@ -538,7 +564,7 @@ function homeHTML(){
   <div class="scroll">
     ${topChips}
     <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
-    <p class="greet-sub">광고를 보면 퀴즈를 풀 수 있어요 · 풀이 횟수 제한 없음</p>
+    <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
     ${levelCardHTML()}
     <p class="section-label">주제 선택</p>
     <div class="topics">
@@ -577,12 +603,13 @@ function quizHTML(){
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
     <div class="empty">
-      <b>광고를 보시면 퀴즈를 풀 수 있어요</b>
-      <span>광고 시청 +10포인트, 정답을 맞히면 +10포인트를 더 받아요.</span>
+      <b>어떻게 풀까요?</b>
+      <span>광고를 보면 +10포인트를 먼저 받고 퀴즈를 풀 수 있어요. 정답은 +10포인트, 오답도 +2포인트예요.</span>
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
-      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 퀴즈 풀기'}</button>
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 +10P 받기'}</button>
+      <button class="btn-ghost" id="quiz-skip-ad" ${state.watchingAd?'disabled':''}>광고 없이 퀴즈만 풀기</button>
     </div>`;
   }
   if(state.loadingQuestions || !state.question){
@@ -750,12 +777,7 @@ function bindScreenEvents(){
   const finishBtn = screenEl.querySelector('#quiz-finish');
   if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
   const rnBtn = screenEl.querySelector('#result-next');
-  if(rnBtn) rnBtn.addEventListener('click', async ()=>{
-    const topic = state.topic;
-    await startTopic(topic);
-    // 문제풀이권이 없어 광고 시청이 필요한 상태면, 버튼을 한 번 더 누르게 하지 않고 바로 광고로 이어간다.
-    if(state.needsAd && state.topic===topic) watchAdThenFetchQuestion();
-  });
+  if(rnBtn) rnBtn.addEventListener('click', ()=> startTopic(state.topic));
   const rwBtn = screenEl.querySelector('#result-wrong');
   if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rrBtn = screenEl.querySelector('#result-ranking');
@@ -768,6 +790,8 @@ function bindScreenEvents(){
   if(hsBtn) hsBtn.addEventListener('click', shareWithFriend);
   const waBtn = screenEl.querySelector('#quiz-watch-ad');
   if(waBtn) waBtn.addEventListener('click', watchAdThenFetchQuestion);
+  const skBtn = screenEl.querySelector('#quiz-skip-ad');
+  if(skBtn) skBtn.addEventListener('click', skipAdAndSolve);
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
   });
