@@ -619,15 +619,16 @@ body{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:0.2rem;
-  padding:0.65rem 0 calc(0.75rem + env(safe-area-inset-bottom));
+  gap:0.15rem;
+  padding:0.4rem 0 calc(0.45rem + env(safe-area-inset-bottom));
   border:none;
   background:none;
   color:var(--ink-soft);
   cursor:pointer;
 }
+.tab svg{width:18px; height:18px;}
 .tab.active{color:var(--accent);}
-.tab span{font-size:0.66rem; font-weight:600;}
+.tab span{font-size:0.62rem; font-weight:600;}
 
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;}
