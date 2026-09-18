@@ -276,7 +276,10 @@ async function computeUserStats(userKey) {
   const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
     + streakBonusCount * STREAK_BONUS_POINTS;
-  return { totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus };
+  return {
+    totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
+    referralCount: refAsReferrer.length,
+  };
 }
 
 // ---- 문제 하나 뽑기: 안 쓴 문제 우선, 풀이 바닥나면 그때만 즉석 생성(자가치유) ----

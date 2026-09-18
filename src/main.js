@@ -68,7 +68,8 @@ const ICONS = {
   house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>',
   fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
-  gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
+  gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
+  book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>'
 };
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
@@ -145,7 +146,7 @@ let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
-  points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10,
+  points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
@@ -200,6 +201,7 @@ async function fetchStatus(){
     state.hasAdTicket = data.hasAdTicket ?? false;
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
+    state.referralCount = data.referralCount ?? 0;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
@@ -232,6 +234,7 @@ async function watchAdThenFetchQuestion(){
       state.hasAdTicket = data.hasAdTicket ?? true;
       state.streakBonusDays = data.streakBonusDays ?? 10;
       state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
+      state.referralCount = data.referralCount ?? 0;
     }
   }catch(e){
     console.warn('광고 시청에 실패했습니다.', e);
@@ -328,6 +331,7 @@ async function recordAnswer(topic, question, correct){
     state.points = stats.points;
     state.streakBonusDays = stats.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
+    state.referralCount = stats.referralCount ?? 0;
     state.hasAdTicket = stats.hasAdTicket ?? false;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
@@ -574,8 +578,7 @@ function homeHTML(){
       <div class="chip streak">${ICONS.flame}<div><div class="v">${state.streak}일</div><div class="l">연속 학습</div></div></div>
       <div class="chip gold">${ICONS.coin}<div><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div></div>
       <button class="chip share" id="home-share">${ICONS.share}<span class="l">공유</span></button>
-    </div>
-    <p class="invite-hint">친구를 초대하면 친구도 나도 <b>+10P</b>!</p>`;
+    </div>`;
 
   return `
   <div class="scroll">
@@ -609,7 +612,7 @@ function streakPromoHTML(){
     : `${done}/${days}일 · ${remain}일 남았어요`;
   return `
   <div class="promo-card">
-    <span class="promo-card-badge">${ICONS.flame} 연속 학습</span>
+    <span class="promo-card-badge">${ICONS.book} 연속 학습</span>
     <p class="promo-card-text">연속 <b>${days}일</b> 출석할때마다 <b>+100P</b></p>
     <div class="promo-card-track"><div class="promo-card-fill" style="width:${pct}%"></div></div>
     <p class="promo-card-sub">${sub}</p>
@@ -621,6 +624,7 @@ function friendPromoHTML(){
   <div class="promo-card">
     <span class="promo-card-badge">${ICONS.share} 친구 초대</span>
     <p class="promo-card-text">친구를 초대하면 친구도 나도 <b>+10P</b>!</p>
+    <p class="promo-card-sub">지금까지 초대한 친구는 총 <b>${state.referralCount}명</b>입니다.</p>
   </div>`;
 }
 

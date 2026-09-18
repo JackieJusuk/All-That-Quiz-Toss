@@ -117,14 +117,6 @@ body{
 }
 .chip.share .l{font-size:0.68rem; color:var(--accent); font-weight:700;}
 
-.invite-hint{
-  font-size:0.78rem;
-  color:var(--gold);
-  font-weight:600;
-  margin:-0.4rem 0 0.4rem;
-}
-.invite-hint b{font-weight:800;}
-
 .greet{
   font-size:1.25rem;
   font-weight:900;
@@ -252,6 +244,7 @@ body{
   color:var(--ink-soft);
   margin:0.4rem 0 0;
 }
+.promo-card-sub b{color:var(--ink); font-weight:800;}
 
 .section-label{
   font-family:var(--font-mono);
