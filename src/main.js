@@ -352,13 +352,6 @@ function mountShell(){
   const app = document.getElementById('app');
   app.appendChild(screenEl);
   app.appendChild(tabbarEl);
-
-  // 임시 디버그 배너 — 초대 링크(ref)가 실제 진입 URL까지 전달되는지 확인하기 위한 용도.
-  // 원인 파악되면 제거할 것 (2026-09-18 추가).
-  const dbg = document.createElement('div');
-  dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#000;color:#0f0;font-size:9px;line-height:1.3;padding:3px 5px;word-break:break-all;opacity:0.9;pointer-events:none;';
-  dbg.textContent = `DEBUG url=${location.href}`;
-  document.body.appendChild(dbg);
 }
 
 // 뒤로가기(시스템 백버튼) 대응 — 'home'/'onboarding'을 루트로 보고, 루트에서 벗어날 때만
