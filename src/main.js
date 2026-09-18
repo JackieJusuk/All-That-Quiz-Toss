@@ -628,10 +628,10 @@ function friendPromoHTML(){
   </div>`;
 }
 
-function upcomingPromoHTML(){
+function upcomingPromoHTML(title){
   return `
   <div class="promo-card promo-card-upcoming">
-    <span class="promo-card-badge">미정</span>
+    <span class="promo-card-badge">${title}</span>
   </div>`;
 }
 
@@ -644,8 +644,8 @@ function promotionHTML(){
     </div>
     <p class="section-label section-label-spaced">향후 프로모션</p>
     <div class="promo-list">
-      ${upcomingPromoHTML()}
-      ${upcomingPromoHTML()}
+      ${upcomingPromoHTML('포인트를 현금화')}
+      ${upcomingPromoHTML('미정')}
     </div>
   </div>`;
 }
