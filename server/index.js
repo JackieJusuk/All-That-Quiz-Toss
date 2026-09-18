@@ -334,6 +334,27 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// 앱 최초 진입용 — 닉네임 조회 + 출석 기록 + 통계 계산을 한 요청으로 묶는다.
+// 클라이언트가 /api/profile과 /api/status를 순서대로 부르면 왕복이 두 번 걸려
+// 콜드 스타트 등으로 응답이 느릴 때 초기 로딩이 특히 길어지므로, 필요한 조회를
+// 최대한 병렬로 처리해 왕복을 하나로 줄인다.
+app.get('/api/init', async (req, res) => {
+  const userKey = String(req.query.userKey || 'guest');
+  try {
+    const [{ data: profile, error: profErr }, , hasAdTicket] = await Promise.all([
+      supabase.from('profiles').select('nickname').eq('user_key', userKey).maybeSingle(),
+      ensureAttendanceToday(userKey),
+      hasUnconsumedAdTicket(userKey),
+    ]);
+    if (profErr) throw profErr;
+    const stats = await computeUserStats(userKey); // 방금 기록한 출석을 집계해야 하므로 위 작업 이후에 실행
+    res.json({ nickname: profile ? profile.nickname : null, hasAdTicket, ...stats });
+  } catch (err) {
+    console.error('init failed:', err);
+    res.status(502).json({ error: 'init_failed' });
+  }
+});
+
 // 광고 시청 리워드 — userEarnedReward 이벤트가 발생했을 때만 클라이언트가 호출한다.
 // 시청 1회 = 10포인트 + 문제풀이권 1장. 시청 횟수 제한은 없다.
 app.post('/api/ads/reward', async (req, res) => {

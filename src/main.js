@@ -207,6 +207,47 @@ async function fetchStatus(){
   }
 }
 
+// 앱 최초 진입 시 필요한 닉네임+통계를 한 번의 요청으로 받는다(/api/profile + /api/status를
+// 각각 부르는 것보다 왕복이 하나 줄어 로딩이 빠르다). 성공 여부를 반환해 호출부가 캐시 저장 여부를 판단한다.
+async function fetchInit(){
+  try{
+    const res = await fetch(`${API_BASE}/api/init?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    state.nickname = data.nickname;
+    state.totalCorrect = data.totalCorrect;
+    state.streak = data.streak;
+    state.points = data.points;
+    state.hasAdTicket = data.hasAdTicket ?? false;
+    state.streakBonusDays = data.streakBonusDays ?? 10;
+    state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
+    state.referralCount = data.referralCount ?? 0;
+    return true;
+  }catch(e){
+    console.warn('초기 데이터를 불러오지 못했습니다.', e);
+    return false;
+  }
+}
+
+const CACHE_KEY_PREFIX = 'cashquiz_cache_v1_';
+
+// 직전 접속 때의 닉네임/통계를 기기에 저장해둔다. 다음 접속 시 서버 응답 전에
+// 먼저 보여줄 용도일 뿐이라, 저장/조회 실패는 조용히 무시해도 앱 동작에 지장이 없다.
+function loadCachedState(key){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function saveCachedState(key, data){
+  try{
+    localStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify(data));
+  }catch(e){ /* 저장 실패(용량 초과, 프라이빗 모드 등)는 무시 — 다음엔 캐시 없이 진행 */ }
+}
+
 // 보상형 광고를 끝까지 보면 +10포인트와 함께 문제 풀이권을 1개 얻는다. 풀이 횟수 제한은 없다.
 async function watchAdThenFetchQuestion(){
   if(state.watchingAd) return;
@@ -555,7 +596,7 @@ function finishQuiz(){
 }
 
 function renderTabbar(){
-  if(state.screen==='quiz' || state.screen==='result' || state.screen==='onboarding'){ tabbarEl.style.display='none'; return; }
+  if(state.screen==='quiz' || state.screen==='result' || state.screen==='onboarding' || state.screen==='loading'){ tabbarEl.style.display='none'; return; }
   tabbarEl.style.display='flex';
   const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note'],['promotion','프로모션','gift']];
   tabbarEl.innerHTML = tabs.map(([key,label,ic])=>
@@ -798,6 +839,17 @@ function rankingHTML(){
   </div>`;
 }
 
+// 서버 응답을 기다리는 동안 빈 화면 대신 보여주는 최초 로딩 화면.
+// 네트워크가 느려도(백엔드 콜드 스타트 등) 미니앱이 "안 열린 것"처럼 보이지 않게 한다.
+function loadingHTML(){
+  return `
+  <div class="loading-wrap">
+    <div class="loading-logo">${ICONS.coin}</div>
+    <p class="loading-title">포인트퀴즈</p>
+    <p class="loading-sub">불러오는 중이에요...</p>
+  </div>`;
+}
+
 function onboardingHTML(){
   if(state.onboardStep === 'notify'){
     return `
@@ -824,7 +876,8 @@ function onboardingHTML(){
 }
 
 function render(){
-  if(state.screen==='onboarding') screenEl.innerHTML = onboardingHTML();
+  if(state.screen==='loading') screenEl.innerHTML = loadingHTML();
+  else if(state.screen==='onboarding') screenEl.innerHTML = onboardingHTML();
   else if(state.screen==='home') screenEl.innerHTML = homeHTML();
   else if(state.screen==='quiz') screenEl.innerHTML = quizHTML();
   else if(state.screen==='result') screenEl.innerHTML = resultHTML();
@@ -931,6 +984,10 @@ async function submitNotifyChoice(agreed, time){
 
 async function init(){
   mountShell();
+  // 서버 응답을 기다리는 동안(백엔드 콜드 스타트 등으로 지연될 수 있음) 빈 화면 대신
+  // 로딩 화면을 즉시 보여준다 — 최초 접속 시 "안 열리는 것처럼" 보이는 문제를 막는다.
+  state.screen = 'loading';
+  render();
 
   // 초대 링크의 ?ref= 값을 읽어둔다. 딥링크 파라미터는 웹뷰 URL 쿼리스트링으로 전달된다.
   try{
@@ -949,7 +1006,17 @@ async function init(){
     console.warn('getAnonymousKey 호출 실패, guest 키로 진행합니다.', e);
   }
 
-  await fetchProfile();
+  // 지난번 접속에서 캐시해둔 상태가 있으면, 서버 응답을 기다리지 않고 먼저 화면을 보여준다.
+  // (아래에서 fetchInit이 끝나면 실제 값으로 갱신한다.) 최초 접속(캐시 없음)에는 효과가 없지만,
+  // 재방문 시 체감 로딩 시간을 크게 줄여준다.
+  const cached = loadCachedState(userKey);
+  if(cached && cached.nickname){
+    Object.assign(state, cached);
+    go('home');
+  }
+
+  // 닉네임 조회 + 출석/통계 계산을 하나의 요청으로 합쳐 왕복 횟수를 줄인다.
+  const ok = await fetchInit();
   if(!state.nickname){
     go('onboarding');
     return;
@@ -957,10 +1024,15 @@ async function init(){
   if(pendingRef){
     // 이미 가입한 사용자가 초대 링크로 다시 들어온 경우에도 매번 초대 포인트를 반복 적립한다
     // (어뷰징 방지 장치를 의도적으로 넣지 않은 프로모션 단계 정책 — requirements.md §9 참고).
-    // 곧이어 fetchStatus로 포인트를 보여줘야 하니, 반영이 끝난 뒤에 넘어가도록 기다린다.
     try{ await saveNickname(state.nickname); }catch(e){ console.warn('재방문 초대 포인트 반영 실패', e); }
   }
-  await fetchStatus();
+  if(ok){
+    saveCachedState(userKey, {
+      nickname: state.nickname, totalCorrect: state.totalCorrect, streak: state.streak, points: state.points,
+      hasAdTicket: state.hasAdTicket, streakBonusDays: state.streakBonusDays,
+      daysToNextStreakBonus: state.daysToNextStreakBonus, referralCount: state.referralCount,
+    });
+  }
   go('home');
 }
 
