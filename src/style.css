@@ -82,7 +82,7 @@ body{
 .top-chips{
   display:flex;
   gap:0.5rem;
-  margin-bottom:1.1rem;
+  margin-bottom:0.9rem;
 }
 .chip{
   flex:1;
@@ -121,7 +121,7 @@ body{
   font-size:0.78rem;
   color:var(--gold);
   font-weight:600;
-  margin:-0.4rem 0 0.9rem;
+  margin:-0.4rem 0 0.6rem;
 }
 .invite-hint b{font-weight:800;}
 
@@ -134,7 +134,7 @@ body{
 .greet-sub{
   font-size:0.9rem;
   color:var(--ink-soft);
-  margin:0 0 1.3rem;
+  margin:0 0 1rem;
 }
 
 /* ---- onboarding (닉네임 입력) ---- */
@@ -189,14 +189,14 @@ body{
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:14px;
-  padding:0.85rem 1rem;
-  margin-bottom:1.3rem;
+  padding:0.7rem 1rem;
+  margin-bottom:1rem;
 }
 .level-card-top{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  margin-bottom:0.55rem;
+  margin-bottom:0.5rem;
 }
 .level-badge{font-weight:800; font-size:0.92rem; color:var(--accent);}
 .level-sub{font-size:0.76rem; color:var(--ink-soft);}
@@ -222,7 +222,7 @@ body{
   margin:0 0 0.6rem;
 }
 
-.topics{display:flex; flex-direction:column; gap:0.65rem;}
+.topics{display:flex; flex-direction:column; gap:0.55rem;}
 .topic-card{
   display:flex;
   align-items:center;
@@ -232,7 +232,7 @@ body{
   border:1px solid var(--line);
   background:var(--surface);
   border-radius:16px;
-  padding:0.95rem 1rem;
+  padding:0.8rem 1rem;
   cursor:pointer;
   color:var(--ink);
 }
