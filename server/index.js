@@ -71,7 +71,11 @@ const DIFF_KO = { easy: '쉬움(easy)', medium: '보통(medium)', hard: '어려�
 const questionSchema = z.object({
   q: z.string().describe('4지선다 퀴즈 질문'),
   choices: z.array(z.string()).min(4).describe('보기 4개 이상'),
-  correct: z.number().int().min(0).describe('정답 보기의 인덱스(0부터 시작)'),
+  reasoning: z.string().describe(
+    '정답을 구하는 과정을 단계별로 적으세요. 숫자가 들어간 계산 문제라면 반드시 실제 숫자를 대입해 계산식을 세우고, ' +
+    '각 보기와 대조해 정답이 맞는지 검산한 뒤에만 correct를 채우세요.'
+  ),
+  correct: z.number().int().min(0).describe('정답 보기의 인덱스(0부터 시작). 위 reasoning에서 검산한 결과와 반드시 일치해야 함'),
   explain: z.string().describe('정답 해설, 존댓말 1~2문장'),
   difficulty: z.enum(['easy', 'medium', 'hard']),
 });
@@ -89,6 +93,43 @@ function normalizeQuizSet(raw, count) {
   });
   if (questions.length !== count || questions.some(q => q === null)) return null;
   return { questions };
+}
+
+// 문제 문구와 보기에 숫자가 여럿 등장하면 "계산 문제"로 간주한다(DSR/LTV 대출 한도 계산처럼
+// 숫자를 대입해 산술을 틀리기 쉬운 유형). 개념 설명형 문제는 대상에서 제외해 검증 호출을 아낀다.
+function looksLikeCalculation(q) {
+  const numericChoices = q.choices.filter(c => /\d/.test(c)).length;
+  return /\d/.test(q.q) && numericChoices >= 3;
+}
+
+// 원래 정답을 보여주지 않고 처음부터 다시 풀게 해서, 생성 단계의 계산 실수를 독립적으로 검증한다.
+async function verifyCalculationAnswer(q) {
+  const verifySchema = z.object({ correct: z.number().int().min(0).describe('직접 계산해서 구한 정답 인덱스(0부터 시작)') });
+  const prompt = `아래 퀴즈를 처음부터 직접 풀어서 정답 인덱스를 구하세요. 반드시 실제 숫자를 대입해 계산식을 세우고 검산하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
+  try {
+    const response = await client.messages.parse({
+      model: 'claude-sonnet-5',
+      max_tokens: 4000,
+      output_config: { effort: 'medium', format: zodOutputFormat(verifySchema) },
+      system: '당신은 경제/투자 퀴즈의 정답을 검증하는 깐깐한 감수자입니다. 원래 제시된 정답은 참고하지 말고, 스스로 처음부터 계산해서 정답 인덱스를 구하세요.',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return response.parsed_output ? response.parsed_output.correct : null;
+  } catch (e) {
+    console.error('answer verification call failed:', e);
+    return null; // 검증 호출 자체가 실패한 경우는 통과시킨다(네트워크 오류로 정상 문제까지 계속 버려지는 걸 막기 위해)
+  }
+}
+
+// 계산형 문제만 골라 독립적으로 재검산하고, 원래 정답과 다르면 걸러낸다.
+async function verifyCalculationQuestions(questions) {
+  const keep = await Promise.all(questions.map(async q => {
+    if (!looksLikeCalculation(q)) return true;
+    const verified = await verifyCalculationAnswer(q);
+    if (verified === null) return true;
+    return verified === q.correct;
+  }));
+  return questions.filter((_, i) => keep[i]);
 }
 
 async function generateQuizSet(topicId, count, difficulty, avoidQuestions) {
@@ -113,12 +154,18 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions) {
         max_tokens: 16000,
         output_config: { effort: 'medium', format: zodOutputFormat(schema) },
         system:
-          '당신은 투자 입문자를 위한 경제/투자 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. 요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다.',
+          '당신은 투자 입문자를 위한 경제/투자 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. ' +
+          '요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다. 숫자가 들어간 계산 문제(대출 한도, 이자, 수익률 등)는 특히 실수가 잦으니, reasoning에 실제 숫자를 대입한 계산식을 쓰고 보기와 대조해 검산한 뒤에만 정답을 확정하세요.',
         messages: [{ role: 'user', content: userPrompt }],
       });
       if (response.parsed_output) {
         const normalized = normalizeQuizSet(response.parsed_output, count);
-        if (normalized) return normalized;
+        if (normalized) {
+          const verified = await verifyCalculationQuestions(normalized.questions);
+          if (verified.length === count) return { questions: verified };
+          lastErr = new Error('calculation verification failed');
+          continue;
+        }
         lastErr = new Error('normalization failed');
         continue;
       }
@@ -331,6 +378,44 @@ app.get('/api/status', async (req, res) => {
   } catch (err) {
     console.error('status failed:', err);
     res.status(502).json({ error: 'status_failed' });
+  }
+});
+
+// 친구 초대 상세 — 프로모션 화면에서 "친구 초대" 카드를 눌렀을 때 보여줄 목록.
+// 초대 링크로 들어온 사람이 닉네임을 저장(=접속을 마쳐야)해야 referrals에 기록되므로,
+// 여기 뜨는 이름/횟수는 전부 "실제로 접속한 친구" 기준이다.
+app.get('/api/referrals', async (req, res) => {
+  const userKey = String(req.query.userKey || 'guest');
+  try {
+    const { data, error } = await supabase
+      .from('referrals')
+      .select('referred_key, created_date')
+      .eq('referrer_key', userKey)
+      .order('created_date', { ascending: true });
+    if (error) throw error;
+
+    const referredKeys = [...new Set(data.map(r => r.referred_key))];
+    let nicknameByKey = {};
+    if (referredKeys.length) {
+      const { data: profiles, error: profErr } = await supabase
+        .from('profiles')
+        .select('user_key, nickname')
+        .in('user_key', referredKeys);
+      if (profErr) throw profErr;
+      nicknameByKey = Object.fromEntries(profiles.map(p => [p.user_key, p.nickname]));
+    }
+
+    const countByKey = {};
+    for (const row of data) countByKey[row.referred_key] = (countByKey[row.referred_key] || 0) + 1;
+
+    const friends = referredKeys
+      .map(key => ({ nickname: nicknameByKey[key] || '알 수 없음', count: countByKey[key] }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({ totalCount: data.length, friends });
+  } catch (err) {
+    console.error('referrals fetch failed:', err);
+    res.status(502).json({ error: 'referrals_fetch_failed' });
   }
 });
 

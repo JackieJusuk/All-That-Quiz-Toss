@@ -148,12 +148,14 @@ let state = {
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
+  freeQuestionAvailable:true, // 로그인(앱 진입)당 첫 문제는 광고 없이 바로 풀 수 있다. 두 번째 문제부터 광고가 필요하다.
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false, suggestedNickname:null,
   onboardStep:'nickname', notifyTime:'09:00', savingNotify:false,
+  promoDetail:null,
 };
 
 // 문제풀이권(광고 게이팅), 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
@@ -494,6 +496,7 @@ async function shareWithFriend(){
 }
 
 async function openPromotion(){
+  state.promoDetail = null;
   go('promotion');
   await fetchStatus();
   render();
@@ -521,6 +524,18 @@ async function startTopic(topic){
   go('quiz');
 
   const difficulty = state.levelBefore.difficulty;
+
+  if(state.freeQuestionAvailable){
+    // 로그인 후 첫 문제는 광고 게이팅 없이 바로 보여준다. 문제풀이권을 쓰지 않으므로
+    // 광고 시청 포인트(+10포인트)는 못 받고, 두 번째 문제부터는 평소처럼 광고가 필요하다.
+    state.freeQuestionAvailable = false;
+    const q = await peekQuestion(topic, difficulty);
+    if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
+    state.question = q || pickFallbackQuestion(topic, difficulty);
+    state.loadingQuestions = false;
+    render();
+    return;
+  }
 
   if(!state.hasAdTicket){
     // 문제 풀이권(광고 시청권)이 없으면 먼저 광고를 봐야 한다. 풀이 횟수 자체엔 제한이 없다.
@@ -652,7 +667,7 @@ function streakPromoHTML(){
     ? `오늘 ${days}일 연속 학습 보너스를 받았어요! 다음 목표까지 ${days}일`
     : `${done}/${days}일 · ${remain}일 남았어요`;
   return `
-  <div class="promo-card">
+  <div class="promo-card" data-promo="streak">
     <span class="promo-card-badge">${ICONS.book} 연속 학습</span>
     <p class="promo-card-text">연속 <b>${days}일</b> 출석할때마다 <b>+100포인트</b></p>
     <div class="promo-card-track"><div class="promo-card-fill" style="width:${pct}%"></div></div>
@@ -662,7 +677,7 @@ function streakPromoHTML(){
 
 function friendPromoHTML(){
   return `
-  <div class="promo-card">
+  <div class="promo-card" data-promo="referral">
     <span class="promo-card-badge">${ICONS.share} 친구 초대</span>
     <p class="promo-card-text">친구를 초대하면 친구도 나도 <b>+10포인트</b>!</p>
     <p class="promo-card-sub">지금까지 초대한 친구는 총 <b>${state.referralCount}명</b>입니다.</p>
@@ -677,6 +692,74 @@ function upcomingPromoHTML(title, opts){
   </div>`;
 }
 
+// 진행 중인 프로모션 카드를 누르면 뜨는 상세 시트. 연속 학습은 이미 state에 있는 값을 그대로
+// 보여주고, 친구 초대는 초대한 친구 이름/횟수 목록을 서버(/api/referrals)에서 받아와야 해서
+// openPromoDetail()이 그 요청을 마친 뒤 state.promoDetail을 채운다.
+function promoDetailHTML(){
+  const d = state.promoDetail;
+  if(!d) return '';
+
+  let title, body;
+  if(d.type === 'streak'){
+    const days = state.streakBonusDays;
+    const remain = state.daysToNextStreakBonus;
+    const done = days - remain;
+    title = '연속 학습';
+    body = `
+      <p class="promo-detail-row">오늘은 연속 <b>${state.streak}일째</b> 출석 중이에요.</p>
+      <p class="promo-detail-row">이번 ${days}일 구간에서 <b>${done}/${days}일</b> 출석했어요. <b>${remain}일</b> 더 출석하면 +100포인트를 받아요.</p>
+    `;
+  }else{
+    title = '친구 초대';
+    if(d.loading){
+      body = `<p class="promo-detail-row">불러오는 중...</p>`;
+    }else if(!d.friends || d.friends.length === 0){
+      body = `<p class="promo-detail-row">아직 초대한 친구가 없어요. 친구에게 공유해보세요!</p>`;
+    }else{
+      body = `<ul class="promo-friend-list">${d.friends.map(f => `
+        <li class="promo-friend-row">
+          <span class="promo-friend-name">${f.nickname}</span>
+          <span class="promo-friend-count">${f.count}회 초대</span>
+        </li>`).join('')}</ul>`;
+    }
+    body += `<p class="promo-detail-note">* 친구가 초대 링크로 들어와 닉네임을 설정(접속)해야 초대 횟수로 집계돼요.</p>`;
+  }
+
+  return `
+  <div class="promo-detail-backdrop" id="promo-detail-backdrop">
+    <div class="promo-detail-sheet">
+      <div class="promo-detail-head">
+        <span class="promo-detail-title">${title}</span>
+        <button class="iconbtn" id="promo-detail-close">${ICONS.close}</button>
+      </div>
+      <div class="promo-detail-body">${body}</div>
+    </div>
+  </div>`;
+}
+
+async function openPromoDetail(type){
+  state.promoDetail = { type, loading: type === 'referral', friends: null };
+  render();
+  if(type !== 'referral') return;
+  try{
+    const res = await fetch(`${API_BASE}/api/referrals?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    if(!state.promoDetail || state.promoDetail.type !== 'referral') return; // 그 사이 닫혔으면 무시
+    state.promoDetail = { type, loading: false, friends: data.friends || [] };
+  }catch(e){
+    console.warn('초대한 친구 목록을 불러오지 못했습니다.', e);
+    if(!state.promoDetail || state.promoDetail.type !== 'referral') return;
+    state.promoDetail = { type, loading: false, friends: [] };
+  }
+  render();
+}
+
+function closePromoDetail(){
+  state.promoDetail = null;
+  render();
+}
+
 function promotionHTML(){
   return `<div class="scroll">
     <p class="section-label">진행 중인 프로모션</p>
@@ -689,7 +772,8 @@ function promotionHTML(){
       ${upcomingPromoHTML('포인트를 현금화', { icon: ICONS.coin, highlight: true })}
       ${upcomingPromoHTML('미정')}
     </div>
-  </div>`;
+  </div>
+  ${promoDetailHTML()}`;
 }
 
 function levelCardHTML(){
@@ -764,7 +848,7 @@ function quizHTML(){
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
-  const earned = wasCorrect ? 10 : 0; // 정답 시에만 10포인트 (오답은 포인트 없음)
+  const earned = wasCorrect ? 10 : 2; // 정답 10포인트, 오답도 2포인트 (서버 POINTS_WRONG_EVENT와 동일)
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
@@ -919,6 +1003,15 @@ function bindScreenEvents(){
   if(skBtn) skBtn.addEventListener('click', skipAdAndSolve);
   screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
     el.addEventListener('click', ()=> el.classList.toggle('open'));
+  });
+  screenEl.querySelectorAll('[data-promo]').forEach(el=>{
+    el.addEventListener('click', ()=> openPromoDetail(el.dataset.promo));
+  });
+  const promoDetailClose = screenEl.querySelector('#promo-detail-close');
+  if(promoDetailClose) promoDetailClose.addEventListener('click', closePromoDetail);
+  const promoDetailBackdrop = screenEl.querySelector('#promo-detail-backdrop');
+  if(promoDetailBackdrop) promoDetailBackdrop.addEventListener('click', e=>{
+    if(e.target === promoDetailBackdrop) closePromoDetail();
   });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
     el.addEventListener('click', async ()=>{
