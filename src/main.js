@@ -764,7 +764,7 @@ function quizHTML(){
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
-  const earned = wasCorrect ? 10 : 0; // 정답 시에만 10포인트 (오답은 포인트 없음)
+  const earned = wasCorrect ? 10 : 2; // 정답 10포인트, 오답도 2포인트 (서버 POINTS_WRONG_EVENT와 동일)
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
