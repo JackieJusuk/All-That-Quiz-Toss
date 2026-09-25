@@ -487,7 +487,7 @@ body{
   flex-direction:column;
   align-items:center;
   justify-content:safe center;
-  padding:0.7rem 1.2rem calc(0.6rem + env(safe-area-inset-bottom));
+  padding:0.55rem 1.2rem calc(0.5rem + env(safe-area-inset-bottom));
   text-align:center;
   gap:0.2rem;
 }
@@ -535,10 +535,14 @@ body{
 
 .today-topic-scores{width:100%; max-width:22rem; margin-bottom:0.6rem; text-align:left;}
 .today-topic-scores .section-label{margin:0 0 0.3rem;}
+/* 항목이 늘어날수록(현재 3개 주제 + 4개 기타 + 합계 = 8행) 계속 폰트를 줄이기보다,
+   목록 자체에 최대 높이를 주고 내부 스크롤로 처리한다 — 액션 버튼은 항상 화면에
+   그대로 보이는 게 우선이고(§13 원칙 16), 점수 상세 목록만 필요할 때 스크롤한다. */
 .today-topic-list{
   display:flex;
   flex-direction:column;
-  gap:0.5rem;
+  max-height:9.5rem;
+  overflow-y:auto;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:14px;
@@ -547,20 +551,23 @@ body{
 .today-topic-row{
   display:flex;
   align-items:center;
-  gap:0.6rem;
-  padding:0.4rem 0;
+  gap:0.5rem;
+  padding:0.32rem 0;
+  flex:none;
 }
 .today-topic-row + .today-topic-row{border-top:1px solid var(--line);}
-.today-topic-name{flex:none; font-weight:700; font-size:0.88rem; width:3.2rem;}
-.today-topic-detail{flex:1; font-size:0.76rem; color:var(--ink-soft);}
+.today-topic-name{flex:none; font-weight:700; font-size:0.82rem; width:4.4rem;}
+.today-topic-detail{flex:1; font-size:0.72rem; color:var(--ink-soft);}
 .today-topic-points{
   flex:none;
   font-family:var(--font-mono);
   font-weight:600;
-  font-size:0.88rem;
+  font-size:0.82rem;
   color:var(--ink);
   font-variant-numeric:tabular-nums;
 }
+.today-topic-total .today-topic-name,
+.today-topic-total .today-topic-points{font-weight:800; color:var(--gold);}
 .result-actions{width:100%; max-width:22rem;}
 .result-actions .btn-primary{padding:0.75rem;}
 .result-actions .btn-ghost{padding:0.62rem; margin-top:0.4rem;}

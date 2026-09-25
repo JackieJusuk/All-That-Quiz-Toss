@@ -307,10 +307,10 @@ async function computeUserStats(userKey) {
     { data: refAsReferred, error: refErr2 },
   ] = await Promise.all([
     supabase.from('used_questions').select('answered_date, correct, topic').eq('user_key', userKey),
-    supabase.from('ad_views').select('id').eq('user_key', userKey),
-    supabase.from('attendance').select('id').eq('user_key', userKey),
-    supabase.from('referrals').select('id').eq('referrer_key', userKey),
-    supabase.from('referrals').select('id').eq('referred_key', userKey),
+    supabase.from('ad_views').select('id, viewed_date').eq('user_key', userKey),
+    supabase.from('attendance').select('id, checked_date').eq('user_key', userKey),
+    supabase.from('referrals').select('id, created_date').eq('referrer_key', userKey),
+    supabase.from('referrals').select('id, created_date').eq('referred_key', userKey),
   ]);
   if (error) throw error;
   if (adErr) throw adErr;
@@ -331,7 +331,8 @@ async function computeUserStats(userKey) {
     + streakBonusCount * STREAK_BONUS_POINTS;
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
-  const todayRows = data.filter(r => r.answered_date === todayKST());
+  const today = todayKST();
+  const todayRows = data.filter(r => r.answered_date === today);
   const todayTopicScores = {};
   for (const topicId of Object.keys(TOPIC_LABELS)) {
     const rows = todayRows.filter(r => r.topic === topicId);
@@ -340,9 +341,26 @@ async function computeUserStats(userKey) {
     todayTopicScores[topicId] = { correct, wrong, points: correct * POINTS_PER_EVENT + wrong * POINTS_WRONG_EVENT };
   }
 
+  // 퀴즈(주제별) 외에 오늘 포인트에 기여하는 나머지 항목(출석/광고 시청/친구 초대/연속학습 보너스).
+  // 이 넷 + todayTopicScores의 합이 "오늘 실제로 적립된 포인트 총합"과 정확히 일치해야 한다 —
+  // 위 points 계산식(전체 누적)과 항목이 완전히 같고, 여기서는 오늘 날짜로만 필터링하기 때문.
+  const todayAttendanceCount = attData.filter(r => r.checked_date === today).length;
+  const todayAdCount = adData.filter(r => r.viewed_date === today).length;
+  const todayReferralCount = refAsReferrer.filter(r => r.created_date === today).length
+    + refAsReferred.filter(r => r.created_date === today).length;
+  const todayStreakBonusCount = computeStreakBonusDates(datesAsc).includes(today) ? 1 : 0;
+  const todayOtherScores = {
+    attendance: { count: todayAttendanceCount, points: todayAttendanceCount * POINTS_PER_EVENT },
+    ad: { count: todayAdCount, points: todayAdCount * POINTS_PER_EVENT },
+    referral: { count: todayReferralCount, points: todayReferralCount * POINTS_PER_EVENT },
+    streakBonus: { count: todayStreakBonusCount, points: todayStreakBonusCount * STREAK_BONUS_POINTS },
+  };
+  const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
+    + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
+
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
-    referralCount: refAsReferrer.length, todayTopicScores,
+    referralCount: refAsReferrer.length, todayTopicScores, todayOtherScores, todayTotalPoints,
   };
 }
 
