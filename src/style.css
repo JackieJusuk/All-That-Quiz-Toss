@@ -20,7 +20,9 @@
   --bad-soft:#fdecec;
 
   --font-kr:'Gothic A1', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, sans-serif;
-  --font-mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 앱 전체 글씨체를 하나로 통일 — 숫자 전용으로 쓰던 모노스페이스 폰트도 동일한 폰트를 쓰도록
+     --font-kr을 그대로 가리킨다(레이블은 남겨두되 별도 폰트는 로드하지 않음). */
+  --font-mono:var(--font-kr);
 }
 
 @media (prefers-color-scheme: dark){
