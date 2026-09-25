@@ -148,6 +148,8 @@ let state = {
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
   todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
+  todayOtherScores:{}, // 오늘 주제 외 점수: { attendance, ad, referral, streakBonus: { count, points } }
+  todayTotalPoints:0, // 오늘의 주제별 점수 + 주제 외 점수의 합(= 오늘 실제 적립된 포인트 총합)
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   freeQuestionAvailable:true, // 로그인(앱 진입)당 첫 문제는 광고 없이 바로 풀 수 있다. 두 번째 문제부터 광고가 필요하다.
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
@@ -206,6 +208,8 @@ async function fetchStatus(){
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
     state.todayTopicScores = data.todayTopicScores ?? {};
+    state.todayOtherScores = data.todayOtherScores ?? {};
+    state.todayTotalPoints = data.todayTotalPoints ?? 0;
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
@@ -376,6 +380,8 @@ async function recordAnswer(topic, question, correct){
     state.todayTopicScores = { ...state.todayTopicScores, [topic.id]: {
       correct: prev.correct + (correct ? 1 : 0), wrong: prev.wrong + (correct ? 0 : 1), points: prev.points + earned,
     }};
+    state.todayTotalPoints = Object.values(state.todayTopicScores).reduce((sum, t) => sum + t.points, 0)
+      + Object.values(state.todayOtherScores).reduce((sum, o) => sum + (o.points || 0), 0);
     return;
   }
   try{
@@ -394,6 +400,8 @@ async function recordAnswer(topic, question, correct){
     state.referralCount = stats.referralCount ?? 0;
     state.hasAdTicket = stats.hasAdTicket ?? false;
     state.todayTopicScores = stats.todayTopicScores ?? {};
+    state.todayOtherScores = stats.todayOtherScores ?? {};
+    state.todayTotalPoints = stats.todayTotalPoints ?? 0;
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
   }
@@ -878,7 +886,7 @@ function resultHTML(){
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
     </div>
     <div class="today-topic-scores">
-      <p class="section-label">오늘의 주제별 점수</p>
+      <p class="section-label">오늘의 항목별 점수</p>
       <div class="today-topic-list">
         ${TOPICS.map(t => {
           const s = state.todayTopicScores[t.id] || { correct:0, wrong:0, points:0 };
@@ -889,6 +897,25 @@ function resultHTML(){
             <span class="today-topic-points">${s.points}점</span>
           </div>`;
         }).join('')}
+        ${[
+          ['출석', state.todayOtherScores.attendance],
+          ['광고 시청', state.todayOtherScores.ad],
+          ['친구 초대', state.todayOtherScores.referral],
+          ['연속 보너스', state.todayOtherScores.streakBonus],
+        ].map(([name, s]) => {
+          const v = s || { count:0, points:0 };
+          return `
+          <div class="today-topic-row">
+            <span class="today-topic-name">${name}</span>
+            <span class="today-topic-detail">${v.count}회</span>
+            <span class="today-topic-points">${v.points}점</span>
+          </div>`;
+        }).join('')}
+        <div class="today-topic-row today-topic-total">
+          <span class="today-topic-name">합계</span>
+          <span class="today-topic-detail"></span>
+          <span class="today-topic-points">${state.todayTotalPoints}점</span>
+        </div>
       </div>
     </div>
     <div class="result-actions">
