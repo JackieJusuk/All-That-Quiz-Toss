@@ -103,6 +103,16 @@ const TOPICS = [
     ]},
 ];
 
+// 결과 화면 "오늘의 항목별 점수" 목록에서 항목마다 다른 글씨체를 쓰기 위한 폰트 지정.
+const CATEGORY_FONTS = {
+  stock: "'Gothic A1', sans-serif",
+  realestate: "'Nanum Myeongjo', serif",
+  fund: "'Jua', sans-serif",
+  attendance: "'Gaegu', cursive",
+  ad: "'Do Hyeon', sans-serif",
+  referral: "'Black Han Sans', sans-serif",
+};
+
 const DIFF_LABEL = { easy:'쉬움', medium:'보통', hard:'어려움' };
 
 // 누적 정답 수 기준 등급. 등급이 오르면 다음 문제 난이도도 함께 올라간다.
@@ -892,21 +902,22 @@ function resultHTML(){
           const s = state.todayTopicScores[t.id] || { correct:0, wrong:0, points:0 };
           return `
           <div class="today-topic-row">
-            <span class="today-topic-name" style="color:${t.color}">${t.name}</span>
+            <span class="today-topic-name" style="color:${t.color}; font-family:${CATEGORY_FONTS[t.id]}">${t.name}</span>
             <span class="today-topic-detail">정답 ${s.correct} · 오답 ${s.wrong}</span>
             <span class="today-topic-points">${s.points}점</span>
           </div>`;
         }).join('')}
         ${[
-          ['출석', state.todayOtherScores.attendance],
-          ['광고 시청', state.todayOtherScores.ad],
-          ['친구 초대', state.todayOtherScores.referral],
-          ['연속 보너스', state.todayOtherScores.streakBonus],
-        ].map(([name, s]) => {
-          const v = s || { count:0, points:0 };
+          ['attendance', '출석'],
+          ['ad', '광고 시청'],
+          ['referral', '친구 초대'],
+          ['streakBonus', '연속 보너스'],
+        ].map(([key, name]) => {
+          const v = state.todayOtherScores[key] || { count:0, points:0 };
+          const font = CATEGORY_FONTS[key];
           return `
           <div class="today-topic-row">
-            <span class="today-topic-name">${name}</span>
+            <span class="today-topic-name"${font ? ` style="font-family:${font}"` : ''}>${name}</span>
             <span class="today-topic-detail">${v.count}회</span>
             <span class="today-topic-points">${v.points}점</span>
           </div>`;
