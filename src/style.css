@@ -493,14 +493,13 @@ body{
 }
 .result-score{
   font-family:var(--font-mono);
-  font-size:clamp(1.3rem, 4.5vh, 1.9rem);
+  font-size:clamp(1.05rem, 3.4vh, 1.5rem);
   font-weight:600;
   color:var(--accent);
   line-height:1;
   margin-bottom:0.15rem;
 }
-.result-title{font-size:clamp(0.85rem, 2.3vh, 1rem); font-weight:900; margin:0 0 0.2rem;}
-.result-sub{font-size:0.76rem; color:var(--ink-soft); margin:0 0 0.65rem;}
+.result-title{font-size:clamp(0.85rem, 2.3vh, 1rem); font-weight:900; margin:0 0 0.6rem;}
 .levelup-banner{
   background:var(--accent-soft);
   color:var(--accent);

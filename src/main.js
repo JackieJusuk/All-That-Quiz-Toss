@@ -889,7 +889,6 @@ function resultHTML(){
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
     <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    <p class="result-sub">광고를 보면 다음 퀴즈도 이어서 풀 수 있어요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
