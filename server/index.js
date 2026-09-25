@@ -132,7 +132,9 @@ async function verifyCalculationQuestions(questions) {
   return questions.filter((_, i) => keep[i]);
 }
 
-async function generateQuizSet(topicId, count, difficulty, avoidQuestions) {
+// verify: 계산 문제 자기검증 호출 실행 여부. 백그라운드 풀 채우기(사용자가 기다리지 않음)는 true,
+// 사용자가 화면에서 직접 기다리는 실시간 자가치유 생성은 false로 넘겨 응답 속도를 우선한다.
+async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { verify = true } = {}) {
   const label = TOPIC_LABELS[topicId];
   const concepts = pickRandom(TOPIC_CONCEPTS[topicId], Math.min(5, TOPIC_CONCEPTS[topicId].length));
   const style = QUESTION_STYLES[Math.floor(Math.random() * QUESTION_STYLES.length)];
@@ -161,6 +163,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions) {
       if (response.parsed_output) {
         const normalized = normalizeQuizSet(response.parsed_output, count);
         if (normalized) {
+          if (!verify) return normalized;
           const verified = await verifyCalculationQuestions(normalized.questions);
           if (verified.length === count) return { questions: verified };
           lastErr = new Error('calculation verification failed');
@@ -178,7 +181,10 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions) {
 }
 
 // ---- 문제 풀 상시 유지(백그라운드 사전생성) ----
-const POOL_TARGET_PER_TOPIC = 34; // 3개 주제 * 34 ≈ 100문제
+// 풀이 활발한 사용자는 개인별로 "안 푼 문제"가 이 숫자보다 먼저 바닥날 수 있고, 그러면
+// pickQuestionForUser가 실시간 생성(자가치유)으로 빠지며 응답이 느려진다. 여유를 넉넉히 둬서
+// 실시간 생성 자체가 거의 발생하지 않도록 한다.
+const POOL_TARGET_PER_TOPIC = 80; // 3개 주제 * 80 = 240문제
 let topupInFlight = false;
 
 async function ensurePoolTopUp() {
@@ -193,7 +199,7 @@ async function ensurePoolTopUp() {
       if (error) { console.error('topup count error', topicId, error); continue; }
       const current = count ?? 0;
       if (current < POOL_TARGET_PER_TOPIC) {
-        const need = Math.min(5, POOL_TARGET_PER_TOPIC - current); // 한 번에 최대 5개씩만 채운다
+        const need = Math.min(10, POOL_TARGET_PER_TOPIC - current); // 한 번에 최대 10개씩 채운다
         const generated = await generateQuizSet(topicId, need, 'medium');
         const rows = generated.questions.map(q => ({
           topic: topicId, q: q.q, choices: q.choices, correct: q.correct, explain: q.explain, difficulty: q.difficulty,
@@ -351,7 +357,8 @@ async function pickQuestionForUser(topicId, difficulty, userKey) {
   if (!candidates.length) candidates = await query(false);
   if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
 
-  const generated = await generateQuizSet(topicId, 1, difficulty);
+  // 사용자가 화면에서 직접 기다리는 경로라 계산 문제 자기검증(추가 API 왕복)은 생략해 응답을 빠르게 한다.
+  const generated = await generateQuizSet(topicId, 1, difficulty, undefined, { verify: false });
   const g = generated.questions[0];
   const { data: inserted, error: insErr } = await supabase
     .from('questions')

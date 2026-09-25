@@ -296,7 +296,7 @@ async function watchAdThenFetchQuestion(){
       // 문제풀이권 소비 자체는 화면에 영향 주지 않도록 뒤에서 마저 처리한다(실패해도 이미 보여준 문제는 그대로 유지).
       state.question = prefetched.question;
       state.loadingQuestions = false;
-      fetchQuestion(state.topic, difficulty);
+      fetchQuestion(state.topic, difficulty, BACKGROUND_TIMEOUT_MS);
     }else{
       state.loadingQuestions = true;
       render();
@@ -315,14 +315,23 @@ async function watchAdThenFetchQuestion(){
   render();
 }
 
+// 화면에서 사용자가 직접 기다리는 경로(광고 스킵 등)는 이 시간 안에 응답이 없으면
+// 로컬 비상용 문제은행으로 바로 전환한다 — 서버가 실시간 생성(AI 호출)으로 빠졌을 때
+// 체감 대기시간이 몇 초씩 길어지는 걸 막기 위함이다.
+const FOREGROUND_TIMEOUT_MS = 3000;
+// 광고 재생 중 미리 받아두는 경로는 화면에 안 보이므로, 로컬 대체보다 실제 서버 문제를
+// 받을 확률을 높이는 쪽이 낫다 — 더 길게 기다린다.
+const BACKGROUND_TIMEOUT_MS = 8000;
+
 // 광고 시청권을 쓰지 않는 미리보기 조회. 광고가 재생되는 동안 미리 불러와두면
 // 광고가 끝난 직후 로딩 없이 바로 문제를 보여줄 수 있다. 실패해도 조용히 무시한다(뒷단 fetchQuestion이 안전망).
-async function peekQuestion(topic, difficulty){
+async function peekQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS){
   try{
     const res = await fetch(`${API_BASE}/api/questions/peek`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if(!res.ok) return null;
     const q = await res.json();
@@ -333,12 +342,13 @@ async function peekQuestion(topic, difficulty){
   }
 }
 
-async function fetchQuestion(topic, difficulty){
+async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS){
   try{
     const res = await fetch(`${API_BASE}/api/questions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if(res.status === 403) return 'ad_required';
     if(!res.ok) throw new Error(`status ${res.status}`);
@@ -543,7 +553,7 @@ async function startTopic(topic){
     state.needsAd = true;
     state.loadingQuestions = false;
     render();
-    peekQuestion(topic, difficulty).then(q => {
+    peekQuestion(topic, difficulty, BACKGROUND_TIMEOUT_MS).then(q => {
       if(q && state.topic === topic) state.prefetched = { topicId: topic.id, difficulty, question: q };
     });
     return;
