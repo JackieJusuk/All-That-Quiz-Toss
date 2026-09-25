@@ -103,16 +103,6 @@ const TOPICS = [
     ]},
 ];
 
-// 결과 화면 "오늘의 항목별 점수" 목록에서 항목마다 다른 글씨체를 쓰기 위한 폰트 지정.
-const CATEGORY_FONTS = {
-  stock: "'Gothic A1', sans-serif",
-  realestate: "'Nanum Myeongjo', serif",
-  fund: "'Jua', sans-serif",
-  attendance: "'Gaegu', cursive",
-  ad: "'Do Hyeon', sans-serif",
-  referral: "'Black Han Sans', sans-serif",
-};
-
 const DIFF_LABEL = { easy:'쉬움', medium:'보통', hard:'어려움' };
 
 // 누적 정답 수 기준 등급. 등급이 오르면 다음 문제 난이도도 함께 올라간다.
@@ -889,7 +879,6 @@ function resultHTML(){
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
     <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    <p class="result-sub">광고를 보면 다음 퀴즈도 이어서 풀 수 있어요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
@@ -902,7 +891,7 @@ function resultHTML(){
           const s = state.todayTopicScores[t.id] || { correct:0, wrong:0, points:0 };
           return `
           <div class="today-topic-row">
-            <span class="today-topic-name" style="color:${t.color}; font-family:${CATEGORY_FONTS[t.id]}">${t.name}</span>
+            <span class="today-topic-name" style="color:${t.color}">${t.name}</span>
             <span class="today-topic-detail">정답 ${s.correct} · 오답 ${s.wrong}</span>
             <span class="today-topic-points">${s.points}점</span>
           </div>`;
@@ -914,10 +903,9 @@ function resultHTML(){
           ['streakBonus', '연속 보너스'],
         ].map(([key, name]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
-          const font = CATEGORY_FONTS[key];
           return `
           <div class="today-topic-row">
-            <span class="today-topic-name"${font ? ` style="font-family:${font}"` : ''}>${name}</span>
+            <span class="today-topic-name">${name}</span>
             <span class="today-topic-detail">${v.count}회</span>
             <span class="today-topic-points">${v.points}점</span>
           </div>`;
