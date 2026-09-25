@@ -535,14 +535,12 @@ body{
 
 .today-topic-scores{width:100%; max-width:22rem; margin-bottom:0.6rem; text-align:left;}
 .today-topic-scores .section-label{margin:0 0 0.3rem;}
-/* 항목이 늘어날수록(현재 3개 주제 + 4개 기타 + 합계 = 8행) 계속 폰트를 줄이기보다,
-   목록 자체에 최대 높이를 주고 내부 스크롤로 처리한다 — 액션 버튼은 항상 화면에
-   그대로 보이는 게 우선이고(§13 원칙 16), 점수 상세 목록만 필요할 때 스크롤한다. */
+/* 친구초대처럼 오늘 값이 0인 항목도 항상 눈에 바로 보여야 하므로(숨겨진 내부
+   스크롤에 넣지 않음), 목록은 자체 높이 제한 없이 전부 펼쳐서 보여준다. 대신
+   행 자체를 최대한 compact하게 만들어서 화면 스크롤 없이 다 보이게 한다(§13 원칙 16). */
 .today-topic-list{
   display:flex;
   flex-direction:column;
-  max-height:9.5rem;
-  overflow-y:auto;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:14px;
