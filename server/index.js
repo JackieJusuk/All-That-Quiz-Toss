@@ -306,7 +306,7 @@ async function computeUserStats(userKey) {
     { data: refAsReferrer, error: refErr1 },
     { data: refAsReferred, error: refErr2 },
   ] = await Promise.all([
-    supabase.from('used_questions').select('answered_date, correct').eq('user_key', userKey),
+    supabase.from('used_questions').select('answered_date, correct, topic').eq('user_key', userKey),
     supabase.from('ad_views').select('id').eq('user_key', userKey),
     supabase.from('attendance').select('id').eq('user_key', userKey),
     supabase.from('referrals').select('id').eq('referrer_key', userKey),
@@ -329,9 +329,20 @@ async function computeUserStats(userKey) {
   const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
     + streakBonusCount * STREAK_BONUS_POINTS;
+
+  // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
+  const todayRows = data.filter(r => r.answered_date === todayKST());
+  const todayTopicScores = {};
+  for (const topicId of Object.keys(TOPIC_LABELS)) {
+    const rows = todayRows.filter(r => r.topic === topicId);
+    const correct = rows.filter(r => r.correct).length;
+    const wrong = rows.length - correct;
+    todayTopicScores[topicId] = { correct, wrong, points: correct * POINTS_PER_EVENT + wrong * POINTS_WRONG_EVENT };
+  }
+
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
-    referralCount: refAsReferrer.length,
+    referralCount: refAsReferrer.length, todayTopicScores,
   };
 }
 

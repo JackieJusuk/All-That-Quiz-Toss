@@ -147,6 +147,7 @@ let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
+  todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   freeQuestionAvailable:true, // 로그인(앱 진입)당 첫 문제는 광고 없이 바로 풀 수 있다. 두 번째 문제부터 광고가 필요하다.
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
@@ -204,6 +205,7 @@ async function fetchStatus(){
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
+    state.todayTopicScores = data.todayTopicScores ?? {};
   }catch(e){
     console.warn('사용자 상태를 불러오지 못했습니다.', e);
   }
@@ -365,10 +367,15 @@ async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
     // 포인트 = 정답 시 10포인트, 오답 시 2포인트.
+    const earned = correct ? 10 : 2;
     state.totalCorrect += correct ? 1 : 0;
-    state.points += correct ? 10 : 2;
+    state.points += earned;
     state.streak += 1;
     state.hasAdTicket = false;
+    const prev = state.todayTopicScores[topic.id] || { correct: 0, wrong: 0, points: 0 };
+    state.todayTopicScores = { ...state.todayTopicScores, [topic.id]: {
+      correct: prev.correct + (correct ? 1 : 0), wrong: prev.wrong + (correct ? 0 : 1), points: prev.points + earned,
+    }};
     return;
   }
   try{
@@ -386,6 +393,7 @@ async function recordAnswer(topic, question, correct){
     state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
     state.referralCount = stats.referralCount ?? 0;
     state.hasAdTicket = stats.hasAdTicket ?? false;
+    state.todayTopicScores = stats.todayTopicScores ?? {};
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
   }
@@ -866,8 +874,22 @@ function resultHTML(){
     <p class="result-sub">광고를 보면 다음 퀴즈도 이어서 풀 수 있어요</p>
     ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
     <div class="result-stats">
-      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">획득 포인트</div></div>
+      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
+    </div>
+    <div class="today-topic-scores">
+      <p class="section-label">오늘의 주제별 점수</p>
+      <div class="today-topic-list">
+        ${TOPICS.map(t => {
+          const s = state.todayTopicScores[t.id] || { correct:0, wrong:0, points:0 };
+          return `
+          <div class="today-topic-row">
+            <span class="today-topic-name" style="color:${t.color}">${t.name}</span>
+            <span class="today-topic-detail">정답 ${s.correct} · 오답 ${s.wrong}</span>
+            <span class="today-topic-points">${s.points}점</span>
+          </div>`;
+        }).join('')}
+      </div>
     </div>
     <div class="result-actions">
       <button class="btn-primary" id="result-next">새로운 퀴즈 풀기</button>
