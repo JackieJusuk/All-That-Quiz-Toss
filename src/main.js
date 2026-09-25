@@ -900,11 +900,11 @@ function resultHTML(){
           ['attendance', '출석', v => `${v.count}회`],
           ['ad', '광고 시청', v => `${v.count}회`],
           ['referral', '친구 초대', v => `${v.count}회`],
-          // 연속 출석 일수(state.streak)를 보여준다 — 이 행의 포인트는 "오늘"
-          // 10일 단위 보너스가 실제로 터졌을 때만 0보다 커지므로(예: 10일째,
-          // 20일째), 연속 출석 일수 자체는 계속 늘어나도 포인트가 0으로
-          // 보이는 날이 대부분인 게 정상이다.
-          ['streakBonus', '연속 출석', () => `${state.streak}일째`],
+          // 연속 출석 일수(state.streak)와 다음 10일 보너스까지 남은 일수를 같이 보여준다.
+          // 이 행의 포인트는 정확히 10일째·20일째처럼 10일 단위 보너스가 터진 날에만
+          // 0보다 커지므로, "며칠 남았는지"를 같이 보여줘야 오늘 0점인 게 이상해 보이지
+          // 않는다(연속 출석 자체가 매일 포인트를 주는 게 아니라는 걸 명확히 함).
+          ['streakBonus', '연속 출석', () => `${state.streak}일째 · 다음 보너스까지 ${state.daysToNextStreakBonus}일`],
         ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
