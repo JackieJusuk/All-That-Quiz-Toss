@@ -897,16 +897,20 @@ function resultHTML(){
           </div>`;
         }).join('')}
         ${[
-          ['attendance', '출석'],
-          ['ad', '광고 시청'],
-          ['referral', '친구 초대'],
-          ['streakBonus', '연속 보너스'],
-        ].map(([key, name]) => {
+          ['attendance', '출석', v => `${v.count}회`],
+          ['ad', '광고 시청', v => `${v.count}회`],
+          ['referral', '친구 초대', v => `${v.count}회`],
+          // 연속 출석 일수(state.streak)를 보여준다 — 이 행의 포인트는 "오늘"
+          // 10일 단위 보너스가 실제로 터졌을 때만 0보다 커지므로(예: 10일째,
+          // 20일째), 연속 출석 일수 자체는 계속 늘어나도 포인트가 0으로
+          // 보이는 날이 대부분인 게 정상이다.
+          ['streakBonus', '연속 출석', () => `${state.streak}일째`],
+        ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
           <div class="today-topic-row">
             <span class="today-topic-name">${name}</span>
-            <span class="today-topic-detail">${v.count}회</span>
+            <span class="today-topic-detail">${detailText(v)}</span>
             <span class="today-topic-points">${v.points}점</span>
           </div>`;
         }).join('')}
