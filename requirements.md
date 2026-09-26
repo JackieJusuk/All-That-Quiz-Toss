@@ -203,7 +203,10 @@
 - 배포: GitHub push → Render 자동 배포 (백엔드), `ait build`/`ait deploy`로 토스 콘솔에 미니앱 배포(프론트)
 - **테스트 시 QR 코드 제시**: `ait deploy` 완료 후 발급되는 `intoss-private://` 딥링크를 QR 코드로 변환해 제공한다. 워크스페이스 멤버로 로그인한 토스 앱에서 해당 QR을 스캔하면 프라이빗 테스트 빌드로 바로 진입할 수 있다
 - **Cloudflare Workers는 시도했다가 롤백함**: Anthropic API의 국가 기반 접근 제한과 Workers의 엣지 분산 실행 구조가 충돌해 비결정적 403 오류 발생 → 고정 리전인 Render로 최종 정착
-- **System Architecture Diagram(1장, C4 모델의 Container 레벨)**: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy (2026-09-27 작성). Claude AI(개발 도구) → GitHub(프론트+백엔드 단일 저장소) → 앱스토어/콘솔(프론트)·백엔드 서버(API)로 배포가 갈라지고, 사용자 기기 ↔ 백엔드 서버는 배포와 무관한 런타임 API 통신이라는 점을 한 장으로 보여줌 — §13 원칙 19 참고
+- **System Architecture Diagram(1장, C4 모델의 Container 레벨)**: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy (2026-09-27 작성, 이후 개발자/사용자 행위자 추가 및 2번째 슬라이드로 아래 이전 검토 비교표 추가). 1번째 슬라이드: Claude AI(개발 도구) → GitHub(프론트+백엔드 단일 저장소) → 앱스토어/콘솔(프론트)·백엔드 서버(API)로 배포가 갈라지고, 사용자 기기 ↔ 백엔드 서버는 배포와 무관한 런타임 API 통신이라는 점을 한 장으로 보여줌 — §13 원칙 19 참고
+- **DB(Supabase→Render)/백엔드(Render→Supabase) 클라우드 이전 검토 후 기각(2026-09-27)**: 위 다이어그램 2번째 슬라이드에 비교표로 정리함. 결론은 **현재 구조(백엔드=Render 고정 리전, DB=Supabase) 유지**.
+  - **DB를 Render Postgres로 이전**: 같은 리전이면 지연시간은 소폭 개선될 수 있으나, Render Postgres 무료 플랜은 생성 후 약 30일 뒤 삭제되어 사실상 유료 플랜이 필요(Supabase와 비용 차이 크지 않음). 결정적으로 `server/index.js`가 Supabase 전용 쿼리 빌더(`supabase.from(...)`, PostgREST 기반)를 **19곳**에서 쓰고 있어, Render의 순수 Postgres로 옮기려면 이 호출들을 전부 raw SQL로 재작성해야 함 — 실익 대비 엔지니어링 리스크가 커서 **보류**
+  - **백엔드를 Supabase Edge Functions로 이전**: Edge Functions는 Cloudflare Workers와 마찬가지로 **엣지 분산 실행** 구조라, 위에서 이미 겪은 "Anthropic API 국가 기반 접근 제한과 충돌해 비결정적 403 오류 발생" 문제가 그대로 재발할 가능성이 높음. Render를 쓰는 이유 자체가 "고정 리전"이었으므로 이 방향은 그 이유를 정면으로 거스름 — **기각**
 
 ## 7. 실제 금전 보상(리워드) 설계 — 내부 문서, 미노출/미구현
 
