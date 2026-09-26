@@ -631,10 +631,13 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
-// 닉네임 등록/변경 (최초 접속 시 1회 입력)
+// 닉네임 등록/변경 (최초 접속 시 1회 입력, 이후에도 초대 링크로 재접속하면 호출됨)
 // ref: 초대 링크(?ref=)로 들어온 경우의 초대자 user_key.
-// - profiles.referred_by("친구" 배지 표시용)는 최초 가입 시점 값을 그대로 유지한다(1회만 귀속, 덮어쓰지 않음).
-// - referrals(포인트 적립용)는 반대로, 유효한 ref가 올 때마다 매번 기록한다 — 어뷰징 방지 장치를
+// - profiles.referred_by("친구" 배지 표시용)는 유효한 ref가 올 때마다 최신 값으로 갱신한다(이미 가입한
+//   사용자여도 나중에 다른 사람의 초대 링크로 들어오면 그 사람의 "친구"로 갱신됨). 이번 접속에 ref가 없으면
+//   기존 값을 그대로 유지한다. 유저 간 경쟁(랭킹의 "친구" 배지)을 위한 의도적 정책(사용자 확인, 2026-09-27,
+//   requirements.md §3.7 참고) — "누가 나를 처음 초대했는가"가 아니라 "가장 최근에 누구의 초대를 받았는가"를 보여준다.
+// - referrals(포인트 적립용)는 이전부터 유효한 ref가 올 때마다 매번 기록한다 — 어뷰징 방지 장치를
 //   의도적으로 넣지 않은 프로모션 단계 정책(사용자 확인, requirements.md §9 참고). 같은 두 사람이어도
 //   초대 링크로 다시 들어올 때마다 양쪽 모두 +10포인트가 반복 적립된다.
 app.post('/api/profile', async (req, res) => {
@@ -653,7 +656,7 @@ app.post('/api/profile', async (req, res) => {
       .eq('user_key', userKey)
       .maybeSingle();
     if (findErr) throw findErr;
-    const referredBy = existing ? existing.referred_by : (ref && ref !== userKey ? ref : null);
+    const referredBy = (ref && ref !== userKey) ? ref : (existing ? existing.referred_by : null);
 
     const { error } = await supabase
       .from('profiles')
