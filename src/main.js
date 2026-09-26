@@ -1189,7 +1189,13 @@ async function init(){
       daysToNextStreakBonus: state.daysToNextStreakBonus, referralCount: state.referralCount,
     });
   }
-  go('home');
+  // fetchInit()이 늦게 끝나는 동안(백엔드 콜드스타트 등) 사용자가 이미 퀴즈 등 다른 화면으로
+  // 넘어갔을 수 있다. 그런 경우 여기서 무조건 go('home')을 부르면 방금 시작한 퀴즈 화면이
+  // 갑자기 홈으로 되돌아가는 버그가 생긴다(실제 발생 사례, requirements.md §3.15).
+  // 사용자가 아직 로딩/홈 화면을 벗어나지 않았을 때만 홈으로 전환(또는 갱신)한다.
+  if(state.screen === 'loading' || state.screen === 'home'){
+    go('home');
+  }
 }
 
 init();
