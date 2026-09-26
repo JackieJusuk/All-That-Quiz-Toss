@@ -12,6 +12,8 @@
 
 **§13 원칙 17(글씨체 통일)도 항상 지키세요**: 앱 전체에서 글씨체는 하나(`Gothic A1`)로 통일한다. 화면·항목별로 다른 폰트 패밀리를 섞어 쓰지 않는다 — 구분은 색상/굵기/크기로 한다. 숫자용으로 쓰던 `--font-mono`도 `--font-kr`을 그대로 가리키도록 통합되어 있다(`src/style.css`). 새 폰트를 추가하기 전에 이미 로드된 `Gothic A1`으로 원하는 효과를 낼 수 없는지 먼저 확인한다.
 
+**§13 원칙 19(대원칙: System Architecture Diagram 유지)**: 새 구성요소(외부 서비스, 배포 대상 등)가 추가되거나 배포/통신 흐름이 바뀌는 작업을 할 때는 `requirements.md` §6에 링크된 System Architecture Diagram(1장, C4 Container 레벨)도 함께 갱신한다. 다이어그램: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy
+
 ## 프로젝트 구조
 - `server/index.js`: 백엔드 (Express + Supabase + Anthropic API, Render에 배포)
 - `src/main.js`, `src/style.css`, `index.html`: 프론트엔드 (앱인토스 미니앱, vanilla JS)
