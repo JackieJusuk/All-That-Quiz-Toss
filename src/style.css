@@ -680,7 +680,9 @@ body{
   padding-left:0.5rem;
   padding-right:0.5rem;
   border-bottom-color:transparent;
+  cursor:pointer;
 }
+.rank-chev{flex:none; display:flex; color:var(--accent); opacity:0.7;}
 .rank-row.me .rank-num{color:var(--accent);}
 .rank-avatar{
   flex:none;

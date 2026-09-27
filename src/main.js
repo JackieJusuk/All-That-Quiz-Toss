@@ -159,6 +159,7 @@ let state = {
   nickname:null, savingNickname:false, suggestedNickname:null,
   onboardStep:'nickname', notifyTime:'09:00', savingNotify:false,
   promoDetail:null,
+  myStatsDetailOpen:false,
 };
 
 // 문제풀이권(광고 게이팅), 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
@@ -871,19 +872,11 @@ function quizHTML(){
   </div>` : ''}`;
 }
 
-function resultHTML(){
-  const q = state.question;
-  const wasCorrect = state.selected === q.correct;
-  const earned = wasCorrect ? 10 : 2; // 정답 10포인트, 오답도 2포인트 (서버 POINTS_WRONG_EVENT와 동일)
+// 결과 화면과 랭킹의 "내 기록 보기"가 공유하는 오늘의 항목별 점수 표. 데이터는 state.todayTopicScores/
+// todayOtherScores/todayTotalPoints(둘 다 fetchStatus/recordAnswer가 채움)를 그대로 쓰므로, 어디서 열어도
+// 항상 그날 실제로 적립된 포인트 총합과 정확히 일치한다.
+function todayScoresHTML(){
   return `
-  <div class="result-wrap">
-    <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
-    <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
-    <div class="result-stats">
-      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
-      <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
-    </div>
     <div class="today-topic-scores">
       <p class="section-label">오늘의 항목별 점수</p>
       <div class="today-topic-list">
@@ -920,7 +913,23 @@ function resultHTML(){
           <span class="today-topic-points">${state.todayTotalPoints}점</span>
         </div>
       </div>
+    </div>`;
+}
+
+function resultHTML(){
+  const q = state.question;
+  const wasCorrect = state.selected === q.correct;
+  const earned = wasCorrect ? 10 : 2; // 정답 10포인트, 오답도 2포인트 (서버 POINTS_WRONG_EVENT와 동일)
+  return `
+  <div class="result-wrap">
+    <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
+    <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
+    ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
+    <div class="result-stats">
+      <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
+      <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
     </div>
+    ${todayScoresHTML()}
     <div class="result-actions">
       <button class="btn-primary" id="result-next">새로운 퀴즈 풀기</button>
       <button class="btn-ghost" id="result-wrong">오답노트 보기</button>
@@ -976,14 +985,50 @@ function rankingHTML(){
     ${rankSegHTML()}
     ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 퀴즈를 풀어 랭킹에 참여해보세요</span></div>` :
     rows.map((r,i)=>`
-      <div class="rank-row ${r.me?'me':''}">
+      <div class="rank-row ${r.me?'me':''}" ${r.me?'data-myrank="1"':''}>
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
         <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}</div>
         <div class="rank-score">${r.score.toLocaleString()}포인트</div>
+        ${r.me?`<div class="rank-chev">${ICONS.chev}</div>`:''}
       </div>
     `).join('')}
+  </div>
+  ${myStatsDetailHTML()}`;
+}
+
+// 랭킹 화면에서 "나(me)" 행을 눌렀을 때 뜨는 상세 시트 — 결과 화면과 동일한 오늘의 항목별 점수 표를 보여준다.
+function myStatsDetailHTML(){
+  if(!state.myStatsDetailOpen) return '';
+  return `
+  <div class="promo-detail-backdrop" id="mystats-detail-backdrop">
+    <div class="promo-detail-sheet">
+      <div class="promo-detail-head">
+        <span class="promo-detail-title">오늘의 내 기록</span>
+        <button class="iconbtn" id="mystats-detail-close">${ICONS.close}</button>
+      </div>
+      <div class="promo-detail-body">
+        <div class="result-stats">
+          <div class="result-stat gold"><div class="v">${state.points.toLocaleString()}</div><div class="l">보유 포인트</div></div>
+          <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
+        </div>
+        ${todayScoresHTML()}
+      </div>
+    </div>
   </div>`;
+}
+
+// 최신 상태를 반영해서 열어야 하므로(랭킹 화면 진입 시점엔 오늘 점수를 다시 안 불러옴) 열 때 한 번 더 가져온다.
+async function openMyStatsDetail(){
+  state.myStatsDetailOpen = true;
+  render();
+  await fetchStatus();
+  render();
+}
+
+function closeMyStatsDetail(){
+  state.myStatsDetailOpen = false;
+  render();
 }
 
 // 서버 응답을 기다리는 동안 빈 화면 대신 보여주는 최초 로딩 화면.
@@ -1074,6 +1119,15 @@ function bindScreenEvents(){
   const promoDetailBackdrop = screenEl.querySelector('#promo-detail-backdrop');
   if(promoDetailBackdrop) promoDetailBackdrop.addEventListener('click', e=>{
     if(e.target === promoDetailBackdrop) closePromoDetail();
+  });
+  screenEl.querySelectorAll('[data-myrank]').forEach(el=>{
+    el.addEventListener('click', openMyStatsDetail);
+  });
+  const myStatsClose = screenEl.querySelector('#mystats-detail-close');
+  if(myStatsClose) myStatsClose.addEventListener('click', closeMyStatsDetail);
+  const myStatsBackdrop = screenEl.querySelector('#mystats-detail-backdrop');
+  if(myStatsBackdrop) myStatsBackdrop.addEventListener('click', e=>{
+    if(e.target === myStatsBackdrop) closeMyStatsDetail();
   });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
     el.addEventListener('click', async ()=>{
