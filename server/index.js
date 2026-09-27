@@ -223,6 +223,38 @@ const POINTS_WRONG_EVENT = 2;
 // 연속 학습(퀴즈를 푼 날짜 기준) 10일마다 100P 보너스. 끊기면 그 시점부터 다시 10일을 채워야 한다.
 const STREAK_BONUS_DAYS = 10;
 const STREAK_BONUS_POINTS = 100;
+// 주간 우등생 시상: 매주 일요일 0시~토요일 23:59:59(KST) 성적 1~3등에게 지급. 인덱스 0=1등.
+const WEEKLY_AWARD_POINTS = [100, 50, 20];
+
+// KST 벽시계 값을 담은 Date(내부 필드는 UTC로 읽어야 KST 시/분/요일이 나옴) — todayKST()와 같은 트릭.
+function nowKST() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000);
+}
+
+// dateStr(KST 날짜)이 속한 주(일요일~토요일)의 시작/끝 날짜.
+function weekRangeKST(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const dow = d.getUTCDay(); // 0=일 ... 6=토
+  const sunday = new Date(d.getTime() - dow * 24 * 60 * 60 * 1000);
+  const saturday = new Date(sunday.getTime() + 6 * 24 * 60 * 60 * 1000);
+  return { sunday: sunday.toISOString().slice(0, 10), saturday: saturday.toISOString().slice(0, 10) };
+}
+
+// 다음 시상(이번 주 토요일 23:59:59 KST)까지 남은 일수. 오늘이 토요일이면 0.
+function daysUntilNextWeeklyAwardKST() {
+  const dow = nowKST().getUTCDay();
+  return (6 - dow + 7) % 7;
+}
+
+// "이미 완전히 끝난" 가장 최근 토요일의 날짜(KST). 오늘이 토요일이고 23:59를 아직 안 지났다면
+// 지난주 토요일을 가리킨다 — awardWeeklyTop3IfDue()가 "지급 대상 주"를 찾는 데 쓴다.
+function lastCompletedSaturdayKST() {
+  const now = nowKST();
+  const dow = now.getUTCDay();
+  const isSaturdayPastDeadline = dow === 6 && now.getUTCHours() === 23 && now.getUTCMinutes() >= 59;
+  const daysAgo = isSaturdayPastDeadline ? 0 : dow + 1;
+  return new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 // 아직 소비하지 않은(=아직 그 광고로 문제를 안 받은) 광고 시청 기록이 있는지 확인한다.
 async function hasUnconsumedAdTicket(userKey) {
@@ -305,18 +337,23 @@ async function computeUserStats(userKey) {
     { data: attData, error: attErr },
     { data: refAsReferrer, error: refErr1 },
     { data: refAsReferred, error: refErr2 },
+    { data: weeklyAwardData, error: weeklyAwardErr },
   ] = await Promise.all([
     supabase.from('used_questions').select('answered_date, correct, topic').eq('user_key', userKey),
     supabase.from('ad_views').select('id, viewed_date').eq('user_key', userKey),
     supabase.from('attendance').select('id, checked_date').eq('user_key', userKey),
     supabase.from('referrals').select('id, created_date').eq('referrer_key', userKey),
     supabase.from('referrals').select('id, created_date').eq('referred_key', userKey),
+    // weekly_awards 테이블이 아직 없어도(마이그레이션 전) 전체 조회가 깨지면 안 되므로 개별적으로 무시한다.
+    supabase.from('weekly_awards').select('points, week_end_date, rank').eq('user_key', userKey),
   ]);
   if (error) throw error;
   if (adErr) throw adErr;
   if (attErr) throw attErr;
   if (refErr1) throw refErr1;
   if (refErr2) throw refErr2;
+  if (weeklyAwardErr) console.warn('weekly_awards 조회 실패(테이블 미생성 가능) — 0점으로 처리:', weeklyAwardErr.message);
+  const weeklyAwardRows = weeklyAwardErr ? [] : weeklyAwardData;
   const totalCorrect = data.filter(r => r.correct).length;
   const totalWrong = data.length - totalCorrect;
   const datesAsc = [...new Set(data.map(r => r.answered_date))].sort();
@@ -325,10 +362,13 @@ async function computeUserStats(userKey) {
   const streakBonusCount = computeStreakBonusDates(datesAsc).length;
   const rem = streak % STREAK_BONUS_DAYS;
   const daysToNextStreakBonus = rem === 0 ? STREAK_BONUS_DAYS : STREAK_BONUS_DAYS - rem;
-  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100.
+  const weeklyAwardPoints = weeklyAwardRows.reduce((sum, r) => sum + r.points, 0);
+  // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100
+  //        + 주간 우등생 시상(주간 1~3등에게 지급된 실제 포인트 합).
   const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
-    + streakBonusCount * STREAK_BONUS_POINTS;
+    + streakBonusCount * STREAK_BONUS_POINTS
+    + weeklyAwardPoints;
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
   const today = todayKST();
@@ -349,11 +389,14 @@ async function computeUserStats(userKey) {
   const todayReferralCount = refAsReferrer.filter(r => r.created_date === today).length
     + refAsReferred.filter(r => r.created_date === today).length;
   const todayStreakBonusCount = computeStreakBonusDates(datesAsc).includes(today) ? 1 : 0;
+  // 주간 시상은 지급된 날(토요일, week_end_date)에만 "오늘" 항목으로 잡힌다 — 연속학습 보너스와 같은 방식.
+  const todayWeeklyAwardRows = weeklyAwardRows.filter(r => r.week_end_date === today);
   const todayOtherScores = {
     attendance: { count: todayAttendanceCount, points: todayAttendanceCount * POINTS_PER_EVENT },
     ad: { count: todayAdCount, points: todayAdCount * POINTS_PER_EVENT },
     referral: { count: todayReferralCount, points: todayReferralCount * POINTS_PER_EVENT },
     streakBonus: { count: todayStreakBonusCount, points: todayStreakBonusCount * STREAK_BONUS_POINTS },
+    weeklyAward: { count: todayWeeklyAwardRows.length, points: todayWeeklyAwardRows.reduce((sum, r) => sum + r.points, 0) },
   };
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
@@ -361,6 +404,7 @@ async function computeUserStats(userKey) {
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
     referralCount: refAsReferrer.length, todayTopicScores, todayOtherScores, todayTotalPoints,
+    daysToNextWeeklyAward: daysUntilNextWeeklyAwardKST(),
   };
 }
 
@@ -711,6 +755,84 @@ app.post('/api/notification-preference', async (req, res) => {
   }
 });
 
+// ---- 주간 우등생 시상 ----
+// 일요일 0시~토요일 23:59:59(KST) 구간의 점수를 /api/ranking과 동일한 산식(연속학습 보너스 포함)으로
+// 계산해 상위 3명을 정한다. weekly_awards 자체(과거 시상분)는 이 구간 계산에 포함하지 않는다 —
+// "그 주 동안 실제로 쌓은 활동 점수"만으로 순위를 매기기 위함(시상은 활동의 결과이지, 활동 자체가 아님).
+async function computeWeeklyLeaderboard(sunday, saturday) {
+  const [
+    { data, error },
+    { data: adData, error: adErr },
+    { data: attData, error: attErr },
+    { data: refAsReferrerData, error: refErr1 },
+    { data: refAsReferredData, error: refErr2 },
+    { data: allQuizDates, error: quizDatesErr },
+  ] = await Promise.all([
+    supabase.from('used_questions').select('user_key, correct').gte('answered_date', sunday).lte('answered_date', saturday),
+    supabase.from('ad_views').select('user_key').gte('viewed_date', sunday).lte('viewed_date', saturday),
+    supabase.from('attendance').select('user_key').gte('checked_date', sunday).lte('checked_date', saturday),
+    supabase.from('referrals').select('referrer_key').gte('created_date', sunday).lte('created_date', saturday),
+    supabase.from('referrals').select('referred_key').gte('created_date', sunday).lte('created_date', saturday),
+    supabase.from('used_questions').select('user_key, answered_date'),
+  ]);
+  if (error) throw error;
+  if (adErr) throw adErr;
+  if (attErr) throw attErr;
+  if (refErr1) throw refErr1;
+  if (refErr2) throw refErr2;
+  if (quizDatesErr) throw quizDatesErr;
+
+  const scores = {};
+  for (const row of data) scores[row.user_key] = (scores[row.user_key] || 0) + (row.correct ? POINTS_PER_EVENT : POINTS_WRONG_EVENT);
+  for (const row of adData) scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
+  for (const row of attData) scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
+  for (const row of refAsReferrerData) scores[row.referrer_key] = (scores[row.referrer_key] || 0) + POINTS_PER_EVENT;
+  for (const row of refAsReferredData) scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
+  const datesByUser = {};
+  for (const row of allQuizDates) {
+    if (!datesByUser[row.user_key]) datesByUser[row.user_key] = new Set();
+    datesByUser[row.user_key].add(row.answered_date);
+  }
+  for (const key of Object.keys(datesByUser)) {
+    const bonusDates = computeStreakBonusDates([...datesByUser[key]].sort()).filter(d => d >= sunday && d <= saturday);
+    if (bonusDates.length) scores[key] = (scores[key] || 0) + bonusDates.length * STREAK_BONUS_POINTS;
+  }
+  return Object.entries(scores)
+    .map(([userKey, score]) => ({ userKey, score }))
+    .sort((a, b) => b.score - a.score);
+}
+
+// 정확히 토요일 23:59:59에 실행되기를 보장할 수 없으므로(서버 재시작 등), 1분마다 "아직 지급 안 된,
+// 이미 끝난 주"가 있는지 확인해 뒤늦게라도 정확히 한 번만 지급한다. weekly_awards의
+// (week_end_date, rank) 조합이 사실상의 잠금 역할을 한다.
+async function awardWeeklyTop3IfDue() {
+  const saturday = lastCompletedSaturdayKST();
+  const { sunday } = weekRangeKST(saturday);
+  const { data: existing, error: existErr } = await supabase
+    .from('weekly_awards').select('id').eq('week_end_date', saturday).limit(1);
+  if (existErr) {
+    console.warn('주간 시상 확인 실패(테이블 미생성 가능):', existErr.message);
+    return;
+  }
+  if (existing.length) return; // 이미 지급됨
+
+  const leaderboard = await computeWeeklyLeaderboard(sunday, saturday);
+  const top3 = leaderboard.slice(0, 3).filter(r => r.score > 0);
+  if (!top3.length) return; // 그 주에 아무도 활동하지 않았으면 지급하지 않는다
+
+  const rows = top3.map((r, i) => ({ user_key: r.userKey, week_end_date: saturday, rank: i + 1, points: WEEKLY_AWARD_POINTS[i] }));
+  const { error: insErr } = await supabase.from('weekly_awards').insert(rows);
+  if (insErr && insErr.code !== '23505') {
+    console.error('주간 시상 지급 실패:', insErr);
+    return;
+  }
+  console.log(`주간 우등생 시상 지급 완료 (${sunday}~${saturday}):`, rows);
+}
+
+setInterval(() => {
+  awardWeeklyTop3IfDue().catch(e => console.error('weekly award check error', e));
+}, 60 * 1000);
+
 // 랭킹 (일간/주간/전체 실제 집계, 닉네임 표시)
 app.get('/api/ranking', async (req, res) => {
   const period = ['weekly', 'all'].includes(req.query.period) ? req.query.period : 'daily';
@@ -731,6 +853,7 @@ app.get('/api/ranking', async (req, res) => {
       { data: refAsReferrerData, error: refErr1 },
       { data: refAsReferredData, error: refErr2 },
       { data: allQuizDates, error: quizDatesErr },
+      { data: weeklyAwardData, error: weeklyAwardErr },
     ] = await Promise.all([
       withDateFilter(supabase.from('used_questions').select('user_key, correct'), 'answered_date'),
       withDateFilter(supabase.from('ad_views').select('user_key'), 'viewed_date'),
@@ -739,6 +862,8 @@ app.get('/api/ranking', async (req, res) => {
       withDateFilter(supabase.from('referrals').select('referred_key'), 'created_date'),
       // 연속학습 보너스는 구간이 기간 밖에서 시작됐을 수도 있어 전체 날짜를 따로 조회해 직접 계산한다.
       supabase.from('used_questions').select('user_key, answered_date'),
+      // weekly_awards 테이블이 아직 없어도(마이그레이션 전) 랭킹 전체가 깨지면 안 되므로 따로 무시한다.
+      withDateFilter(supabase.from('weekly_awards').select('user_key, points'), 'week_end_date'),
     ]);
     if (error) throw error;
     if (adErr) throw adErr;
@@ -746,6 +871,8 @@ app.get('/api/ranking', async (req, res) => {
     if (refErr1) throw refErr1;
     if (refErr2) throw refErr2;
     if (quizDatesErr) throw quizDatesErr;
+    if (weeklyAwardErr) console.warn('weekly_awards 조회 실패(테이블 미생성 가능) — 랭킹에서 0점으로 처리:', weeklyAwardErr.message);
+    const weeklyAwardRows = weeklyAwardErr ? [] : weeklyAwardData;
 
     // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트, 오답은 2포인트.
     const scores = {};
@@ -763,6 +890,9 @@ app.get('/api/ranking', async (req, res) => {
     }
     for (const row of refAsReferredData) {
       scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
+    }
+    for (const row of weeklyAwardRows) {
+      scores[row.user_key] = (scores[row.user_key] || 0) + row.points;
     }
     const datesByUser = {};
     for (const row of allQuizDates) {
@@ -814,4 +944,6 @@ const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`quiz question API listening on http://localhost:${port}`);
   ensurePoolTopUp().catch(e => console.error('startup topup error', e));
+  // 재시작 사이에 토요일 23:59:59를 놓쳤을 수 있으므로 시작 시에도 한 번 확인한다.
+  awardWeeklyTop3IfDue().catch(e => console.error('weekly award startup check error', e));
 });

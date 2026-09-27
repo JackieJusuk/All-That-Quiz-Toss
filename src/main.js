@@ -69,7 +69,8 @@ const ICONS = {
   fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
-  book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>'
+  book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
+  trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
 };
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
@@ -147,6 +148,7 @@ let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
+  daysToNextWeeklyAward:0, // 다음 주간 우등생 시상(토요일 23:59:59 KST)까지 남은 일수. 오늘이 토요일이면 0.
   todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
   todayOtherScores:{}, // 오늘 주제 외 점수: { attendance, ad, referral, streakBonus: { count, points } }
   todayTotalPoints:0, // 오늘의 주제별 점수 + 주제 외 점수의 합(= 오늘 실제 적립된 포인트 총합)
@@ -208,6 +210,7 @@ async function fetchStatus(){
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
+    state.daysToNextWeeklyAward = data.daysToNextWeeklyAward ?? 0;
     state.todayTopicScores = data.todayTopicScores ?? {};
     state.todayOtherScores = data.todayOtherScores ?? {};
     state.todayTotalPoints = data.todayTotalPoints ?? 0;
@@ -231,6 +234,7 @@ async function fetchInit(){
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
+    state.daysToNextWeeklyAward = data.daysToNextWeeklyAward ?? 0;
     return true;
   }catch(e){
     console.warn('초기 데이터를 불러오지 못했습니다.', e);
@@ -285,6 +289,7 @@ async function watchAdThenFetchQuestion(){
       state.streakBonusDays = data.streakBonusDays ?? 10;
       state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
       state.referralCount = data.referralCount ?? 0;
+      state.daysToNextWeeklyAward = data.daysToNextWeeklyAward ?? 0;
     }
   }catch(e){
     console.warn('광고 시청에 실패했습니다.', e);
@@ -399,6 +404,7 @@ async function recordAnswer(topic, question, correct){
     state.streakBonusDays = stats.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
     state.referralCount = stats.referralCount ?? 0;
+    state.daysToNextWeeklyAward = stats.daysToNextWeeklyAward ?? 0;
     state.hasAdTicket = stats.hasAdTicket ?? false;
     state.todayTopicScores = stats.todayTopicScores ?? {};
     state.todayOtherScores = stats.todayOtherScores ?? {};
@@ -711,6 +717,20 @@ function friendPromoHTML(){
   </div>`;
 }
 
+// 매주 일~토 성적 1~3등에게 포인트를 지급하는 프로모션. 실제 지급은 서버가 토요일 23:59:59(KST)에
+// 자동으로 처리하고(server/index.js awardWeeklyTop3IfDue), 여기서는 안내와 다음 시상까지 남은
+// 일수만 보여준다.
+function weeklyAwardPromoHTML(){
+  const remain = state.daysToNextWeeklyAward;
+  const sub = remain === 0 ? '오늘 밤 자정 직전에 이번 주 시상이 진행돼요' : `시상까지 ${remain}일 남았어요`;
+  return `
+  <div class="promo-card" data-promo="weeklyAward">
+    <span class="promo-card-badge">${ICONS.trophy} 주간 우등생 시상</span>
+    <p class="promo-card-text">이번 주(일~토) 성적 <b>1~3등</b>에게 포인트 지급!</p>
+    <p class="promo-card-sub">${sub}</p>
+  </div>`;
+}
+
 function upcomingPromoHTML(title, opts){
   const { icon, highlight } = opts || {};
   return `
@@ -735,6 +755,13 @@ function promoDetailHTML(){
     body = `
       <p class="promo-detail-row">오늘은 연속 <b>${state.streak}일째</b> 출석 중이에요.</p>
       <p class="promo-detail-row">이번 ${days}일 구간에서 <b>${done}/${days}일</b> 출석했어요. <b>${remain}일</b> 더 출석하면 +100포인트를 받아요.</p>
+    `;
+  }else if(d.type === 'weeklyAward'){
+    title = '주간 우등생 시상';
+    body = `
+      <p class="promo-detail-row">매주 <b>일요일 0시부터 토요일 23시 59분 59초까지</b> 적립한 포인트로 순위를 매겨요.</p>
+      <p class="promo-detail-row">토요일 밤 자정 직전에 <b>1등 +100포인트 · 2등 +50포인트 · 3등 +20포인트</b>를 자동으로 지급해요.</p>
+      <p class="promo-detail-note">* 랭킹 화면의 "주간" 탭과는 집계 기간이 달라요(이 시상은 일요일~토요일 기준).</p>
     `;
   }else{
     title = '친구 초대';
@@ -793,6 +820,7 @@ function promotionHTML(){
     <div class="promo-list">
       ${streakPromoHTML()}
       ${friendPromoHTML()}
+      ${weeklyAwardPromoHTML()}
     </div>
     <p class="section-label section-label-spaced">향후 프로모션</p>
     <div class="promo-list">
@@ -898,6 +926,9 @@ function todayScoresHTML(){
           // 0보다 커지므로, "며칠 남았는지"를 같이 보여줘야 오늘 0점인 게 이상해 보이지
           // 않는다(연속 출석 자체가 매일 포인트를 주는 게 아니라는 걸 명확히 함).
           ['streakBonus', '연속 출석', () => `${state.streak}일째 · 다음 보너스까지 ${state.daysToNextStreakBonus}일`],
+          // 주간 시상도 마찬가지로, 터진 날(토요일)에만 0보다 큰 값이 나오므로 다음 시상까지 남은
+          // 일수를 같이 보여준다.
+          ['weeklyAward', '주간 시상', () => state.daysToNextWeeklyAward === 0 ? '오늘 시상!' : `다음 시상까지 ${state.daysToNextWeeklyAward}일`],
         ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
