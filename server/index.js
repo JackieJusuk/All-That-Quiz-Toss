@@ -839,12 +839,17 @@ app.get('/api/ranking', async (req, res) => {
   const userKey = String(req.query.userKey || 'guest');
   try {
     const today = todayKST();
+    // "주간"은 최근 7일 롤링이 아니라 주간 우등생 시상(§3.6.1)과 동일한 달력 기준 일~토(KST) 구간을
+    // 쓴다 — 랭킹 화면에서 보는 주간 순위가 실제 시상 대상 주간과 일치해야 하므로(2026-09-27 통일).
     let fromDate = today;
+    let toDate = today;
     if (period === 'weekly') {
-      fromDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const range = weekRangeKST(today);
+      fromDate = range.sunday;
+      toDate = range.saturday;
     }
     // 전체(누적) 랭킹은 기간 제한 없이 처음부터 지금까지의 기록을 모두 합산한다.
-    const withDateFilter = (q, col) => (period === 'all' ? q : q.gte(col, fromDate));
+    const withDateFilter = (q, col) => (period === 'all' ? q : q.gte(col, fromDate).lte(col, toDate));
 
     const [
       { data, error },
@@ -901,7 +906,7 @@ app.get('/api/ranking', async (req, res) => {
     }
     for (const key of Object.keys(datesByUser)) {
       const bonusDates = computeStreakBonusDates([...datesByUser[key]].sort());
-      const inRange = period === 'all' ? bonusDates : bonusDates.filter(d => d >= fromDate);
+      const inRange = period === 'all' ? bonusDates : bonusDates.filter(d => d >= fromDate && d <= toDate);
       if (inRange.length) {
         scores[key] = (scores[key] || 0) + inRange.length * STREAK_BONUS_POINTS;
       }

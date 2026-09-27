@@ -761,7 +761,7 @@ function promoDetailHTML(){
     body = `
       <p class="promo-detail-row">매주 <b>일요일 0시부터 토요일 23시 59분 59초까지</b> 적립한 포인트로 순위를 매겨요.</p>
       <p class="promo-detail-row">토요일 밤 자정 직전에 <b>1등 +100포인트 · 2등 +50포인트 · 3등 +20포인트</b>를 자동으로 지급해요.</p>
-      <p class="promo-detail-note">* 랭킹 화면의 "주간" 탭과는 집계 기간이 달라요(이 시상은 일요일~토요일 기준).</p>
+      <p class="promo-detail-note">* 랭킹 화면의 "주간" 탭과 같은 기간(일요일~토요일)이에요 — 거기서 보이는 순위가 곧 시상 대상 순위예요.</p>
     `;
   }else{
     title = '친구 초대';
