@@ -1,4 +1,4 @@
-# 올댓퀴즈(AllThatQuiz-toss)
+# 올댓퀴즈(All-That-Quiz)
 
 CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱. 인프라(Render·Supabase·앱인토스 앱/광고 그룹)는 CashQuiz와 분리한다 — 초기 설정 체크리스트는 `requirements.md` §12.0.
 
