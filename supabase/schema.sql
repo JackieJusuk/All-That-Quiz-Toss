@@ -1,4 +1,4 @@
--- 경제퀴즈 Supabase 스키마 — 새 Supabase 프로젝트의 SQL Editor에서 한 번 실행한다.
+-- 올댓퀴즈 Supabase 스키마 — 새 Supabase 프로젝트의 SQL Editor에서 한 번 실행한다.
 -- CashQuiz는 대시보드에서 테이블을 수동으로 만들었기 때문에 원본 마이그레이션이 없다.
 -- 이 파일은 server/index.js가 실제로 읽고 쓰는 컬럼/제약을 기준으로 역추적해 만든 것이다.
 

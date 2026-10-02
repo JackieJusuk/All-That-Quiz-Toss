@@ -142,7 +142,7 @@ function generateNickname(){
 }
 
 let userKey = 'guest';
-// 초대 링크(intoss://economy-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
+// 초대 링크(intoss://all-that-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
 let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
@@ -512,7 +512,7 @@ async function openRanking(){
 // https:// 링크를 발급받아 대신 사용한다.
 async function shareWithFriend(){
   const name = state.nickname || '친구';
-  const deepLink = `intoss://economy-quiz?ref=${encodeURIComponent(userKey)}`;
+  const deepLink = `intoss://all-that-quiz?ref=${encodeURIComponent(userKey)}`;
   let link = deepLink;
   try{
     link = await Share.createLink({ path: deepLink });
@@ -521,7 +521,7 @@ async function shareWithFriend(){
   }
   try{
     await Share.sendMessage({
-      message: `[경제퀴즈] ${name}님이 경제 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
+      message: `[올댓퀴즈] ${name}님이 경제 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -1068,7 +1068,7 @@ function loadingHTML(){
   return `
   <div class="loading-wrap">
     <div class="loading-logo">${ICONS.coin}</div>
-    <p class="loading-title">경제퀴즈</p>
+    <p class="loading-title">올댓퀴즈</p>
     <p class="loading-sub">불러오는 중이에요...</p>
   </div>`;
 }
@@ -1236,7 +1236,7 @@ async function init(){
     if(ref) pendingRef = ref;
   }catch(e){ /* URL 파싱 실패는 무시 — 초대 배지만 못 붙을 뿐 앱 동작엔 영향 없음 */ }
 
-  // 경제퀴즈는 비게임(퀴즈/교육) 카테고리라 getAnonymousKey를 사용해요.
+  // 올댓퀴즈는 비게임(퀴즈/교육) 카테고리라 getAnonymousKey를 사용해요.
   // 콘솔 미등록 상태나 개발 서버(devtools mock)에서도 동작해요.
   try{
     const res = await getAnonymousKey();
