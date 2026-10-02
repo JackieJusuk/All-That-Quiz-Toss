@@ -242,7 +242,7 @@ async function fetchInit(){
   }
 }
 
-const CACHE_KEY_PREFIX = 'economyquiz_cache_v1_';
+const CACHE_KEY_PREFIX = 'allthatquiz_cache_v1_';
 
 // 직전 접속 때의 닉네임/통계를 기기에 저장해둔다. 다음 접속 시 서버 응답 전에
 // 먼저 보여줄 용도일 뿐이라, 저장/조회 실패는 조용히 무시해도 앱 동작에 지장이 없다.

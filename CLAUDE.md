@@ -1,4 +1,4 @@
-# 올댓퀴즈(EconomyQuiz-toss)
+# 올댓퀴즈(AllThatQuiz-toss)
 
 CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱. 인프라(Render·Supabase·앱인토스 앱/광고 그룹)는 CashQuiz와 분리한다 — 초기 설정 체크리스트는 `requirements.md` §12.0.
 
@@ -23,6 +23,6 @@ CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱
 - `requirements.md`: 요구사항 명세서 — §13 설계 원칙은 항상 준수, §12는 남은 과제
 
 ## 배포 흐름
-- **백엔드**: `master`에 push하면 Render가 자동배포 (직접 확인은 브라우저로 `https://economyquiz.onrender.com/api/...` 호출)
+- **백엔드**: `master`에 push하면 Render가 자동배포 (직접 확인은 브라우저로 `https://all-that-quiz.onrender.com/api/...` 호출)
 - **프론트**: `npm run build`(`vite build && ait build`)로 `.ait` 파일 생성 → 앱인토스 콘솔에 업로드
   - `ait deploy` CLI는 원인 불명의 403 Forbidden으로 현재 막혀있음(키/appName/권한 전부 정상 확인됨) → **콘솔 웹 화면에서 `.ait` 파일을 직접 업로드**하는 방식으로 우회 중

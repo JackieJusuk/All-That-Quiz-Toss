@@ -1,8 +1,8 @@
 # Render Blueprint — 대시보드에서 New > Blueprint로 이 저장소를 선택하면 백엔드 서비스가 생성된다.
-# 서비스 이름이 곧 URL(https://economyquiz.onrender.com)이 되며, .env.production의 VITE_API_BASE와 같아야 한다.
+# 서비스 이름이 곧 URL(https://all-that-quiz.onrender.com)이 되며, .env.production의 VITE_API_BASE와 같아야 한다.
 services:
   - type: web
-    name: economyquiz
+    name: all-that-quiz
     runtime: node
     branch: master
     buildCommand: npm install

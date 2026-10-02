@@ -1,12 +1,12 @@
-# 올댓퀴즈(EconomyQuiz-toss) 요구사항 명세서
+# 올댓퀴즈(AllThatQuiz-toss) 요구사항 명세서
 
 - 문서 버전: v0.1 (CashQuiz v3.6 as-built 복제 후 경제 퀴즈로 전환)
 - 최초 작성일: 2026-10-02 (CashQuiz-toss에서 포크)
 - 앱 표시 이름: **올댓퀴즈** (콘솔 등록 이름 — 코드의 `index.html` title·로딩 화면·공유 문구와 정확히 일치해야 함, §13 원칙 9)
-- 저장소/코드상 영문명: EconomyQuiz
+- 저장소/코드상 영문명: AllThatQuiz
 - 플랫폼: 토스(Toss) 미니앱 (AppsInToss, Web/WebView)
-- 저장소: [github.com/JackieJusuk/EconomyQuiz-toss](https://github.com/JackieJusuk/EconomyQuiz-toss)
-- 운영 서버: Render (`https://economyquiz.onrender.com`, `render.yaml` 기준 — 서비스 생성 전)
+- 저장소: [github.com/JackieJusuk/AllThatQuiz-toss](https://github.com/JackieJusuk/AllThatQuiz-toss) (2026-10-02 `EconomyQuiz-toss`에서 이름 변경 — 앱 이름 "올댓퀴즈"에 맞춤)
+- 운영 서버: Render (`https://all-that-quiz.onrender.com`, `render.yaml` 기준 — 서비스 생성 전)
 - appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다 — 대신 앱 설명/문구에서 "경제 퀴즈"임을 드러낸다
 
 > **포크 이력(2026-10-02)**: 이 저장소는 [CashQuiz-toss](https://github.com/JackieJusuk/CashQuiz-toss)(투자 퀴즈, 포인트퀴즈)의 `master` 전체 히스토리를 그대로 복제한 뒤, 같은 형식(광고 게이팅·포인트·등급·랭킹·친구 초대)으로 **경제 상식 퀴즈**를 만들기 위해 주제/브랜딩/배포 대상을 바꾼 것이다. 아래 §3 이후의 구현 이력·버그 사례·심사 반려 이력(§3.14, §3.15, §11.1 등)은 CashQuiz에서 겪은 내용을 교훈으로 그대로 물려받은 것이며, 코드도 같은 구조다. 올댓퀴즈 전용 인프라(Render 서비스, Supabase 프로젝트, 앱인토스 앱/광고 그룹)는 **CashQuiz와 완전히 분리**한다 — 같은 DB/서버를 공유하면 포인트·랭킹·문제 풀이 섞인다. 설정 체크리스트는 §12.0.
@@ -225,7 +225,7 @@
 [Toss 앱 내 미니앱 WebView] (Vite SPA, vanilla JS)
         │  fetch (VITE_API_BASE)
         ▼
-[Express 백엔드 서버 — Render.com 단일 리전, 서비스명 economyquiz]
+[Express 백엔드 서버 — Render.com 단일 리전, 서비스명 all-that-quiz]
         │
         ├─ Anthropic Claude API (Sonnet 5) — 문제 실시간 생성
         └─ Supabase Postgres — 문제풀/이력/프로필/광고시청/출석 저장
@@ -236,7 +236,7 @@
 - 배포: GitHub push → Render 자동 배포 (백엔드), `ait build`/`ait deploy`로 토스 콘솔에 미니앱 배포(프론트)
 - **테스트 시 QR 코드 제시**: `ait deploy` 완료 후 발급되는 `intoss-private://` 딥링크를 QR 코드로 변환해 제공한다. 워크스페이스 멤버로 로그인한 토스 앱에서 해당 QR을 스캔하면 프라이빗 테스트 빌드로 바로 진입할 수 있다
 - **Cloudflare Workers는 시도했다가 롤백함**: Anthropic API의 국가 기반 접근 제한과 Workers의 엣지 분산 실행 구조가 충돌해 비결정적 403 오류 발생 → 고정 리전인 Render로 최종 정착
-- **System Architecture Diagram(올댓퀴즈, 1장, C4 Container 레벨)**: https://claude.ai/artifact/9kNU1bjivb63kdH6dyXfXY (2026-10-02 작성) — 구조는 CashQuiz와 같고, GitHub 저장소(EconomyQuiz-toss)·앱인토스 앱(`all-that-quiz`)·Render 서비스(`economyquiz`)·Supabase 프로젝트만 올댓퀴즈 전용으로 분리. 백엔드가 호출하는 Claude API도 별도 박스로 표시. 참고용 원본 — **CashQuiz의 System Architecture Diagram(1장, C4 모델의 Container 레벨)**: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy (2026-09-27 작성, 이후 개발자/사용자 행위자 추가 및 2번째 슬라이드로 아래 이전 검토 비교표 추가). 1번째 슬라이드: Claude AI(개발 도구) → GitHub(프론트+백엔드 단일 저장소) → 앱스토어/콘솔(프론트)·백엔드 서버(API)로 배포가 갈라지고, 사용자 기기 ↔ 백엔드 서버는 배포와 무관한 런타임 API 통신이라는 점을 한 장으로 보여줌 — §13 원칙 19 참고
+- **System Architecture Diagram(올댓퀴즈, 1장, C4 Container 레벨)**: https://claude.ai/artifact/9kNU1bjivb63kdH6dyXfXY (2026-10-02 작성) — 구조는 CashQuiz와 같고, GitHub 저장소(AllThatQuiz-toss)·앱인토스 앱(`all-that-quiz`)·Render 서비스(`all-that-quiz`)·Supabase 프로젝트만 올댓퀴즈 전용으로 분리. 백엔드가 호출하는 Claude API도 별도 박스로 표시. 참고용 원본 — **CashQuiz의 System Architecture Diagram(1장, C4 모델의 Container 레벨)**: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy (2026-09-27 작성, 이후 개발자/사용자 행위자 추가 및 2번째 슬라이드로 아래 이전 검토 비교표 추가). 1번째 슬라이드: Claude AI(개발 도구) → GitHub(프론트+백엔드 단일 저장소) → 앱스토어/콘솔(프론트)·백엔드 서버(API)로 배포가 갈라지고, 사용자 기기 ↔ 백엔드 서버는 배포와 무관한 런타임 API 통신이라는 점을 한 장으로 보여줌 — §13 원칙 19 참고
 - **DB(Supabase→Render)/백엔드(Render→Supabase) 클라우드 이전 검토 후 기각(2026-09-27)**: 위 다이어그램 2번째 슬라이드에 비교표로 정리함. 결론은 **현재 구조(백엔드=Render 고정 리전, DB=Supabase) 유지**.
   - **DB를 Render Postgres로 이전**: 같은 리전이면 지연시간은 소폭 개선될 수 있으나, Render Postgres 무료 플랜은 생성 후 약 30일 뒤 삭제되어 사실상 유료 플랜이 필요(Supabase와 비용 차이 크지 않음). 결정적으로 `server/index.js`가 Supabase 전용 쿼리 빌더(`supabase.from(...)`, PostgREST 기반)를 **19곳**에서 쓰고 있어, Render의 순수 Postgres로 옮기려면 이 호출들을 전부 raw SQL로 재작성해야 함 — 실익 대비 엔지니어링 리스크가 커서 **보류**
   - **백엔드를 Supabase Edge Functions로 이전**: Edge Functions는 Cloudflare Workers와 마찬가지로 **엣지 분산 실행** 구조라, 위에서 이미 겪은 "Anthropic API 국가 기반 접근 제한과 충돌해 비결정적 403 오류 발생" 문제가 그대로 재발할 가능성이 높음. Render를 쓰는 이유 자체가 "고정 리전"이었으므로 이 방향은 그 이유를 정면으로 거스름 — **기각**
@@ -318,7 +318,7 @@
 
 1. ~~**앱인토스 콘솔에 새 앱 등록**~~ — **완료(2026-10-02)**: 표시 이름 "올댓퀴즈", appName `all-that-quiz`. 코드(`apps-in-toss.config.ts`, `src/main.js` 딥링크, `index.html` title, 로딩 화면, 공유 문구)에 반영함. 카테고리는 비게임(`getAnonymousKey` 사용)이어야 함
 2. **새 Supabase 프로젝트 생성** → SQL Editor에서 `supabase/schema.sql` 실행 → Project URL과 `service_role` 키 확보
-3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `economyquiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
+3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `all-that-quiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
 6. 앱 아이콘/스토어 스크린샷(`store-assets/`는 아직 CashQuiz 화면) 올댓퀴즈로 교체
