@@ -317,7 +317,7 @@
 코드 쪽 전환(주제/브랜딩/설정 파일)은 완료. 아래는 콘솔·외부 서비스에서 **사용자가 직접** 해야 하는 일:
 
 1. ~~**앱인토스 콘솔에 새 앱 등록**~~ — **완료(2026-10-02)**: 표시 이름 "올댓퀴즈", appName `all-that-quiz`. 코드(`apps-in-toss.config.ts`, `src/main.js` 딥링크, `index.html` title, 로딩 화면, 공유 문구)에 반영함. 카테고리는 비게임(`getAnonymousKey` 사용)이어야 함
-2. **새 Supabase 프로젝트 생성** → SQL Editor에서 `supabase/schema.sql` 실행 → Project URL과 `service_role` 키 확보
+2. ~~**새 Supabase 프로젝트 생성**~~ — **완료(2026-10-02, Supabase 커넥터로 생성)**: 프로젝트 `all-that-quiz`(ref `hlcbnslrwpligowjkvyf`, 리전 ap-northeast-1 도쿄 — CashQuiz와 같은 리전), Project URL `https://hlcbnslrwpligowjkvyf.supabase.co`. 같은 조직(JackieJusuk's Org, Free)의 기존 프로젝트 `JackieJusuk's Project`(`efzqvlgbbcfejtwfxssv`)는 **CashQuiz 운영 DB**이므로 올댓퀴즈에 연결하지 않는다. 스키마는 `schema.sql`을 그대로 적용했고, 적용 전에 운영 중인 CashQuiz DB 구조와 대조해 차이(id 타입 uuid, `used_questions` 복합 기본키로 같은 문제 중복 기록 방지, `attendance.checked_at`)를 맞췄다. 테이블 7개 모두 RLS 켜짐(정책 없음 — 서버가 service_role로만 접근하므로 의도된 상태, 보안 점검 결과도 INFO 수준만). **남은 일: 대시보드 Project Settings → API에서 `service_role` 키를 복사해 Render 환경변수에 넣기**(커넥터로는 비밀 키를 가져올 수 없음)
 3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `all-that-quiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
