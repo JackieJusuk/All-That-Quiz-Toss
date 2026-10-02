@@ -1,4 +1,6 @@
-# 포인트퀴즈(CashQuiz-toss)
+# 경제퀴즈(EconomyQuiz-toss)
+
+CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱. 인프라(Render·Supabase·앱인토스 앱/광고 그룹)는 CashQuiz와 분리한다 — 초기 설정 체크리스트는 `requirements.md` §12.0.
 
 작업 시작 전에 **`requirements.md`의 §13 설계 원칙**을 먼저 확인하세요. 새 기능을 추가하거나 화면/문구를 바꿀 때 지켜야 할 규칙들이 정리되어 있고, 이 문서가 기능·설계 원칙의 단일 진실 공급원(source of truth)입니다.
 
@@ -12,14 +14,15 @@
 
 **§13 원칙 17(글씨체 통일)도 항상 지키세요**: 앱 전체에서 글씨체는 하나(`Gothic A1`)로 통일한다. 화면·항목별로 다른 폰트 패밀리를 섞어 쓰지 않는다 — 구분은 색상/굵기/크기로 한다. 숫자용으로 쓰던 `--font-mono`도 `--font-kr`을 그대로 가리키도록 통합되어 있다(`src/style.css`). 새 폰트를 추가하기 전에 이미 로드된 `Gothic A1`으로 원하는 효과를 낼 수 없는지 먼저 확인한다.
 
-**§13 원칙 19(대원칙: System Architecture Diagram 유지)**: 새 구성요소(외부 서비스, 배포 대상 등)가 추가되거나 배포/통신 흐름이 바뀌는 작업을 할 때는 `requirements.md` §6에 링크된 System Architecture Diagram(1장, C4 Container 레벨)도 함께 갱신한다. 다이어그램: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy
+**§13 원칙 19(대원칙: System Architecture Diagram 유지)**: 새 구성요소(외부 서비스, 배포 대상 등)가 추가되거나 배포/통신 흐름이 바뀌는 작업을 할 때는 `requirements.md` §6에 링크된 System Architecture Diagram(1장, C4 Container 레벨)도 함께 갱신한다. 다이어그램: https://claude.ai/artifact/9kNU1bjivb63kdH6dyXfXY (원본 CashQuiz 다이어그램: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy)
 
 ## 프로젝트 구조
 - `server/index.js`: 백엔드 (Express + Supabase + Anthropic API, Render에 배포)
+- `supabase/schema.sql`: DB 스키마 (새 Supabase 프로젝트에서 1회 실행), `render.yaml`: Render 블루프린트
 - `src/main.js`, `src/style.css`, `index.html`: 프론트엔드 (앱인토스 미니앱, vanilla JS)
 - `requirements.md`: 요구사항 명세서 — §13 설계 원칙은 항상 준수, §12는 남은 과제
 
 ## 배포 흐름
-- **백엔드**: `master`에 push하면 Render가 자동배포 (직접 확인은 브라우저로 `https://cashquiz2.onrender.com/api/...` 호출)
+- **백엔드**: `master`에 push하면 Render가 자동배포 (직접 확인은 브라우저로 `https://economyquiz.onrender.com/api/...` 호출)
 - **프론트**: `npm run build`(`vite build && ait build`)로 `.ait` 파일 생성 → 앱인토스 콘솔에 업로드
   - `ait deploy` CLI는 원인 불명의 403 Forbidden으로 현재 막혀있음(키/appName/권한 전부 정상 확인됨) → **콘솔 웹 화면에서 `.ait` 파일을 직접 업로드**하는 방식으로 우회 중

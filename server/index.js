@@ -29,23 +29,23 @@ function nextDayKST() {
 }
 
 // ---- 문제 생성 (기존 로직 그대로) ----
-const TOPIC_LABELS = { stock: '주식 투자', realestate: '부동산 투자', fund: '펀드 투자' };
+const TOPIC_LABELS = { basic: '경제 기초', money: '금융·금리', life: '생활 경제' };
 
 const TOPIC_CONCEPTS = {
-  stock: [
-    'PER', 'PBR', 'ROE', '배당금', '배당수익률', '분산투자', '코스피', '코스닥',
-    '시가총액', '유상증자', '무상증자', '액면분할', '우선주와 보통주', '공매도',
-    '상한가와 하한가', '시장가 주문과 지정가 주문',
+  basic: [
+    '수요와 공급', '기회비용', '매몰비용', 'GDP', '인플레이션', '디플레이션', '스태그플레이션',
+    '경기순환', '실업률', '가격탄력성', '한계효용', '비교우위', '독점과 과점', '시장실패',
+    '외부효과', '공공재',
   ],
-  realestate: [
-    '전세와 월세', 'LTV', 'DTI', 'DSR', '청약통장', '청약 가점제', '등기부등본',
-    '재건축과 재개발', '확정일자', '전입신고', '주택임대차보호법', '계약갱신청구권',
-    '중개수수료', '취득세와 보유세', '분양가상한제', '갭투자',
+  money: [
+    '기준금리', '단리와 복리', '72의 법칙', '명목금리와 실질금리', '고정금리와 변동금리',
+    '예금자보호제도', '환율', '원화 강세와 약세', '채권 가격과 금리의 관계', '통화정책',
+    '양적완화', '한국은행의 역할', '소비자물가지수(CPI)', '신용점수',
   ],
-  fund: [
-    '펀드의 기본 개념', 'ETF', '운용보수와 총보수', '기준가', '액티브 펀드와 패시브 펀드',
-    '인덱스펀드', '리츠(REITs)', '환매수수료', '펀드를 통한 분산투자',
-    '주식형/채권형/혼합형 펀드', '배당펀드', '펀드 평가등급',
+  life: [
+    '연말정산', '소득세 누진세율', '4대 보험', '국민연금', '퇴직연금(DB/DC/IRP)', '부가가치세',
+    '신용카드와 체크카드 소득공제', '비상금', '신용카드 리볼빙', '보장성 보험과 저축성 보험',
+    '실손보험', '최저임금', 'ISA 계좌', '고정비와 변동비 관리',
   ],
 };
 
@@ -95,7 +95,7 @@ function normalizeQuizSet(raw, count) {
   return { questions };
 }
 
-// 문제 문구와 보기에 숫자가 여럿 등장하면 "계산 문제"로 간주한다(DSR/LTV 대출 한도 계산처럼
+// 문제 문구와 보기에 숫자가 여럿 등장하면 "계산 문제"로 간주한다(복리 이자·실질금리 계산처럼
 // 숫자를 대입해 산술을 틀리기 쉬운 유형). 개념 설명형 문제는 대상에서 제외해 검증 호출을 아낀다.
 function looksLikeCalculation(q) {
   const numericChoices = q.choices.filter(c => /\d/.test(c)).length;
@@ -111,7 +111,7 @@ async function verifyCalculationAnswer(q) {
       model: 'claude-sonnet-5',
       max_tokens: 4000,
       output_config: { effort: 'medium', format: zodOutputFormat(verifySchema) },
-      system: '당신은 경제/투자 퀴즈의 정답을 검증하는 깐깐한 감수자입니다. 원래 제시된 정답은 참고하지 말고, 스스로 처음부터 계산해서 정답 인덱스를 구하세요.',
+      system: '당신은 경제 상식 퀴즈의 정답을 검증하는 깐깐한 감수자입니다. 원래 제시된 정답은 참고하지 말고, 스스로 처음부터 계산해서 정답 인덱스를 구하세요.',
       messages: [{ role: 'user', content: prompt }],
     });
     return response.parsed_output ? response.parsed_output.correct : null;
@@ -156,8 +156,8 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
         max_tokens: 16000,
         output_config: { effort: 'medium', format: zodOutputFormat(schema) },
         system:
-          '당신은 투자 입문자를 위한 경제/투자 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. ' +
-          '요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다. 숫자가 들어간 계산 문제(대출 한도, 이자, 수익률 등)는 특히 실수가 잦으니, reasoning에 실제 숫자를 대입한 계산식을 쓰고 보기와 대조해 검산한 뒤에만 정답을 확정하세요.',
+          '당신은 경제 상식을 쌓고 싶은 일반인을 위한 경제 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. ' +
+          '요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다. 숫자가 들어간 계산 문제(이자, 물가상승률, 세금, 환율 환산 등)는 특히 실수가 잦으니, reasoning에 실제 숫자를 대입한 계산식을 쓰고 보기와 대조해 검산한 뒤에만 정답을 확정하세요.',
         messages: [{ role: 'user', content: userPrompt }],
       });
       if (response.parsed_output) {

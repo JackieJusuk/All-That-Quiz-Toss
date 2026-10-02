@@ -64,9 +64,9 @@ const ICONS = {
   close: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   coin: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M9.5 10.2c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.6c0 2.2-5 1-5 3.2 0 .9 1 1.7 2.5 1.7s2.5-.7 2.5-1.7"/></svg>',
   flame: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5c1 3-3.5 4-3.5 8a3.5 3.5 0 0 0 7 0c0-1.2-.5-2-1-2.7.7 3.5-1.2 4.2-1.2 4.2 1-2.3-.3-4-1.3-5A5 5 0 0 1 12 2.5Z"/><path d="M8 14.5A4 4 0 0 0 12 21a4 4 0 0 0 4-6.5"/></svg>',
-  stock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 16l5-5 4 3 7-8"/><path d="M15 6h5v5"/></svg>',
-  house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>',
-  fund: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><path d="M15 16.5h5M17.5 14v5"/></svg>',
+  basic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>',
+  money: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>',
+  life: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M15.5 13.5h4.5"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
@@ -75,32 +75,32 @@ const ICONS = {
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
 const TOPICS = [
-  { id:'stock', name:'주식', desc:'PER, 배당, 분산투자 기초', color:'#3d5afe', bg:'#e8ecff', icon:'stock',
+  { id:'basic', name:'경제 기초', desc:'수요·공급, 기회비용, GDP', color:'#3d5afe', bg:'#e8ecff', icon:'basic',
     questions:[
-      { q:'PER(주가수익비율)이 낮다는 것은 일반적으로 무엇을 의미할까요?',
-        choices:['회사가 곧 상장폐지된다','주가가 이익 대비 저평가되어 있을 가능성이 높다','배당금을 지급하지 않는다는 뜻이다','무조건 좋은 주식이라는 뜻이다'],
-        correct:1, explain:'PER이 낮으면 순이익 대비 주가가 낮다는 뜻으로 저평가 신호일 수 있지만, 업종 특성도 함께 봐야 해요.', difficulty:'medium' },
-      { q:"배당금이란 무엇인가요?",
-        choices:['주식을 살 때 내는 수수료','주가가 오른 만큼의 차익','회사가 이익의 일부를 주주에게 나눠주는 돈','거래에 부과되는 세금'],
-        correct:2, explain:'배당은 기업이 벌어들인 이익을 주주에게 현금 등으로 분배하는 것이에요.', difficulty:'easy' },
+      { q:"어떤 선택을 할 때 포기한 대안 중 가장 가치가 큰 것을 무엇이라고 할까요?",
+        choices:['매몰비용','기회비용','고정비용','거래비용'],
+        correct:1, explain:'기회비용은 하나를 선택하면서 포기한 대안 중 가장 큰 가치를 말해요.', difficulty:'easy' },
+      { q:"다른 조건이 같을 때, 어떤 상품의 수요가 늘어나면 일반적으로 가격은 어떻게 될까요?",
+        choices:['오른다','내린다','변하지 않는다','항상 0이 된다'],
+        correct:0, explain:'공급이 그대로인데 수요가 늘어나면 사려는 사람이 많아져 가격이 오르는 경향이 있어요.', difficulty:'easy' },
     ]},
-  { id:'realestate', name:'부동산', desc:'전월세, LTV, 청약 기초', color:'#c9701a', bg:'#faeadb', icon:'house',
+  { id:'money', name:'금융·금리', desc:'금리, 복리, 환율 기초', color:'#c9701a', bg:'#faeadb', icon:'money',
     questions:[
-      { q:"'전세'와 '월세'의 가장 큰 차이는 무엇인가요?",
-        choices:['등기 여부','보증금 규모와 매달 임대료 지불 여부','부과되는 세금 종류','계약 기간의 유무'],
-        correct:1, explain:'전세는 큰 보증금을 맡기고 월세 부담이 없는 반면, 월세는 보증금이 작은 대신 매달 임대료를 내요.', difficulty:'easy' },
-      { q:"'LTV(주택담보대출비율)'가 의미하는 것은?",
-        choices:['대출 금리','집값 대비 대출 가능 금액의 비율','전세보증금 반환 비율','주택 재산세율'],
-        correct:1, explain:'LTV는 담보가치(집값) 대비 얼마까지 대출받을 수 있는지를 나타내는 비율이에요.', difficulty:'medium' },
+      { q:"원금 100만 원을 연 10% 복리로 2년간 맡기면 만기 금액(세전)은 얼마일까요?",
+        choices:['120만 원','121만 원','110만 원','125만 원'],
+        correct:1, explain:'복리는 이자에도 이자가 붙어 100만 × 1.1 × 1.1 = 121만 원이 돼요.', difficulty:'medium' },
+      { q:"환율이 1달러=1,300원에서 1,400원으로 올랐다면 원화 가치는 어떻게 된 걸까요?",
+        choices:['원화 가치가 올랐다(원화 강세)','원화 가치가 내렸다(원화 약세)','변화가 없다','달러 가치가 내렸다'],
+        correct:1, explain:'같은 1달러를 사는 데 더 많은 원화가 필요해졌으니 원화 가치가 떨어진(약세) 거예요.', difficulty:'medium' },
     ]},
-  { id:'fund', name:'펀드', desc:'ETF, 운용보수, 기준가 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'fund',
+  { id:'life', name:'생활 경제', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
     questions:[
-      { q:"'펀드'란 무엇인가요?",
-        choices:['은행이 원금을 보장하는 예금 상품','정부가 발행하는 채권','여러 투자자의 돈을 모아 전문가가 대신 운용하는 상품','개인이 직접 매매하는 주식 계좌'],
-        correct:2, explain:'펀드는 다수의 투자자 자금을 모아 전문 운용사가 주식·채권 등에 투자하는 간접투자 상품이에요.', difficulty:'easy' },
-      { q:"'ETF'의 특징으로 옳은 것은?",
-        choices:['하루에 한 번만 가격이 정해지는 예금','원금이 보장되는 채권','부동산 실물을 직접 소유하는 상품','주식처럼 거래소에서 실시간 매매가 가능한 펀드'],
-        correct:3, explain:'ETF는 지수 등을 추종하며 주식처럼 실시간으로 사고팔 수 있는 상장지수펀드예요.', difficulty:'medium' },
+      { q:"직장인이 1년 동안 낸 세금을 다음 해 초에 다시 정산해 더 내거나 돌려받는 제도는?",
+        choices:['종합부동산세','연말정산','부가가치세 환급','양도소득세 신고'],
+        correct:1, explain:'연말정산은 매달 미리 뗀 근로소득세를 1년 치 실제 세액과 비교해 차액을 정산하는 제도예요.', difficulty:'easy' },
+      { q:"우리나라 '4대 보험'에 포함되지 않는 것은?",
+        choices:['국민연금','건강보험','고용보험','자동차보험'],
+        correct:3, explain:'4대 보험은 국민연금·건강보험·고용보험·산재보험이고, 자동차보험은 민간 보험이에요.', difficulty:'easy' },
     ]},
 ];
 
@@ -142,7 +142,7 @@ function generateNickname(){
 }
 
 let userKey = 'guest';
-// 초대 링크(intoss://cash-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
+// 초대 링크(intoss://economy-quiz?ref=...)로 진입했을 때의 초대자 키. 닉네임 저장 시 1회만 서버에 전달한다.
 let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
@@ -242,7 +242,7 @@ async function fetchInit(){
   }
 }
 
-const CACHE_KEY_PREFIX = 'cashquiz_cache_v1_';
+const CACHE_KEY_PREFIX = 'economyquiz_cache_v1_';
 
 // 직전 접속 때의 닉네임/통계를 기기에 저장해둔다. 다음 접속 시 서버 응답 전에
 // 먼저 보여줄 용도일 뿐이라, 저장/조회 실패는 조용히 무시해도 앱 동작에 지장이 없다.
@@ -512,7 +512,7 @@ async function openRanking(){
 // https:// 링크를 발급받아 대신 사용한다.
 async function shareWithFriend(){
   const name = state.nickname || '친구';
-  const deepLink = `intoss://cash-quiz?ref=${encodeURIComponent(userKey)}`;
+  const deepLink = `intoss://economy-quiz?ref=${encodeURIComponent(userKey)}`;
   let link = deepLink;
   try{
     link = await Share.createLink({ path: deepLink });
@@ -521,7 +521,7 @@ async function shareWithFriend(){
   }
   try{
     await Share.sendMessage({
-      message: `[포인트퀴즈] ${name}님이 투자 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
+      message: `[경제퀴즈] ${name}님이 경제 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -1068,7 +1068,7 @@ function loadingHTML(){
   return `
   <div class="loading-wrap">
     <div class="loading-logo">${ICONS.coin}</div>
-    <p class="loading-title">포인트퀴즈</p>
+    <p class="loading-title">경제퀴즈</p>
     <p class="loading-sub">불러오는 중이에요...</p>
   </div>`;
 }
@@ -1092,7 +1092,7 @@ function onboardingHTML(){
   <div class="onboard-wrap">
     <p class="greet">닉네임을 알려주세요</p>
     <p class="greet-sub">홈 화면과 랭킹에 표시돼요. 마음에 들면 그대로, 아니면 바꿔보세요</p>
-    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 투자초보" />
+    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 경제초보" />
     <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'시작하기'}</button>
     <button class="btn-ghost" id="nickname-reroll" type="button">다른 닉네임 추천받기</button>
   </div>`;
@@ -1236,7 +1236,7 @@ async function init(){
     if(ref) pendingRef = ref;
   }catch(e){ /* URL 파싱 실패는 무시 — 초대 배지만 못 붙을 뿐 앱 동작엔 영향 없음 */ }
 
-  // 포인트퀴즈는 비게임(퀴즈/교육) 카테고리라 getAnonymousKey를 사용해요.
+  // 경제퀴즈는 비게임(퀴즈/교육) 카테고리라 getAnonymousKey를 사용해요.
   // 콘솔 미등록 상태나 개발 서버(devtools mock)에서도 동작해요.
   try{
     const res = await getAnonymousKey();
