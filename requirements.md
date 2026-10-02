@@ -321,6 +321,7 @@
 3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `all-that-quiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
+   - **1차 번들 업로드·검토 요청 완료(2026-10-02)** — 백엔드(2·3번) 구축 **전**에, 심사 대기 시간을 줄이려고 먼저 올림. 이 번들은 서버 주소 `https://all-that-quiz.onrender.com`이 박혀 있어, Render 서비스가 **정확히 이 주소로** 뜨면 재업로드 없이 동작한다(주소가 다르면 재빌드·재업로드 필요). 광고는 **테스트 광고 ID**로 빌드됨 → 4번 완료 후 실제 광고 ID로 재빌드해 새 버전 업로드 필요
 6. ~~앱 아이콘/스토어 스크린샷 올댓퀴즈로 교체~~ — **제작 완료(2026-10-02), 콘솔 업로드는 사용자가 진행**: `store-assets/`에 로고(`logo.png`, 600×600 각진 정사각형·배경 꽉 채움 — 앱인토스 UI/UX 가이드 기준. Q 모양 돋보기 안에 "올댓" 글자 — 처음엔 "All-That"이었으나 한글이 낫다는 사용자 의견으로 변경), 다크모드 로고(`logo_dark.png`, 선택), 세로형 스크린샷 4장(636×1048: 홈·퀴즈·결과·랭킹), 가로형 1장(`screenshot_wide.png`, 1504×741). 스크린샷은 목업이 아니라 **실제 앱(vite dev)을 목업 API 응답으로 렌더링**한 화면이다(백엔드 미구축 상태라 데이터는 예시값). 현금화 관련 내용은 넣지 않음(§13 원칙 3). 앱 검색 키워드 제안("경제" 단어 제외): 퀴즈, 상식퀴즈, 상식, 퀴즈앱, 매일퀴즈, 금융상식, 금리, 환율, 재테크, 포인트
 7. 실제 Render URL·appName이 위 계획과 달라지면 System Architecture Diagram(§6)도 갱신(§13 원칙 19)
 
