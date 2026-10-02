@@ -75,7 +75,7 @@ const ICONS = {
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
 const TOPICS = [
-  { id:'basic', name:'경제 기초', desc:'수요·공급, 기회비용, GDP', color:'#3d5afe', bg:'#e8ecff', icon:'basic',
+  { id:'basic', name:'시장 원리', desc:'수요·공급, 기회비용, GDP', color:'#3d5afe', bg:'#e8ecff', icon:'basic',
     questions:[
       { q:"어떤 선택을 할 때 포기한 대안 중 가장 가치가 큰 것을 무엇이라고 할까요?",
         choices:['매몰비용','기회비용','고정비용','거래비용'],
@@ -93,7 +93,7 @@ const TOPICS = [
         choices:['원화 가치가 올랐다(원화 강세)','원화 가치가 내렸다(원화 약세)','변화가 없다','달러 가치가 내렸다'],
         correct:1, explain:'같은 1달러를 사는 데 더 많은 원화가 필요해졌으니 원화 가치가 떨어진(약세) 거예요.', difficulty:'medium' },
     ]},
-  { id:'life', name:'생활 경제', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
+  { id:'life', name:'세금·연금', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
     questions:[
       { q:"직장인이 1년 동안 낸 세금을 다음 해 초에 다시 정산해 더 내거나 돌려받는 제도는?",
         choices:['종합부동산세','연말정산','부가가치세 환급','양도소득세 신고'],
@@ -521,7 +521,7 @@ async function shareWithFriend(){
   }
   try{
     await Share.sendMessage({
-      message: `[올댓퀴즈] ${name}님이 경제 퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
+      message: `[올댓퀴즈] ${name}님이 올댓퀴즈에 도전했어요! 친구도 나도 +10포인트! 나도 도전해보기\n${link}`,
     });
   }catch(e){
     console.warn('공유하기 실패', e);
@@ -1092,7 +1092,7 @@ function onboardingHTML(){
   <div class="onboard-wrap">
     <p class="greet">닉네임을 알려주세요</p>
     <p class="greet-sub">홈 화면과 랭킹에 표시돼요. 마음에 들면 그대로, 아니면 바꿔보세요</p>
-    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 경제초보" />
+    <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 퀴즈초보" />
     <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'시작하기'}</button>
     <button class="btn-ghost" id="nickname-reroll" type="button">다른 닉네임 추천받기</button>
   </div>`;
