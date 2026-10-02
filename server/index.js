@@ -29,7 +29,7 @@ function nextDayKST() {
 }
 
 // ---- 문제 생성 (기존 로직 그대로) ----
-const TOPIC_LABELS = { basic: '경제 기초', money: '금융·금리', life: '생활 경제' };
+const TOPIC_LABELS = { basic: '시장 원리', money: '금융·금리', life: '세금·연금' };
 
 const TOPIC_CONCEPTS = {
   basic: [
