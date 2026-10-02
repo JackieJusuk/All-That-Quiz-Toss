@@ -7,7 +7,7 @@
 - 플랫폼: 토스(Toss) 미니앱 (AppsInToss, Web/WebView)
 - 저장소: [github.com/JackieJusuk/All-That-Quiz-Toss](https://github.com/JackieJusuk/All-That-Quiz-Toss) (2026-10-02 `EconomyQuiz-toss`에서 이름 변경 — 앱 이름 "올댓퀴즈"에 맞춤)
 - 운영 서버: Render (`https://all-that-quiz.onrender.com`, `render.yaml` 기준 — 서비스 생성 전)
-- appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다 — 대신 앱 설명/문구에서 "경제 퀴즈"임을 드러낸다
+- appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다. **경제만 다루는 앱이 아니므로 로고·스토어 문구·검색 키워드 등 앱을 소개하는 문구에는 "경제"라는 단어를 쓰지 않는다**(2026-10-02 사용자 지시). 앱 안의 주제 이름("경제 기초", "생활 경제")은 실제 콘텐츠라 그대로 둔다
 
 > **포크 이력(2026-10-02)**: 이 저장소는 [CashQuiz-toss](https://github.com/JackieJusuk/CashQuiz-toss)(투자 퀴즈, 포인트퀴즈)의 `master` 전체 히스토리를 그대로 복제한 뒤, 같은 형식(광고 게이팅·포인트·등급·랭킹·친구 초대)으로 **경제 상식 퀴즈**를 만들기 위해 주제/브랜딩/배포 대상을 바꾼 것이다. 아래 §3 이후의 구현 이력·버그 사례·심사 반려 이력(§3.14, §3.15, §11.1 등)은 CashQuiz에서 겪은 내용을 교훈으로 그대로 물려받은 것이며, 코드도 같은 구조다. 올댓퀴즈 전용 인프라(Render 서비스, Supabase 프로젝트, 앱인토스 앱/광고 그룹)는 **CashQuiz와 완전히 분리**한다 — 같은 DB/서버를 공유하면 포인트·랭킹·문제 풀이 섞인다. 설정 체크리스트는 §12.0.
 >
@@ -321,7 +321,7 @@
 3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `all-that-quiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
-6. ~~앱 아이콘/스토어 스크린샷 올댓퀴즈로 교체~~ — **제작 완료(2026-10-02), 콘솔 업로드는 사용자가 진행**: `store-assets/`에 로고(`logo.png`, 600×600 각진 정사각형·배경 꽉 채움 — 앱인토스 UI/UX 가이드 기준), 다크모드 로고(`logo_dark.png`, 선택), 세로형 스크린샷 4장(636×1048: 홈·퀴즈·결과·랭킹), 가로형 1장(`screenshot_wide.png`, 1504×741). 스크린샷은 목업이 아니라 **실제 앱(vite dev)을 목업 API 응답으로 렌더링**한 화면이다(백엔드 미구축 상태라 데이터는 예시값). 현금화 관련 내용은 넣지 않음(§13 원칙 3). 앱 검색 키워드 제안: 경제퀴즈, 경제상식, 금융상식, 금리, 환율, 재테크, 퀴즈, 포인트, 연말정산, 상식퀴즈
+6. ~~앱 아이콘/스토어 스크린샷 올댓퀴즈로 교체~~ — **제작 완료(2026-10-02), 콘솔 업로드는 사용자가 진행**: `store-assets/`에 로고(`logo.png`, 600×600 각진 정사각형·배경 꽉 채움 — 앱인토스 UI/UX 가이드 기준. Q 모양 돋보기 안에 "All-That" 글자), 다크모드 로고(`logo_dark.png`, 선택), 세로형 스크린샷 4장(636×1048: 홈·퀴즈·결과·랭킹), 가로형 1장(`screenshot_wide.png`, 1504×741). 스크린샷은 목업이 아니라 **실제 앱(vite dev)을 목업 API 응답으로 렌더링**한 화면이다(백엔드 미구축 상태라 데이터는 예시값). 현금화 관련 내용은 넣지 않음(§13 원칙 3). 앱 검색 키워드 제안("경제" 단어 제외): 퀴즈, 상식퀴즈, 상식, 퀴즈앱, 매일퀴즈, 금융상식, 금리, 환율, 재테크, 포인트
 7. 실제 Render URL·appName이 위 계획과 달라지면 System Architecture Diagram(§6)도 갱신(§13 원칙 19)
 
 이하 항목은 CashQuiz에서 물려받은 과제로, 올댓퀴즈에도 동일하게 적용된다:
