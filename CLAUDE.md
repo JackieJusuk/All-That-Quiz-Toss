@@ -20,7 +20,8 @@ CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱
 
 ## 프로젝트 구조
 - `server/index.js`: 백엔드 (Express + Supabase + Anthropic API, Render에 배포)
-- `supabase/schema.sql`: DB 스키마 (새 Supabase 프로젝트에서 1회 실행), `render.yaml`: Render 블루프린트
+- `supabase/schema.sql`: DB 스키마 (새 Supabase 프로젝트에서 1회 실행), `supabase/aggregates.sql`: 점수·랭킹 집계 SQL 함수(schema.sql 다음에 실행), `render.yaml`: Render 블루프린트
+- **집계는 DB에서**: Supabase 조회는 1회 최대 1,000행이라, 기록을 통째로 가져와 서버에서 더하지 말고 `aggregates.sql`의 함수(`supabase.rpc`)로 합산한다(`requirements.md` §5)
 - `src/main.js`, `src/style.css`, `index.html`: 프론트엔드 (앱인토스 미니앱, vanilla JS)
 - `requirements.md`: 요구사항 명세서 — §13 설계 원칙은 항상 준수, §12는 남은 과제
 

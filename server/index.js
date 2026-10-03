@@ -330,98 +330,73 @@ function computeStreakBonusDates(datesAsc) {
   return bonusDates;
 }
 
+// 한 사용자의 누적·오늘 집계는 DB 함수 user_stats가 계산해 JSON 하나로 돌려준다(supabase/aggregates.sql).
+// 예전처럼 기록을 통째로 가져와 더하면 Supabase의 1회 조회 최대 1,000행 제한에 걸려, 1,000문제 넘게 푼
+// 사용자의 포인트가 조용히 덜 계산됐다(2026-10-04 수정).
 async function computeUserStats(userKey) {
-  const [
-    { data, error },
-    { data: adData, error: adErr },
-    { data: attData, error: attErr },
-    { data: refAsReferrer, error: refErr1 },
-    { data: refAsReferred, error: refErr2 },
-    { data: weeklyAwardData, error: weeklyAwardErr },
-  ] = await Promise.all([
-    supabase.from('used_questions').select('answered_date, correct, topic').eq('user_key', userKey),
-    supabase.from('ad_views').select('id, viewed_date').eq('user_key', userKey),
-    supabase.from('attendance').select('id, checked_date').eq('user_key', userKey),
-    supabase.from('referrals').select('id, created_date').eq('referrer_key', userKey),
-    supabase.from('referrals').select('id, created_date').eq('referred_key', userKey),
-    // weekly_awards 테이블이 아직 없어도(마이그레이션 전) 전체 조회가 깨지면 안 되므로 개별적으로 무시한다.
-    supabase.from('weekly_awards').select('points, week_end_date, rank').eq('user_key', userKey),
-  ]);
+  const today = todayKST();
+  const { data: agg, error } = await supabase.rpc('user_stats', { p_user_key: userKey, p_today: today });
   if (error) throw error;
-  if (adErr) throw adErr;
-  if (attErr) throw attErr;
-  if (refErr1) throw refErr1;
-  if (refErr2) throw refErr2;
-  if (weeklyAwardErr) console.warn('weekly_awards 조회 실패(테이블 미생성 가능) — 0점으로 처리:', weeklyAwardErr.message);
-  const weeklyAwardRows = weeklyAwardErr ? [] : weeklyAwardData;
-  const totalCorrect = data.filter(r => r.correct).length;
-  const totalWrong = data.length - totalCorrect;
-  const datesAsc = [...new Set(data.map(r => r.answered_date))].sort();
+  const n = key => Number(agg[key] || 0);
+  const totalCorrect = n('total_correct');
+  const totalWrong = n('total_wrong');
+  const datesAsc = agg.quiz_dates || [];
   const datesDesc = [...datesAsc].reverse();
   const streak = computeStreak(datesDesc, todayKST());
   const streakBonusCount = computeStreakBonusDates(datesAsc).length;
   const rem = streak % STREAK_BONUS_DAYS;
   const daysToNextStreakBonus = rem === 0 ? STREAK_BONUS_DAYS : STREAK_BONUS_DAYS - rem;
-  const weeklyAwardPoints = weeklyAwardRows.reduce((sum, r) => sum + r.points, 0);
+  const weeklyAwardPoints = n('weekly_award_points');
   // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100
   //        + 주간 우등생 시상(주간 1~3등에게 지급된 실제 포인트 합).
-  const points = (attData.length + adData.length + totalCorrect + refAsReferrer.length + refAsReferred.length) * POINTS_PER_EVENT
+  const points = (n('attendance') + n('ads') + totalCorrect + n('ref_as_referrer') + n('ref_as_referred')) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
     + streakBonusCount * STREAK_BONUS_POINTS
     + weeklyAwardPoints;
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
-  const today = todayKST();
-  const todayRows = data.filter(r => r.answered_date === today);
+  const todayTopics = agg.today_topics || {};
   const todayTopicScores = {};
   for (const topicId of Object.keys(TOPIC_LABELS)) {
-    const rows = todayRows.filter(r => r.topic === topicId);
-    const correct = rows.filter(r => r.correct).length;
-    const wrong = rows.length - correct;
+    const correct = Number(todayTopics[topicId]?.correct || 0);
+    const wrong = Number(todayTopics[topicId]?.wrong || 0);
     todayTopicScores[topicId] = { correct, wrong, points: correct * POINTS_PER_EVENT + wrong * POINTS_WRONG_EVENT };
   }
 
   // 퀴즈(주제별) 외에 오늘 포인트에 기여하는 나머지 항목(출석/광고 시청/친구 초대/연속학습 보너스).
   // 이 넷 + todayTopicScores의 합이 "오늘 실제로 적립된 포인트 총합"과 정확히 일치해야 한다 —
   // 위 points 계산식(전체 누적)과 항목이 완전히 같고, 여기서는 오늘 날짜로만 필터링하기 때문.
-  const todayAttendanceCount = attData.filter(r => r.checked_date === today).length;
-  const todayAdCount = adData.filter(r => r.viewed_date === today).length;
-  const todayReferralCount = refAsReferrer.filter(r => r.created_date === today).length
-    + refAsReferred.filter(r => r.created_date === today).length;
+  const todayAttendanceCount = n('today_attendance');
+  const todayAdCount = n('today_ads');
+  const todayReferralCount = n('today_referrals');
   const todayStreakBonusCount = computeStreakBonusDates(datesAsc).includes(today) ? 1 : 0;
   // 주간 시상은 지급된 날(토요일, week_end_date)에만 "오늘" 항목으로 잡힌다 — 연속학습 보너스와 같은 방식.
-  const todayWeeklyAwardRows = weeklyAwardRows.filter(r => r.week_end_date === today);
   const todayOtherScores = {
     attendance: { count: todayAttendanceCount, points: todayAttendanceCount * POINTS_PER_EVENT },
     ad: { count: todayAdCount, points: todayAdCount * POINTS_PER_EVENT },
     referral: { count: todayReferralCount, points: todayReferralCount * POINTS_PER_EVENT },
     streakBonus: { count: todayStreakBonusCount, points: todayStreakBonusCount * STREAK_BONUS_POINTS },
-    weeklyAward: { count: todayWeeklyAwardRows.length, points: todayWeeklyAwardRows.reduce((sum, r) => sum + r.points, 0) },
+    weeklyAward: { count: n('today_weekly_award_count'), points: n('today_weekly_award_points') },
   };
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
 
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
-    referralCount: refAsReferrer.length, todayTopicScores, todayOtherScores, todayTotalPoints,
+    referralCount: n('ref_as_referrer'), todayTopicScores, todayOtherScores, todayTotalPoints,
     daysToNextWeeklyAward: daysUntilNextWeeklyAwardKST(),
   };
 }
 
 // ---- 문제 하나 뽑기: 안 쓴 문제 우선, 풀이 바닥나면 그때만 즉석 생성(자가치유) ----
 async function pickQuestionForUser(topicId, difficulty, userKey) {
-  const { data: usedRows, error: usedErr } = await supabase
-    .from('used_questions')
-    .select('question_id')
-    .eq('user_key', userKey);
-  if (usedErr) throw usedErr;
-  const usedIds = usedRows.map(r => r.question_id);
-
+  // "이 사용자가 아직 안 푼 문제"는 DB 함수 unused_questions가 직접 고른다(supabase/aggregates.sql).
+  // 예전에는 푼 문제 ID를 전부 가져와(최대 1,000행 제한) not in 목록으로 다시 보냈기 때문에, 푼 문제가
+  // 1,000개를 넘으면 목록이 잘려 같은 문제가 다시 나올 수 있었다(§13 원칙 7, 2026-10-04 수정).
   async function query(withDifficulty) {
-    let q = supabase.from('questions').select('*').eq('topic', topicId).limit(30);
-    if (withDifficulty) q = q.eq('difficulty', difficulty);
-    if (usedIds.length) q = q.not('id', 'in', `(${usedIds.join(',')})`);
-    const { data, error } = await q;
+    const { data, error } = await supabase.rpc('unused_questions', {
+      p_user_key: userKey, p_topic: topicId, p_difficulty: withDifficulty ? difficulty : null, p_limit: 30,
+    });
     if (error) throw error;
     return data;
   }
@@ -759,47 +734,13 @@ app.post('/api/notification-preference', async (req, res) => {
 // 일요일 0시~토요일 23:59:59(KST) 구간의 점수를 /api/ranking과 동일한 산식(연속학습 보너스 포함)으로
 // 계산해 상위 3명을 정한다. weekly_awards 자체(과거 시상분)는 이 구간 계산에 포함하지 않는다 —
 // "그 주 동안 실제로 쌓은 활동 점수"만으로 순위를 매기기 위함(시상은 활동의 결과이지, 활동 자체가 아님).
+// 점수 합산은 DB 함수 leaderboard가 한다(supabase/aggregates.sql) — 기록이 1,000행을 넘어도 정확하다.
 async function computeWeeklyLeaderboard(sunday, saturday) {
-  const [
-    { data, error },
-    { data: adData, error: adErr },
-    { data: attData, error: attErr },
-    { data: refAsReferrerData, error: refErr1 },
-    { data: refAsReferredData, error: refErr2 },
-    { data: allQuizDates, error: quizDatesErr },
-  ] = await Promise.all([
-    supabase.from('used_questions').select('user_key, correct').gte('answered_date', sunday).lte('answered_date', saturday),
-    supabase.from('ad_views').select('user_key').gte('viewed_date', sunday).lte('viewed_date', saturday),
-    supabase.from('attendance').select('user_key').gte('checked_date', sunday).lte('checked_date', saturday),
-    supabase.from('referrals').select('referrer_key').gte('created_date', sunday).lte('created_date', saturday),
-    supabase.from('referrals').select('referred_key').gte('created_date', sunday).lte('created_date', saturday),
-    supabase.from('used_questions').select('user_key, answered_date'),
-  ]);
+  const { data, error } = await supabase.rpc('leaderboard', {
+    p_from: sunday, p_to: saturday, p_include_awards: false, p_limit: 3,
+  });
   if (error) throw error;
-  if (adErr) throw adErr;
-  if (attErr) throw attErr;
-  if (refErr1) throw refErr1;
-  if (refErr2) throw refErr2;
-  if (quizDatesErr) throw quizDatesErr;
-
-  const scores = {};
-  for (const row of data) scores[row.user_key] = (scores[row.user_key] || 0) + (row.correct ? POINTS_PER_EVENT : POINTS_WRONG_EVENT);
-  for (const row of adData) scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
-  for (const row of attData) scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
-  for (const row of refAsReferrerData) scores[row.referrer_key] = (scores[row.referrer_key] || 0) + POINTS_PER_EVENT;
-  for (const row of refAsReferredData) scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
-  const datesByUser = {};
-  for (const row of allQuizDates) {
-    if (!datesByUser[row.user_key]) datesByUser[row.user_key] = new Set();
-    datesByUser[row.user_key].add(row.answered_date);
-  }
-  for (const key of Object.keys(datesByUser)) {
-    const bonusDates = computeStreakBonusDates([...datesByUser[key]].sort()).filter(d => d >= sunday && d <= saturday);
-    if (bonusDates.length) scores[key] = (scores[key] || 0) + bonusDates.length * STREAK_BONUS_POINTS;
-  }
-  return Object.entries(scores)
-    .map(([userKey, score]) => ({ userKey, score }))
-    .sort((a, b) => b.score - a.score);
+  return data.map(r => ({ userKey: r.user_key, score: Number(r.score) }));
 }
 
 // 정확히 토요일 23:59:59에 실행되기를 보장할 수 없으므로(서버 재시작 등), 1분마다 "아직 지급 안 된,
@@ -848,69 +789,19 @@ app.get('/api/ranking', async (req, res) => {
       fromDate = range.sunday;
       toDate = range.saturday;
     }
-    // 전체(누적) 랭킹은 기간 제한 없이 처음부터 지금까지의 기록을 모두 합산한다.
-    const withDateFilter = (q, col) => (period === 'all' ? q : q.gte(col, fromDate).lte(col, toDate));
-
-    const [
-      { data, error },
-      { data: adData, error: adErr },
-      { data: attData, error: attErr },
-      { data: refAsReferrerData, error: refErr1 },
-      { data: refAsReferredData, error: refErr2 },
-      { data: allQuizDates, error: quizDatesErr },
-      { data: weeklyAwardData, error: weeklyAwardErr },
-    ] = await Promise.all([
-      withDateFilter(supabase.from('used_questions').select('user_key, correct'), 'answered_date'),
-      withDateFilter(supabase.from('ad_views').select('user_key'), 'viewed_date'),
-      withDateFilter(supabase.from('attendance').select('user_key'), 'checked_date'),
-      withDateFilter(supabase.from('referrals').select('referrer_key'), 'created_date'),
-      withDateFilter(supabase.from('referrals').select('referred_key'), 'created_date'),
-      // 연속학습 보너스는 구간이 기간 밖에서 시작됐을 수도 있어 전체 날짜를 따로 조회해 직접 계산한다.
-      supabase.from('used_questions').select('user_key, answered_date'),
-      // weekly_awards 테이블이 아직 없어도(마이그레이션 전) 랭킹 전체가 깨지면 안 되므로 따로 무시한다.
-      withDateFilter(supabase.from('weekly_awards').select('user_key, points'), 'week_end_date'),
-    ]);
+    // 점수 합산(출석/광고/정답·오답/친구 초대/받은 주간 시상/연속학습 보너스)은 DB 함수 leaderboard가
+    // 상위 20명만 계산해 돌려준다(supabase/aggregates.sql). 예전처럼 기록을 통째로 가져와 더하면 Supabase의
+    // 1회 조회 최대 1,000행 제한 때문에 기록이 쌓이면 점수가 조용히 덜 계산됐다(2026-10-04 수정).
+    // 전체(누적) 랭킹은 기간 제한 없이(null) 처음부터 지금까지를 합산한다.
+    const { data: board, error } = await supabase.rpc('leaderboard', {
+      p_from: period === 'all' ? null : fromDate,
+      p_to: period === 'all' ? null : toDate,
+      p_include_awards: true,
+      p_limit: 20,
+    });
     if (error) throw error;
-    if (adErr) throw adErr;
-    if (attErr) throw attErr;
-    if (refErr1) throw refErr1;
-    if (refErr2) throw refErr2;
-    if (quizDatesErr) throw quizDatesErr;
-    if (weeklyAwardErr) console.warn('weekly_awards 조회 실패(테이블 미생성 가능) — 랭킹에서 0점으로 처리:', weeklyAwardErr.message);
-    const weeklyAwardRows = weeklyAwardErr ? [] : weeklyAwardData;
-
-    // 포인트와 동일한 계산: 출석/광고 시청/정답/친구 초대(양쪽 모두) 각각 10포인트, 오답은 2포인트.
     const scores = {};
-    for (const row of data) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + (row.correct ? POINTS_PER_EVENT : POINTS_WRONG_EVENT);
-    }
-    for (const row of adData) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
-    }
-    for (const row of attData) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + POINTS_PER_EVENT;
-    }
-    for (const row of refAsReferrerData) {
-      scores[row.referrer_key] = (scores[row.referrer_key] || 0) + POINTS_PER_EVENT;
-    }
-    for (const row of refAsReferredData) {
-      scores[row.referred_key] = (scores[row.referred_key] || 0) + POINTS_PER_EVENT;
-    }
-    for (const row of weeklyAwardRows) {
-      scores[row.user_key] = (scores[row.user_key] || 0) + row.points;
-    }
-    const datesByUser = {};
-    for (const row of allQuizDates) {
-      if (!datesByUser[row.user_key]) datesByUser[row.user_key] = new Set();
-      datesByUser[row.user_key].add(row.answered_date);
-    }
-    for (const key of Object.keys(datesByUser)) {
-      const bonusDates = computeStreakBonusDates([...datesByUser[key]].sort());
-      const inRange = period === 'all' ? bonusDates : bonusDates.filter(d => d >= fromDate && d <= toDate);
-      if (inRange.length) {
-        scores[key] = (scores[key] || 0) + inRange.length * STREAK_BONUS_POINTS;
-      }
-    }
+    for (const r of board) scores[r.user_key] = Number(r.score);
     const keys = Object.keys(scores);
     const nicknameMap = {};
     const referredByMap = {};
@@ -935,8 +826,7 @@ app.get('/api/ranking', async (req, res) => {
         label: nicknameMap[key] || `사용자-${key.slice(-4)}`,
         score: scores[key],
       }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
+      .sort((a, b) => b.score - a.score);
 
     res.json({ rows });
   } catch (err) {
