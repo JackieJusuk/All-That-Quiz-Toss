@@ -72,7 +72,8 @@
 ### 3.4 광고 SDK 연동
 
 - `@apps-in-toss/web-framework`의 `loadFullScreenAd` / `showFullScreenAd` 연동 완료
-- 유형: **리워드 광고** (올댓퀴즈용 광고 그룹은 **아직 미발급**)
+- 유형: **리워드 광고** — 올댓퀴즈용 광고 그룹 ID `ait.v2.live.5a018ca029e345a5`(2026-10-03 발급, `.env.production`의 `VITE_AD_GROUP_ID`에 반영). 발급 직후 상태 "구글 반영 중"
+- **미리 로드 방식(2026-10-03 변경)**: 앱인토스 비게임 출시 체크리스트의 "인앱 광고는 사전에 로딩돼 있어요. 광고 재생 시점에 실시간으로 로딩하지 않아요" 항목에 맞춰, CashQuiz에서 물려받은 "버튼을 누르면 그때 load → loaded 후 show" 방식을 **load → show → 다음 load** 패턴으로 바꿨다(`src/main.js`의 `preloadRewardedAd`/`watchRewardedAd`). 미리 로드 시점: 앱 진입(홈) 직후, 결과 화면 진입 시, 광고가 필요한 퀴즈 화면 진입 시, 광고가 닫힌 직후. 버튼을 눌렀을 때 아직 로드 중이면 로드가 끝나기를 기다렸다가 표시한다. 같은 광고 그룹은 한 번에 하나만 미리 로드한다
 - `userEarnedReward` 이벤트 발생 시에만 서버에 적립 요청 → `ad_views`에 기록(문제풀이권 1장 추가)
 - 콘솔에서 올댓퀴즈 앱의 리워드 광고 그룹을 만든 뒤 그 ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 넣어야 한다. 비어 있으면 테스트 ID(`ait-ad-test-rewarded-id`)로 폴백한다. **CashQuiz의 광고 그룹 ID(`ait.v2.live.230ab2358b164157`)는 다른 앱 소속이라 재사용하지 않는다**
 - **알려진 리스크**: 콘솔에서 광고 그룹 생성 직후 "구글 반영 중" 상태였음 — 구글 애드몹 쪽 인벤토리 반영이 끝나지 않으면 광고 자체가 채워지지 않아(no fill) 실기기에서 광고가 안 뜰 수 있음. 콘솔에서 이 상태가 "정상"으로 바뀌었는지 확인 필요
@@ -363,7 +364,7 @@
 1. ~~**앱인토스 콘솔에 새 앱 등록**~~ — **완료(2026-10-02)**: 표시 이름 "올댓퀴즈", appName `all-that-quiz`. 코드(`apps-in-toss.config.ts`, `src/main.js` 딥링크, `index.html` title, 로딩 화면, 공유 문구)에 반영함. 카테고리는 비게임(`getAnonymousKey` 사용)이어야 함
 2. ~~**새 Supabase 프로젝트 생성**~~ — **완료(2026-10-02, Supabase 커넥터로 생성)**: 프로젝트 `all-that-quiz`(ref `hlcbnslrwpligowjkvyf`, 리전 ap-northeast-1 도쿄 — CashQuiz와 같은 리전), Project URL `https://hlcbnslrwpligowjkvyf.supabase.co`. 같은 조직(JackieJusuk's Org, Free)의 기존 프로젝트 `JackieJusuk's Project`(`efzqvlgbbcfejtwfxssv`)는 **CashQuiz 운영 DB**이므로 올댓퀴즈에 연결하지 않는다. 스키마는 `schema.sql`을 그대로 적용했고, 적용 전에 운영 중인 CashQuiz DB 구조와 대조해 차이(id 타입 uuid, `used_questions` 복합 기본키로 같은 문제 중복 기록 방지, `attendance.checked_at`)를 맞췄다. 테이블 7개 모두 RLS 켜짐(정책 없음 — 서버가 service_role로만 접근하므로 의도된 상태, 보안 점검 결과도 INFO 수준만). **남은 일: 대시보드 Project Settings → API에서 `service_role` 키를 복사해 Render 환경변수에 넣기**(커넥터로는 비밀 키를 가져올 수 없음)
 3. ~~**Render에 백엔드 서비스 생성**~~ — **완료(2026-10-03)**: 서비스 `all-that-quiz`(주소 `https://all-that-quiz.onrender.com`, 올린 `.ait`와 일치) 배포 성공, 환경변수 4개 입력, 서버 시작 시 문제 풀 생성→Supabase 저장 확인(05:08 UTC `pool topup: +10 basic`). 키 이름 오타·공개용 키·워크스페이스 ID 누락 3가지 실수를 거쳐 해결 — 자세한 과정·주의점은 **§6.1**
-4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
+4. ~~**콘솔에서 리워드 광고 그룹 생성**~~ — **완료(2026-10-03)**: `ait.v2.live.5a018ca029e345a5`를 `.env.production`에 반영하고 광고 미리 로드 방식으로 수정(§3.4). **남은 일**: 콘솔에서 상태가 "구글 반영 중" → 정상으로 바뀌면 새 `.ait`를 업로드하고 검토 재요청(1차 심사 번들은 테스트 광고 ID라 출시 체크리스트의 "테스트 광고가 아닌 실제 인앱 광고" 항목에 걸릴 수 있음). 앱인토스 문서상 개발 중 실제 광고 ID로 반복 테스트하면 정책 위반으로 볼 수 있으니, 실기기 확인은 광고 1~2회 시청 수준으로만 한다
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
    - **1차 번들 업로드·검토 요청 완료(2026-10-02)** — 백엔드(2·3번) 구축 **전**에, 심사 대기 시간을 줄이려고 먼저 올림. 이 번들은 서버 주소 `https://all-that-quiz.onrender.com`이 박혀 있어, Render 서비스가 **정확히 이 주소로** 뜨면 재업로드 없이 동작한다(주소가 다르면 재빌드·재업로드 필요). 광고는 **테스트 광고 ID**로 빌드됨 → 4번 완료 후 실제 광고 ID로 재빌드해 새 버전 업로드 필요
 6. ~~앱 아이콘/스토어 스크린샷 올댓퀴즈로 교체~~ — **제작 완료(2026-10-02), 콘솔 업로드는 사용자가 진행**: `store-assets/`에 로고(`logo.png`, 600×600 각진 정사각형·배경 꽉 채움 — 앱인토스 UI/UX 가이드 기준. Q 모양 돋보기 안에 "올댓" 글자 — 처음엔 "All-That"이었으나 한글이 낫다는 사용자 의견으로 변경), 다크모드 로고(`logo_dark.png`, 선택), 세로형 스크린샷 4장(636×1048: 홈·퀴즈·결과·랭킹), 가로형 1장(`screenshot_wide.png`, 1504×741). 스크린샷은 목업이 아니라 **실제 앱(vite dev)을 목업 API 응답으로 렌더링**한 화면이다(백엔드 미구축 상태라 데이터는 예시값). 현금화 관련 내용은 넣지 않음(§13 원칙 3). 앱 검색 키워드 제안("경제" 단어 제외): 퀴즈, 상식퀴즈, 상식, 퀴즈앱, 매일퀴즈, 금융상식, 금리, 환율, 재테크, 포인트

@@ -25,29 +25,73 @@ function requestNotificationAgreement(){
   });
 }
 
-// 보상형 광고를 끝까지 시청했을 때만 true를 반환한다(userEarnedReward 이벤트 기준).
-function watchRewardedAd(){
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let shown = false; // 'loaded' 이벤트가 두 번 이상 발생해도 showFullScreenAd는 딱 한 번만 호출한다(광고 2연속 재생 방지).
+// 보상형 광고는 "미리 로드 → 버튼을 누르면 바로 표시 → 다음 광고 미리 로드" 순서로 다룬다.
+// 앱인토스 출시 체크리스트가 "광고 재생 시점에 실시간으로 로딩하지 않는다"를 요구하고,
+// 구글 애드몹 광고는 로드에 5~20초(최대 60초)가 걸릴 수 있어 버튼을 누른 뒤 로드하면 그만큼 기다리게 된다.
+let adLoadState = 'idle'; // 'idle' | 'loading' | 'loaded' | 'failed'
+let adLoadWaiters = [];   // 로드가 끝나기 전에 "광고 보기"를 누른 경우, 로드 결과를 기다리는 콜백들
+
+function isAdSupported(){
+  try{ return loadFullScreenAd.isSupported?.() !== false; }catch(e){ return false; }
+}
+
+function settleAdLoadWaiters(err){
+  const waiters = adLoadWaiters;
+  adLoadWaiters = [];
+  waiters.forEach(w => err ? w.reject(err) : w.resolve());
+}
+
+// 광고 하나를 미리 로드해 둔다. 이미 로드됐거나 로드 중이면 아무것도 하지 않는다
+// (같은 광고 그룹은 한 번에 하나만 미리 로드할 수 있다).
+function preloadRewardedAd(){
+  if(adLoadState === 'loading' || adLoadState === 'loaded') return;
+  if(!isAdSupported()) return;
+  adLoadState = 'loading';
+  try{
     loadFullScreenAd({
       options: { adGroupId: AD_GROUP_ID },
       onEvent: (event) => {
-        if(event.type === 'loaded' && !shown){
-          shown = true;
-          showFullScreenAd({
-            options: { adGroupId: AD_GROUP_ID },
-            onEvent: (event2) => {
-              if(event2.type === 'userEarnedReward'){
-                settled = true;
-                resolve(true);
-              } else if((event2.type === 'dismissed' || event2.type === 'failedToShow') && !settled){
-                settled = true;
-                resolve(false);
-              }
-            },
-            onError: (err) => { if(!settled){ settled = true; reject(err); } },
-          });
+        if(event.type === 'loaded' && adLoadState === 'loading'){
+          adLoadState = 'loaded';
+          settleAdLoadWaiters(null);
+        }
+      },
+      onError: (err) => {
+        console.warn('광고를 미리 불러오지 못했습니다.', err);
+        adLoadState = 'failed';
+        settleAdLoadWaiters(err || new Error('ad load failed'));
+      },
+    });
+  }catch(e){
+    console.warn('광고 로드 API를 사용할 수 없습니다.', e);
+    adLoadState = 'failed';
+    settleAdLoadWaiters(e);
+  }
+}
+
+function waitForAdLoaded(){
+  if(adLoadState === 'loaded') return Promise.resolve();
+  if(adLoadState !== 'loading') preloadRewardedAd(); // 아직 안 불렀거나 실패했으면 지금 다시 로드
+  if(adLoadState === 'loaded') return Promise.resolve();
+  if(adLoadState !== 'loading') return Promise.reject(new Error('ad not supported'));
+  return new Promise((resolve, reject) => adLoadWaiters.push({ resolve, reject }));
+}
+
+// 보상형 광고를 끝까지 시청했을 때만 true를 반환한다(userEarnedReward 이벤트 기준).
+async function watchRewardedAd(){
+  await waitForAdLoaded();
+  // 표시한 광고는 다시 쓸 수 없으므로 바로 소비 처리한다. 다음 광고는 닫힌 뒤(또는 다음 광고 화면 진입 시) 미리 로드한다.
+  adLoadState = 'idle';
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    showFullScreenAd({
+      options: { adGroupId: AD_GROUP_ID },
+      onEvent: (event) => {
+        if(event.type === 'userEarnedReward'){
+          if(!settled){ settled = true; resolve(true); }
+        } else if(event.type === 'dismissed' || event.type === 'failedToShow'){
+          if(!settled){ settled = true; resolve(false); }
+          preloadRewardedAd();
         }
       },
       onError: (err) => { if(!settled){ settled = true; reject(err); } },
@@ -317,6 +361,7 @@ async function watchAdThenFetchQuestion(){
         if(q === 'ad_required'){
           state.needsAd = true;
           state.question = null;
+          preloadRewardedAd();
         }else{
           state.question = q;
         }
@@ -574,6 +619,7 @@ async function startTopic(topic){
     // 문제 풀이권(광고 시청권)이 없으면 먼저 광고를 봐야 한다. 풀이 횟수 자체엔 제한이 없다.
     // 광고가 재생되는 동안 화면 뒤에서 문제를 미리 받아두면, 광고가 끝난 직후 기다림 없이 바로 보여줄 수 있다.
     state.needsAd = true;
+    preloadRewardedAd();
     state.loadingQuestions = false;
     render();
     peekQuestion(topic, difficulty, BACKGROUND_TIMEOUT_MS).then(q => {
@@ -587,6 +633,7 @@ async function startTopic(topic){
 
   if(q === 'ad_required'){
     state.needsAd = true;
+    preloadRewardedAd();
     state.loadingQuestions = false;
     render();
     return;
@@ -640,6 +687,7 @@ async function pickChoice(idx){
 }
 
 function finishQuiz(){
+  preloadRewardedAd(); // 결과 화면에서 "새로운 퀴즈 풀기"를 누르면 광고가 필요하므로 미리 로드해 둔다.
   go('result');
 }
 
@@ -1281,6 +1329,8 @@ async function init(){
   if(state.screen === 'loading' || state.screen === 'home'){
     go('home');
   }
+  // 첫 퀴즈는 광고 없이 풀 수 있지만 두 번째부터 광고가 필요하므로, 앱 진입 시 하나를 미리 로드해 둔다.
+  preloadRewardedAd();
 }
 
 init();
