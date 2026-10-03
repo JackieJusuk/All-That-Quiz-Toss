@@ -121,18 +121,31 @@ body{
 .chip.share .l{font-size:0.68rem; color:var(--accent); font-weight:700;}
 
 .greet{
+  word-break:keep-all;
   font-size:1.25rem;
   font-weight:900;
   margin:0 0 0.3rem;
   text-wrap:balance;
 }
+.greet-edit{
+  display:block;
+  width:100%;
+  border:0;
+  padding:0;
+  background:none;
+  color:inherit;
+  font-family:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+.greet-edit-hint{color:var(--ink-soft); vertical-align:middle;}
 .greet-sub{
   font-size:0.9rem;
   color:var(--ink-soft);
   margin:0 0 1.1rem;
 }
 
-/* ---- onboarding (닉네임 입력) ---- */
+/* ---- 로딩 / 닉네임 변경 ---- */
 .loading-wrap{
   flex:1;
   display:flex;
@@ -172,26 +185,6 @@ body{
 .nickname-input:focus{outline:2px solid var(--accent); outline-offset:2px;}
 .onboard-wrap .btn-primary{max-width:22rem;}
 .onboard-wrap .btn-ghost{max-width:22rem; margin-top:0.6rem;}
-.notify-time-row{
-  width:100%;
-  max-width:22rem;
-  display:flex;
-  flex-direction:column;
-  align-items:flex-start;
-  gap:0.4rem;
-  margin-bottom:1.3rem;
-}
-.notify-time-row .section-label{margin:0;}
-.notify-time-input{
-  width:100%;
-  border:1.5px solid var(--line);
-  background:var(--surface);
-  color:var(--ink);
-  border-radius:14px;
-  padding:0.75rem 1rem;
-  font-size:1rem;
-}
-.notify-time-input:focus{outline:2px solid var(--accent); outline-offset:2px;}
 
 .level-card{
   background:var(--surface);
