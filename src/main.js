@@ -1,29 +1,8 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, Notification } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
 const AD_GROUP_ID = import.meta.env.VITE_AD_GROUP_ID || 'ait-ad-test-rewarded-id';
-
-// 콘솔의 "스마트발송" 알림 템플릿 코드. 아직 콘솔에서 템플릿을 만들지 않았다면 비워둔다 —
-// 비어 있으면 동의 여부/시간대만 서버에 저장하고, SDK 동의 화면 호출은 건너뛴다.
-const NOTIFY_TEMPLATE_CODE = import.meta.env.VITE_NOTIFY_TEMPLATE_CODE || '';
-
-// 알림 동의 화면을 띄우고 사용자의 응답을 Promise로 받는다. 템플릿 코드가 없으면 호출 자체를 생략한다.
-function requestNotificationAgreement(){
-  return new Promise((resolve) => {
-    if(!NOTIFY_TEMPLATE_CODE){ resolve(null); return; }
-    let settled = false;
-    try{
-      Notification.requestAgreement({
-        options: { templateCode: NOTIFY_TEMPLATE_CODE },
-        onEvent: (result) => { if(!settled){ settled = true; resolve(result.type); } },
-        onError: (err) => { if(!settled){ settled = true; console.warn('알림 동의 요청에 실패했습니다.', err); resolve(null); } },
-      });
-    }catch(e){
-      if(!settled){ settled = true; console.warn('알림 동의 API를 사용할 수 없습니다.', e); resolve(null); }
-    }
-  });
-}
 
 // 보상형 광고는 "미리 로드 → 버튼을 누르면 바로 표시 → 다음 광고 미리 로드" 순서로 다룬다.
 // 앱인토스 출시 체크리스트가 "광고 재생 시점에 실시간으로 로딩하지 않는다"를 요구하고,
@@ -111,6 +90,7 @@ const ICONS = {
   basic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>',
   money: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>',
   life: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M15.5 13.5h4.5"/></svg>',
+  pencil: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
@@ -203,7 +183,6 @@ let state = {
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false, suggestedNickname:null,
-  onboardStep:'nickname', notifyTime:'09:00', savingNotify:false,
   promoDetail:null,
   myStatsDetailOpen:false,
 };
@@ -231,15 +210,6 @@ async function saveNickname(nickname){
   if(!res.ok) throw new Error(`status ${res.status}`);
   const data = await res.json();
   state.nickname = data.nickname;
-}
-
-async function saveNotificationPreference(agreed, time){
-  const res = await fetch(`${API_BASE}/api/notification-preference`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userKey, agreed, time: agreed ? time : null }),
-  });
-  if(!res.ok) throw new Error(`status ${res.status}`);
 }
 
 async function fetchStatus(){
@@ -496,11 +466,11 @@ function mountShell(){
   app.appendChild(tabbarEl);
 }
 
-// 뒤로가기(시스템 백버튼) 대응 — 'home'/'onboarding'을 루트로 보고, 루트에서 벗어날 때만
+// 뒤로가기(시스템 백버튼) 대응 — 'home'을 루트로 보고, 루트에서 벗어날 때만
 // 브라우저 히스토리를 1칸 쌓는다. 그래야 기기 뒤로가기를 눌렀을 때 미니앱이 바로 꺼지지 않고
 // WebView가 그 히스토리를 되짚어 popstate를 발생시켜, 홈 화면으로 돌아오게 만들 수 있다.
 // (앱인토스 설정의 allowsBackForwardNavigationGestures도 WebView 자체 히스토리를 전제로 한다.)
-const isRootScreen = (screen) => screen === 'home' || screen === 'onboarding';
+const isRootScreen = (screen) => screen === 'home';
 let restoringFromHistory = false;
 
 function go(screen, extra){
@@ -529,7 +499,7 @@ window.addEventListener('popstate', () => {
 // 네비게이션 바(화면 상단)의 뒤로가기 화살표는 브라우저 히스토리(popstate)가 아니라
 // 앱인토스 SDK의 전용 이벤트로 들어온다. 여기서 직접 처리하지 않으면 기기 하드웨어
 // 뒤로가기와 달리 "루트 화면에서 눌러도 미니앱이 종료되지 않는" 문제가 생긴다
-// (실제 심사 반려 사유였음). 루트(홈/온보딩)에서는 미니앱을 직접 닫고,
+// (실제 심사 반려 사유였음). 루트(홈)에서는 미니앱을 직접 닫고,
 // 그 외 화면에서는 홈으로 돌아간다.
 graniteEvent.addEventListener('backEvent', {
   onEvent: () => {
@@ -692,7 +662,7 @@ function finishQuiz(){
 }
 
 function renderTabbar(){
-  if(state.screen==='quiz' || state.screen==='result' || state.screen==='onboarding' || state.screen==='loading'){ tabbarEl.style.display='none'; return; }
+  if(state.screen==='quiz' || state.screen==='result' || state.screen==='nickname' || state.screen==='loading'){ tabbarEl.style.display='none'; return; }
   tabbarEl.style.display='flex';
   const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note'],['promotion','프로모션','gift']];
   tabbarEl.innerHTML = tabs.map(([key,label,ic])=>
@@ -719,7 +689,7 @@ function homeHTML(){
 
   return `
   <div class="scroll">
-    <p class="greet">${state.nickname}님, 오늘의 퀴즈를 풀어봐요</p>
+    <button class="greet greet-edit" id="nickname-edit" aria-label="닉네임 바꾸기">${state.nickname}님, 오늘의 퀴즈를 풀어봐요 <span class="greet-edit-hint">${ICONS.pencil}</span></button>
     <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
     ${topChips}
     ${levelCardHTML()}
@@ -1121,34 +1091,27 @@ function loadingHTML(){
   </div>`;
 }
 
-function onboardingHTML(){
-  if(state.onboardStep === 'notify'){
-    return `
-    <div class="onboard-wrap">
-      <p class="greet">매일 출석 알림을 받으시겠어요?</p>
-      <p class="greet-sub">원하는 시간대에 퀴즈 풀 시간을 알려드려요</p>
-      <div class="notify-time-row">
-        <label for="notify-time-input" class="section-label">알림 받을 시간</label>
-        <input id="notify-time-input" class="notify-time-input" type="time" value="${state.notifyTime}" />
-      </div>
-      <button class="btn-primary" id="notify-agree" ${state.savingNotify?'disabled':''}>${state.savingNotify?'저장 중...':'알림 받을게요'}</button>
-      <button class="btn-ghost" id="notify-decline" ${state.savingNotify?'disabled':''}>받지 않을게요</button>
-    </div>`;
-  }
-  if(!state.suggestedNickname) state.suggestedNickname = generateNickname();
+// 닉네임 변경 화면 — 사용자가 홈 인사말을 눌렀을 때만 연다. 미니앱 진입 직후 입력/동의 화면을
+// 강제로 띄우면 앱인토스 출시 체크리스트("진입하자마자 바텀시트가 자동으로 나타나지 않아요") 위반으로
+// 반려되므로(2026-10-03 실제 반려), 첫 진입 시에는 닉네임을 자동으로 정해 저장한다(init 참고).
+function nicknameHTML(){
+  if(!state.suggestedNickname) state.suggestedNickname = state.nickname || generateNickname();
   return `
+  <div class="quiz-head">
+    <button class="iconbtn" id="nickname-cancel" aria-label="닫기">${ICONS.close}</button>
+  </div>
   <div class="onboard-wrap">
-    <p class="greet">닉네임을 알려주세요</p>
-    <p class="greet-sub">홈 화면과 랭킹에 표시돼요. 마음에 들면 그대로, 아니면 바꿔보세요</p>
+    <p class="greet">닉네임 바꾸기</p>
+    <p class="greet-sub">홈 화면과 랭킹에 표시돼요</p>
     <input id="nickname-input" class="nickname-input" type="text" maxlength="12" value="${state.suggestedNickname}" placeholder="예: 퀴즈초보" />
-    <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'시작하기'}</button>
+    <button class="btn-primary" id="nickname-submit" ${state.savingNickname?'disabled':''}>${state.savingNickname?'저장 중...':'저장하기'}</button>
     <button class="btn-ghost" id="nickname-reroll" type="button">다른 닉네임 추천받기</button>
   </div>`;
 }
 
 function render(){
   if(state.screen==='loading') screenEl.innerHTML = loadingHTML();
-  else if(state.screen==='onboarding') screenEl.innerHTML = onboardingHTML();
+  else if(state.screen==='nickname') screenEl.innerHTML = nicknameHTML();
   else if(state.screen==='home') screenEl.innerHTML = homeHTML();
   else if(state.screen==='quiz') screenEl.innerHTML = quizHTML();
   else if(state.screen==='result') screenEl.innerHTML = resultHTML();
@@ -1227,13 +1190,10 @@ function bindScreenEvents(){
     state.suggestedNickname = generateNickname();
     render();
   });
-  const notifyAgreeBtn = screenEl.querySelector('#notify-agree');
-  if(notifyAgreeBtn) notifyAgreeBtn.addEventListener('click', ()=>{
-    const timeInput = screenEl.querySelector('#notify-time-input');
-    submitNotifyChoice(true, timeInput && timeInput.value ? timeInput.value : state.notifyTime);
-  });
-  const notifyDeclineBtn = screenEl.querySelector('#notify-decline');
-  if(notifyDeclineBtn) notifyDeclineBtn.addEventListener('click', ()=> submitNotifyChoice(false, null));
+  const nicknameEditBtn = screenEl.querySelector('#nickname-edit');
+  if(nicknameEditBtn) nicknameEditBtn.addEventListener('click', ()=> go('nickname', { suggestedNickname: state.nickname }));
+  const nicknameCancelBtn = screenEl.querySelector('#nickname-cancel');
+  if(nicknameCancelBtn) nicknameCancelBtn.addEventListener('click', ()=> go('home'));
 }
 
 async function submitNickname(){
@@ -1250,25 +1210,7 @@ async function submitNickname(){
     state.nickname = value; // 서버 저장이 실패해도 이번 세션 안에서는 입력값으로 진행
   }
   state.savingNickname = false;
-  state.onboardStep = 'notify';
-  render();
-}
-
-// 동의 여부와 상관없이 서버에 기록한다(동의 안 한 사용자도 구별해야 하므로).
-// 동의한 경우에만 SDK 알림 동의 화면(콘솔 템플릿 연동)을 함께 요청한다.
-async function submitNotifyChoice(agreed, time){
-  if(state.savingNotify) return;
-  state.savingNotify = true;
-  render();
-  try{
-    if(agreed) await requestNotificationAgreement();
-    await saveNotificationPreference(agreed, time);
-  }catch(e){
-    console.warn('알림 설정 저장에 실패했습니다.', e);
-  }
-  state.savingNotify = false;
-  await fetchStatus();
-  go('home');
+  if(state.screen === 'nickname') go('home');
 }
 
 async function init(){
@@ -1306,11 +1248,21 @@ async function init(){
 
   // 닉네임 조회 + 출석/통계 계산을 하나의 요청으로 합쳐 왕복 횟수를 줄인다.
   const ok = await fetchInit();
+  let justCreated = false;
+  let tempNickname = false; // 서버 조회 실패로 임시 닉네임을 쓰는 중 — 서버에 저장하면 기존 닉네임을 덮어쓸 수 있다
   if(!state.nickname){
-    go('onboarding');
-    return;
+    // 첫 진입: 입력 화면을 띄우지 않고 추천 닉네임으로 바로 시작한다(바꾸고 싶으면 홈 인사말을 눌러 변경).
+    // 서버가 "닉네임 없음"을 확인해 준 경우(ok)에만 저장한다 — 서버 장애로 조회에 실패한 기존 사용자의
+    // 닉네임을 무작위 값으로 덮어쓰지 않기 위해서다. 저장에 실패해도 이번 세션은 이 닉네임으로 진행한다.
+    state.nickname = generateNickname();
+    if(ok){
+      justCreated = true;
+      try{ await saveNickname(state.nickname); }catch(e){ console.warn('자동 닉네임 저장 실패', e); }
+    }else{
+      tempNickname = true;
+    }
   }
-  if(pendingRef){
+  if(pendingRef && !justCreated && !tempNickname){
     // 이미 가입한 사용자가 초대 링크로 다시 들어온 경우에도 매번 초대 포인트를 반복 적립한다
     // (어뷰징 방지 장치를 의도적으로 넣지 않은 프로모션 단계 정책 — requirements.md §9 참고).
     try{ await saveNickname(state.nickname); }catch(e){ console.warn('재방문 초대 포인트 반영 실패', e); }
