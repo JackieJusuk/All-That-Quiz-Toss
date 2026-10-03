@@ -14,6 +14,8 @@ CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱
 
 **§13 원칙 17(글씨체 통일)도 항상 지키세요**: 앱 전체에서 글씨체는 하나(`Gothic A1`)로 통일한다. 화면·항목별로 다른 폰트 패밀리를 섞어 쓰지 않는다 — 구분은 색상/굵기/크기로 한다. 숫자용으로 쓰던 `--font-mono`도 `--font-kr`을 그대로 가리키도록 통합되어 있다(`src/style.css`). 새 폰트를 추가하기 전에 이미 로드된 `Gothic A1`으로 원하는 효과를 낼 수 없는지 먼저 확인한다.
 
+**§13 원칙 22(대원칙: 한국 사용자에 최적화된 System Architecture)**: 이 프로젝트와 이후 모든 프로젝트의 요구사항이다. 서버·DB 등 리전을 고르는 구성요소는 **서울 → 도쿄 → 싱가포르** 순으로 가장 가까운 리전을 명시해서 만들고(서비스 기본값인 미국 리전을 그대로 두지 않는다), 서버와 DB는 서로 가까이 둔다. 날짜 경계는 KST로 계산하고, 결정한 리전과 실측 응답 시간을 §6/§6.1에 기록한다. 실제 사례: 오레곤 서버 + 도쿄 DB로 지연 발생 → 싱가포르로 재구축(§3.11, §6.1).
+
 **§13 원칙 19(대원칙: System Architecture Diagram 유지)**: 새 구성요소(외부 서비스, 배포 대상 등)가 추가되거나 배포/통신 흐름이 바뀌는 작업을 할 때는 `requirements.md` §6에 링크된 System Architecture Diagram(1장, C4 Container 레벨)도 함께 갱신한다. 다이어그램: https://claude.ai/artifact/9kNU1bjivb63kdH6dyXfXY (원본 CashQuiz 다이어그램: https://claude.ai/artifact/DtuVUQuyPXfpF1rEMq3ZCy)
 
 ## 프로젝트 구조
