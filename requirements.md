@@ -277,6 +277,8 @@
 
 **겪은 실수와 주의점(다음에 반복하지 않도록)**
 - **환경변수 이름 오타**: `SUPABASE_SERVICE_KEY`처럼 이름이 조금만 달라도 서버는 값을 못 찾고 시작 즉시 `supabaseKey is required.`로 죽는다(2026-10-03 실제 발생). 이름은 위 표 철자 그대로
+- **공개용 키를 비밀 키 자리에 넣는 실수**: `SUPABASE_SERVICE_ROLE_KEY`에 `sb_publishable_...`/anon 키를 넣으면 서버는 켜지고 읽기도 에러 없이 되지만(RLS 때문에 빈 결과만 옴), 저장 시 `42501 new row violates row-level security policy`로 실패한다(2026-10-03 실제 발생 — "연결 정상"으로 오판하기 쉬움). RLS를 풀어서 해결하지 말고 비밀 키로 교체한다. Legacy 탭은 `anon`과 `service_role` 둘 다 `eyJ...`로 시작하니 이름표로 구분
+- **Anthropic 워크스페이스 ID**: 워크스페이스에 묶이지 않은(조직 단위) API 키를 쓰면 `This API key is not scoped to a workspace ... anthropic-workspace-id header` 400 에러로 문제 생성이 실패한다(2026-10-03 실제 발생). `ANTHROPIC_WORKSPACE_ID`(`wrkspc_...`)를 넣으면 서버가 헤더로 자동 첨부한다. 여기서 "워크스페이스"는 Anthropic 콘솔의 키·사용량 관리 단위로, Render·앱인토스의 워크스페이스와 무관
 - **Save only 주의**: 값만 저장하고 재배포하지 않으면 서버는 예전 설정으로 계속 실패한다 — "Save, rebuild, and deploy"를 고른다
 - **키를 저장소에 넣지 않는다**: 저장소가 **Public**이고 `.env`는 `.gitignore` 대상이라 push해도 Render에 전달되지 않으며, 억지로 올리면 봇이 몇 분 안에 수집한다. 로컬 `.env`는 노트북에서 서버를 직접 켤 때만 쓴다
 - **CashQuiz 키/DB와 섞지 않는다**: 같은 Anthropic 키 재사용은 괜찮지만, Supabase 주소·키는 반드시 올댓퀴즈 프로젝트 것을 쓴다
@@ -360,7 +362,7 @@
 
 1. ~~**앱인토스 콘솔에 새 앱 등록**~~ — **완료(2026-10-02)**: 표시 이름 "올댓퀴즈", appName `all-that-quiz`. 코드(`apps-in-toss.config.ts`, `src/main.js` 딥링크, `index.html` title, 로딩 화면, 공유 문구)에 반영함. 카테고리는 비게임(`getAnonymousKey` 사용)이어야 함
 2. ~~**새 Supabase 프로젝트 생성**~~ — **완료(2026-10-02, Supabase 커넥터로 생성)**: 프로젝트 `all-that-quiz`(ref `hlcbnslrwpligowjkvyf`, 리전 ap-northeast-1 도쿄 — CashQuiz와 같은 리전), Project URL `https://hlcbnslrwpligowjkvyf.supabase.co`. 같은 조직(JackieJusuk's Org, Free)의 기존 프로젝트 `JackieJusuk's Project`(`efzqvlgbbcfejtwfxssv`)는 **CashQuiz 운영 DB**이므로 올댓퀴즈에 연결하지 않는다. 스키마는 `schema.sql`을 그대로 적용했고, 적용 전에 운영 중인 CashQuiz DB 구조와 대조해 차이(id 타입 uuid, `used_questions` 복합 기본키로 같은 문제 중복 기록 방지, `attendance.checked_at`)를 맞췄다. 테이블 7개 모두 RLS 켜짐(정책 없음 — 서버가 service_role로만 접근하므로 의도된 상태, 보안 점검 결과도 INFO 수준만). **남은 일: 대시보드 Project Settings → API에서 `service_role` 키를 복사해 Render 환경변수에 넣기**(커넥터로는 비밀 키를 가져올 수 없음)
-3. **Render에 백엔드 서비스 생성** — 서비스 생성 완료(2026-10-02, Render 커넥터, 주소 `https://all-that-quiz.onrender.com` 일치). **남은 일: 비밀 키(`SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`) 입력 후 배포 성공 확인**(2026-10-03 기준 키 미입력으로 시작 실패). 자세한 세팅 과정·주의점은 **§6.1**
+3. ~~**Render에 백엔드 서비스 생성**~~ — **완료(2026-10-03)**: 서비스 `all-that-quiz`(주소 `https://all-that-quiz.onrender.com`, 올린 `.ait`와 일치) 배포 성공, 환경변수 4개 입력, 서버 시작 시 문제 풀 생성→Supabase 저장 확인(05:08 UTC `pool topup: +10 basic`). 키 이름 오타·공개용 키·워크스페이스 ID 누락 3가지 실수를 거쳐 해결 — 자세한 과정·주의점은 **§6.1**
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
    - **1차 번들 업로드·검토 요청 완료(2026-10-02)** — 백엔드(2·3번) 구축 **전**에, 심사 대기 시간을 줄이려고 먼저 올림. 이 번들은 서버 주소 `https://all-that-quiz.onrender.com`이 박혀 있어, Render 서비스가 **정확히 이 주소로** 뜨면 재업로드 없이 동작한다(주소가 다르면 재빌드·재업로드 필요). 광고는 **테스트 광고 ID**로 빌드됨 → 4번 완료 후 실제 광고 ID로 재빌드해 새 버전 업로드 필요
