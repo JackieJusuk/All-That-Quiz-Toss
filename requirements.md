@@ -6,7 +6,7 @@
 - 영문명: **All-That-Quiz** (모든 문서에 이 표기로 통일. 저장소 이름만 CashQuiz-toss 계열 관례대로 `All-That-Quiz-Toss`). 단, 대문자를 쓸 수 없는 기술 식별자(appName `all-that-quiz`, Render 서비스명 `all-that-quiz`, 딥링크 `intoss://all-that-quiz`)는 소문자 kebab-case를 그대로 쓴다
 - 플랫폼: 토스(Toss) 미니앱 (AppsInToss, Web/WebView)
 - 저장소: [github.com/JackieJusuk/All-That-Quiz-Toss](https://github.com/JackieJusuk/All-That-Quiz-Toss) (2026-10-02 `EconomyQuiz-toss`에서 이름 변경 — 앱 이름 "올댓퀴즈"에 맞춤)
-- 운영 서버: Render (`https://all-that-quiz.onrender.com`, `render.yaml` 기준 — 서비스 생성 전)
+- 운영 서버: Render (`https://all-that-quiz.onrender.com`, 워크스페이스 All-That-Quiz · 서비스 `all-that-quiz` · 2026-10-02 생성 — 세팅 과정은 §6.1)
 - appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다. **경제만 다루는 앱이 아니므로 로고·스토어 문구·검색 키워드 등 앱을 소개하는 문구에는 "경제"라는 단어를 쓰지 않는다**(2026-10-02 사용자 지시). 앱 안의 주제 이름에서도 "경제"를 뺐다: `basic` "경제 기초"→**"시장 원리"**, `life` "생활 경제"→**"세금·연금"**(2026-10-02). 주제가 다루는 내용(`TOPIC_CONCEPTS`)과 AI 문제 생성용 시스템 프롬프트는 그대로이며, 화면에 보이지 않는 내부 프롬프트의 "경제 상식" 표현도 유지한다
 
 > **포크 이력(2026-10-02)**: 이 저장소는 [CashQuiz-toss](https://github.com/JackieJusuk/CashQuiz-toss)(투자 퀴즈, 포인트퀴즈)의 `master` 전체 히스토리를 그대로 복제한 뒤, 같은 형식(광고 게이팅·포인트·등급·랭킹·친구 초대)으로 **경제 상식 퀴즈**를 만들기 위해 주제/브랜딩/배포 대상을 바꾼 것이다. 아래 §3 이후의 구현 이력·버그 사례·심사 반려 이력(§3.14, §3.15, §11.1 등)은 CashQuiz에서 겪은 내용을 교훈으로 그대로 물려받은 것이며, 코드도 같은 구조다. 올댓퀴즈 전용 인프라(Render 서비스, Supabase 프로젝트, 앱인토스 앱/광고 그룹)는 **CashQuiz와 완전히 분리**한다 — 같은 DB/서버를 공유하면 포인트·랭킹·문제 풀이 섞인다. 설정 체크리스트는 §12.0.
@@ -241,6 +241,48 @@
   - **DB를 Render Postgres로 이전**: 같은 리전이면 지연시간은 소폭 개선될 수 있으나, Render Postgres 무료 플랜은 생성 후 약 30일 뒤 삭제되어 사실상 유료 플랜이 필요(Supabase와 비용 차이 크지 않음). 결정적으로 `server/index.js`가 Supabase 전용 쿼리 빌더(`supabase.from(...)`, PostgREST 기반)를 **19곳**에서 쓰고 있어, Render의 순수 Postgres로 옮기려면 이 호출들을 전부 raw SQL로 재작성해야 함 — 실익 대비 엔지니어링 리스크가 커서 **보류**
   - **백엔드를 Supabase Edge Functions로 이전**: Edge Functions는 Cloudflare Workers와 마찬가지로 **엣지 분산 실행** 구조라, 위에서 이미 겪은 "Anthropic API 국가 기반 접근 제한과 충돌해 비결정적 403 오류 발생" 문제가 그대로 재발할 가능성이 높음. Render를 쓰는 이유 자체가 "고정 리전"이었으므로 이 방향은 그 이유를 정면으로 거스름 — **기각**
 
+### 6.1 백엔드 서버 세팅 과정 (Render ↔ Supabase ↔ Claude, 2026-10-02~03)
+
+**한 줄 요약**: Render에서 돌아가는 서버에게 "어느 DB에(주소) 어떤 권한으로(비밀 키) 접속할지"와 "Claude API 권한"을 **Render 환경변수**로 알려주는 과정이다. 코드(`server/index.js`)에는 환경변수 **이름만** 있고 실제 값은 Render에만 둔다.
+
+```
+[토스 앱 속 올댓퀴즈 화면] ──fetch──▶ [Render 서버 all-that-quiz] ──(SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)──▶ [Supabase DB all-that-quiz]
+                                              └──(ANTHROPIC_API_KEY)──▶ [Claude API: 문제 생성]
+```
+
+**구성 요소(전부 CashQuiz와 분리)**
+
+| 구성 | 올댓퀴즈 | (참고) CashQuiz |
+|---|---|---|
+| Supabase 프로젝트 | `all-that-quiz` (ref `hlcbnslrwpligowjkvyf`, ap-northeast-1 도쿄), URL `https://hlcbnslrwpligowjkvyf.supabase.co` | `JackieJusuk's Project` (`efzqvlgbbcfejtwfxssv`) — **절대 올댓퀴즈에 연결하지 않는다** |
+| Render 워크스페이스 / 서비스 | All-That-Quiz / `all-that-quiz` (`srv-davromid0e5s7394s0r0`), 오레곤, **Free**, `master` push 시 자동 배포 | My Workspace / `CashQuiz2` (`cashquiz2.onrender.com`), 오레곤, 유료 0.5 CPU |
+| 서버 주소 | `https://all-that-quiz.onrender.com` — 1차 업로드한 `.ait`에 박힌 주소와 **정확히 일치**(재빌드 불필요) | |
+| 빌드 / 시작 명령 | `npm install` / `npm run server` | |
+
+**Render 환경변수 (서비스 → Environment 화면에서만 입력)**
+
+| 이름(정확히 이 철자) | 값 | 비유 | 입력 주체 |
+|---|---|---|---|
+| `SUPABASE_URL` | `https://hlcbnslrwpligowjkvyf.supabase.co` | 창고 주소 | Claude(Render 커넥터로 서비스 생성 시 입력) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase **비밀 키** — `sb_secret_...`(Secret keys) 또는 Legacy 탭의 `service_role`(`eyJ...`). `sb_publishable_...`/anon 키는 권한이 없어 안 됨 | 창고 열쇠 | 사용자(비밀 값이라 대화에 남기지 않음) |
+| `ANTHROPIC_API_KEY` | Claude API 키(`sk-ant-...`). CashQuiz와 같은 키 사용 가능 — CashQuiz2의 Environment 또는 로컬 CashQuiz 폴더의 `.env`에서 복사 | 출제 위원 출입증 | 사용자 |
+| `ANTHROPIC_WORKSPACE_ID` | 필요할 때만(`wrkspc_...`) | | 사용자 |
+
+**진행 순서(실제로 한 일)**
+1. Supabase 커넥터로 올댓퀴즈 전용 프로젝트 생성 → `supabase/schema.sql` 적용(테이블 7개, RLS 켜짐·정책 없음 = 서버만 비밀 키로 접근). 적용 전 운영 중인 CashQuiz DB 구조와 대조해 차이를 맞춤(§12.0 2번)
+2. Render 커넥터로 All-That-Quiz 워크스페이스에 웹 서비스 생성(Free, `SUPABASE_URL`만 미리 입력). 비밀 키가 없어 첫 배포는 `Error: supabaseKey is required.`로 실패하는 게 정상
+3. 사용자가 Render Environment 화면에서 비밀 키 입력 → **Save, rebuild, and deploy**
+4. 배포 성공 시 로그에 `quiz question API listening on ...`이 찍히고, 서버가 시작하면서 문제 풀(주제당 80개, 총 240개)을 Claude로 채워 Supabase `questions`에 넣는다 → `questions` 행 수가 늘어나면 서버·AI·DB 연결이 모두 정상이라는 뜻
+5. 브라우저로 `https://all-that-quiz.onrender.com/api/init?userKey=test` 호출 → JSON이 오면 완료
+
+**겪은 실수와 주의점(다음에 반복하지 않도록)**
+- **환경변수 이름 오타**: `SUPABASE_SERVICE_KEY`처럼 이름이 조금만 달라도 서버는 값을 못 찾고 시작 즉시 `supabaseKey is required.`로 죽는다(2026-10-03 실제 발생). 이름은 위 표 철자 그대로
+- **Save only 주의**: 값만 저장하고 재배포하지 않으면 서버는 예전 설정으로 계속 실패한다 — "Save, rebuild, and deploy"를 고른다
+- **키를 저장소에 넣지 않는다**: 저장소가 **Public**이고 `.env`는 `.gitignore` 대상이라 push해도 Render에 전달되지 않으며, 억지로 올리면 봇이 몇 분 안에 수집한다. 로컬 `.env`는 노트북에서 서버를 직접 켤 때만 쓴다
+- **CashQuiz 키/DB와 섞지 않는다**: 같은 Anthropic 키 재사용은 괜찮지만, Supabase 주소·키는 반드시 올댓퀴즈 프로젝트 것을 쓴다
+- **Free 요금제 한계**: 15분 미사용 시 서버가 잠들고 깨는 데 30초~1분 → 첫 접속이 느릴 수 있고 주간 시상(토 23:59:59)이 늦게 지급될 수 있음. 필요 시 Settings → Instance Type에서 Starter로 전환
+- 비밀 키는 Claude 커넥터로 읽거나 옮기지 않는다(Supabase 커넥터는 비밀 키를 제공하지 않고, Render 커넥터로 옮기면 값이 대화 기록에 남음) — 사용자가 대시보드에서 직접 입력
+
 ## 7. 실제 금전 보상(리워드) 설계 — 내부 문서, 미노출/미구현
 
 사용자 요청에 따라 **앱 UI/코드에는 노출하지 않는** 별도 설계로만 존재한다. 실제 구현(포인트→캐시 전환 실행) 이전에 아래 사전 조건이 필요:
@@ -318,7 +360,7 @@
 
 1. ~~**앱인토스 콘솔에 새 앱 등록**~~ — **완료(2026-10-02)**: 표시 이름 "올댓퀴즈", appName `all-that-quiz`. 코드(`apps-in-toss.config.ts`, `src/main.js` 딥링크, `index.html` title, 로딩 화면, 공유 문구)에 반영함. 카테고리는 비게임(`getAnonymousKey` 사용)이어야 함
 2. ~~**새 Supabase 프로젝트 생성**~~ — **완료(2026-10-02, Supabase 커넥터로 생성)**: 프로젝트 `all-that-quiz`(ref `hlcbnslrwpligowjkvyf`, 리전 ap-northeast-1 도쿄 — CashQuiz와 같은 리전), Project URL `https://hlcbnslrwpligowjkvyf.supabase.co`. 같은 조직(JackieJusuk's Org, Free)의 기존 프로젝트 `JackieJusuk's Project`(`efzqvlgbbcfejtwfxssv`)는 **CashQuiz 운영 DB**이므로 올댓퀴즈에 연결하지 않는다. 스키마는 `schema.sql`을 그대로 적용했고, 적용 전에 운영 중인 CashQuiz DB 구조와 대조해 차이(id 타입 uuid, `used_questions` 복합 기본키로 같은 문제 중복 기록 방지, `attendance.checked_at`)를 맞췄다. 테이블 7개 모두 RLS 켜짐(정책 없음 — 서버가 service_role로만 접근하므로 의도된 상태, 보안 점검 결과도 INFO 수준만). **남은 일: 대시보드 Project Settings → API에서 `service_role` 키를 복사해 Render 환경변수에 넣기**(커넥터로는 비밀 키를 가져올 수 없음)
-3. **Render에 백엔드 서비스 생성** — New > Blueprint로 이 저장소 선택(`render.yaml`, 서비스명 `all-that-quiz`) → 환경변수 `ANTHROPIC_API_KEY`(CashQuiz와 같은 키 사용 가능), `ANTHROPIC_WORKSPACE_ID`(필요 시), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력. 서비스명이 이미 쓰이고 있어 URL이 달라지면 `.env.production`의 `VITE_API_BASE`를 실제 URL로 바꾼다
+3. **Render에 백엔드 서비스 생성** — 서비스 생성 완료(2026-10-02, Render 커넥터, 주소 `https://all-that-quiz.onrender.com` 일치). **남은 일: 비밀 키(`SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`) 입력 후 배포 성공 확인**(2026-10-03 기준 키 미입력으로 시작 실패). 자세한 세팅 과정·주의점은 **§6.1**
 4. **콘솔에서 리워드 광고 그룹 생성** → ID를 `.env.production`의 `VITE_AD_GROUP_ID`에 반영
 5. 위 값이 확정되면 `npm run build`로 `.ait` 생성 → 콘솔에 업로드 → QR로 실기기 테스트
    - **1차 번들 업로드·검토 요청 완료(2026-10-02)** — 백엔드(2·3번) 구축 **전**에, 심사 대기 시간을 줄이려고 먼저 올림. 이 번들은 서버 주소 `https://all-that-quiz.onrender.com`이 박혀 있어, Render 서비스가 **정확히 이 주소로** 뜨면 재업로드 없이 동작한다(주소가 다르면 재빌드·재업로드 필요). 광고는 **테스트 광고 ID**로 빌드됨 → 4번 완료 후 실제 광고 ID로 재빌드해 새 버전 업로드 필요
