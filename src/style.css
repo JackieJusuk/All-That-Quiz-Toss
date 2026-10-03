@@ -154,7 +154,8 @@ body{
   justify-content:center;
   gap:0.3rem;
 }
-.loading-logo{color:var(--gold);}
+.loading-logo{color:var(--accent);}
+.loading-logo.hourglass svg{width:2.5rem; height:2.5rem;}
 .loading-logo svg{width:2.5rem; height:2.5rem;}
 .loading-title{font-size:1.1rem; font-weight:900; margin:0;}
 .loading-sub{font-size:0.85rem; color:var(--ink-soft); margin:0;}
@@ -627,6 +628,23 @@ body{
 .empty b{color:var(--ink); font-size:1rem;}
 .empty span{font-size:0.85rem;}
 .ad-error{color:var(--bad); font-size:0.82rem;}
+
+/* ---- 대기 표시: 계속 도는 모래시계 ----
+   문구만 있으면 서버가 잠들었다 깨는 긴 대기(20초 이상) 동안 화면이 멈춘 것처럼 느껴진다. */
+.hourglass{display:inline-flex; color:var(--accent); animation:hourglass-flip 1.6s ease-in-out infinite;}
+.hourglass svg{width:2rem; height:2rem;}
+.empty .hourglass{margin-bottom:0.4rem;}
+.hourglass-inline{vertical-align:-0.2em; margin-right:0.25rem; color:inherit;}
+.hourglass-inline svg{width:1em; height:1em;}
+@keyframes hourglass-flip{
+  0%, 35%{transform:rotate(0deg);}
+  50%, 85%{transform:rotate(180deg);}
+  100%{transform:rotate(360deg);}
+}
+@media (prefers-reduced-motion: reduce){
+  .hourglass{animation:hourglass-pulse 1.6s ease-in-out infinite;}
+  @keyframes hourglass-pulse{0%,100%{opacity:1;} 50%{opacity:0.4;}}
+}
 
 /* ---- ranking screen ---- */
 .seg{

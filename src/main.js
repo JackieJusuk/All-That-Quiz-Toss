@@ -91,11 +91,18 @@ const ICONS = {
   money: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>',
   life: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M15.5 13.5h4.5"/></svg>',
   pencil: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
+  hourglass: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12M6 21h12"/><path d="M7 3c0 4 3 6 5 9-2 3-5 5-5 9M17 3c0 4-3 6-5 9 2 3 5 5 5 9"/><path d="M9.5 18.5h5l-2.5-2.2z" fill="currentColor" stroke="none"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
 };
+
+// 서버 응답을 기다리는 동안 보여주는 대기 표시. 문구만 있으면 화면이 멈춘 것처럼 느껴지므로
+// (특히 무료 서버가 잠들었다 깨는 20초 이상의 대기), 계속 도는 모래시계를 함께 보여준다.
+function waitingHTML(title, sub){
+  return `<div class="empty"><span class="hourglass" aria-hidden="true">${ICONS.hourglass}</span><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div>`;
+}
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
 const TOPICS = [
@@ -179,6 +186,8 @@ let state = {
   hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
   freeQuestionAvailable:true, // 로그인(앱 진입)당 첫 문제는 광고 없이 바로 풀 수 있다. 두 번째 문제부터 광고가 필요하다.
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
+  rankingCache:{}, // 기간별로 마지막에 받은 랭킹 — 다시 열 때 즉시 보여주고 뒤에서 최신값으로 갱신한다
+  wrongnoteLoaded:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
   levelBefore:null, leveledUp:false, levelAfterName:'',
@@ -424,21 +433,44 @@ async function recordAnswer(topic, question, correct){
     state.todayTopicScores = stats.todayTopicScores ?? {};
     state.todayOtherScores = stats.todayOtherScores ?? {};
     state.todayTotalPoints = stats.todayTotalPoints ?? 0;
+    prefetchRanking(); // 점수가 바뀌었으니 랭킹도 미리 새로 받아둔다(결과 화면 → 랭킹 보기가 바로 열리도록)
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
   }
 }
 
+// 결과는 기간별 캐시에 저장하고, 지금 보고 있는 기간과 같을 때만 화면 데이터로 반영한다
+// (응답이 늦게 오는 사이 사용자가 다른 기간 탭으로 바꿨을 수 있으므로).
 async function fetchRanking(period){
   try{
     const res = await fetch(`${API_BASE}/api/ranking?period=${period}&userKey=${encodeURIComponent(userKey)}`);
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
-    state.rankingRows = data.rows;
+    state.rankingCache = { ...state.rankingCache, [period]: data.rows };
   }catch(e){
     console.warn('랭킹을 불러오지 못했습니다.', e);
-    state.rankingRows = [];
+    if(!state.rankingCache[period]) state.rankingCache = { ...state.rankingCache, [period]: [] };
   }
+  if(state.rankPeriod === period) state.rankingRows = state.rankingCache[period];
+}
+
+// 랭킹 화면을 보여준다. 이전에 받아둔 결과가 있으면 기다리지 않고 바로 보여준 뒤 뒤에서 갱신하고,
+// 처음이면 모래시계를 보여주며 기다린다.
+async function showRanking(period){
+  state.rankPeriod = period;
+  const cached = state.rankingCache[period];
+  state.rankingRows = cached || [];
+  state.rankingLoading = !cached;
+  render();
+  await fetchRanking(period);
+  if(state.rankPeriod !== period) return;
+  state.rankingLoading = false;
+  if(state.screen === 'ranking') render();
+}
+
+// 홈 등에서 랭킹을 미리 받아둔다(화면에는 영향 없음). 랭킹 탭을 누르는 순간 바로 보이게 하기 위함.
+function prefetchRanking(){
+  fetchRanking(state.rankPeriod);
 }
 
 async function fetchWrongnote(){
@@ -514,11 +546,8 @@ graniteEvent.addEventListener('backEvent', {
 });
 
 async function openRanking(){
-  state.rankingLoading = true;
   go('ranking');
-  await fetchRanking(state.rankPeriod);
-  state.rankingLoading = false;
-  render();
+  await showRanking(state.rankPeriod);
 }
 
 // 친구에게 초대 메시지를 공유한다(토스 공유 시트를 열어 사용자가 직접 대상을 고름).
@@ -551,11 +580,12 @@ async function openPromotion(){
 }
 
 async function openWrongnote(){
-  state.wrongnoteLoading = true;
+  state.wrongnoteLoading = !state.wrongnoteLoaded; // 이전에 받은 목록이 있으면 그걸 먼저 보여주고 뒤에서 갱신
   go('wrongnote');
   await fetchWrongnote();
+  state.wrongnoteLoaded = true;
   state.wrongnoteLoading = false;
-  render();
+  if(state.screen === 'wrongnote') render();
 }
 
 async function startTopic(topic){
@@ -784,7 +814,7 @@ function promoDetailHTML(){
   }else{
     title = '친구 초대';
     if(d.loading){
-      body = `<p class="promo-detail-row">불러오는 중...</p>`;
+      body = `<p class="promo-detail-row"><span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 불러오는 중...</p>`;
     }else if(!d.friends || d.friends.length === 0){
       body = `<p class="promo-detail-row">아직 초대한 친구가 없어요. 친구에게 공유해보세요!</p>`;
     }else{
@@ -875,7 +905,7 @@ function quizHTML(){
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
-      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?'광고 불러오는 중...':'광고 보고 +10포인트 받기'}</button>
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?`<span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 광고 불러오는 중...`:'광고 보고 +10포인트 받기'}</button>
       <button class="btn-ghost" id="quiz-skip-ad" ${state.watchingAd?'disabled':''}>광고 없이 퀴즈만 풀기</button>
     </div>`;
   }
@@ -884,7 +914,7 @@ function quizHTML(){
     <div class="quiz-head">
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
-    <div class="empty"><b>퀴즈를 준비하고 있어요</b><span>잠시만 기다려 주세요</span></div>`;
+    ${waitingHTML('퀴즈를 준비하고 있어요', '잠시만 기다려 주세요')}`;
   }
   const q = state.question;
   return `
@@ -991,7 +1021,7 @@ function resultHTML(){
 
 function wrongnoteHTML(){
   if(state.wrongnoteLoading){
-    return `<div class="empty"><b>불러오는 중이에요</b></div>`;
+    return waitingHTML('불러오는 중이에요', '잠시만 기다려 주세요');
   }
   if(state.wrongNoteItems.length===0){
     return `<div class="empty"><b>아직 틀린 퀴즈가 없어요</b><span>퀴즈를 풀면 틀린 퀴즈가 여기에 모여요</span></div>`;
@@ -1026,7 +1056,7 @@ function rankingHTML(){
   if(state.rankingLoading){
     return `<div class="scroll">
       ${rankSegHTML()}
-      <div class="empty"><b>불러오는 중이에요</b></div>
+      ${waitingHTML('불러오는 중이에요', '잠시만 기다려 주세요')}
     </div>`;
   }
   const rows = state.rankingRows;
@@ -1085,7 +1115,7 @@ function closeMyStatsDetail(){
 function loadingHTML(){
   return `
   <div class="loading-wrap">
-    <div class="loading-logo">${ICONS.coin}</div>
+    <div class="loading-logo hourglass">${ICONS.hourglass}</div>
     <p class="loading-title">올댓퀴즈</p>
     <p class="loading-sub">불러오는 중이에요...</p>
   </div>`;
@@ -1172,14 +1202,7 @@ function bindScreenEvents(){
     if(e.target === myStatsBackdrop) closeMyStatsDetail();
   });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      state.rankPeriod = el.dataset.period;
-      state.rankingLoading = true;
-      render();
-      await fetchRanking(state.rankPeriod);
-      state.rankingLoading = false;
-      render();
-    });
+    el.addEventListener('click', ()=> showRanking(el.dataset.period));
   });
   const nicknameBtn = screenEl.querySelector('#nickname-submit');
   if(nicknameBtn) nicknameBtn.addEventListener('click', submitNickname);
@@ -1283,6 +1306,7 @@ async function init(){
   }
   // 첫 퀴즈는 광고 없이 풀 수 있지만 두 번째부터 광고가 필요하므로, 앱 진입 시 하나를 미리 로드해 둔다.
   preloadRewardedAd();
+  prefetchRanking();
 }
 
 init();
