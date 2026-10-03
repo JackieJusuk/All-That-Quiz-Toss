@@ -6,7 +6,7 @@
 - 영문명: **All-That-Quiz** (모든 문서에 이 표기로 통일. 저장소 이름만 CashQuiz-toss 계열 관례대로 `All-That-Quiz-Toss`). 단, 대문자를 쓸 수 없는 기술 식별자(appName `all-that-quiz`, Render 서비스명 `all-that-quiz`, 딥링크 `intoss://all-that-quiz`)는 소문자 kebab-case를 그대로 쓴다
 - 플랫폼: 토스(Toss) 미니앱 (AppsInToss, Web/WebView)
 - 저장소: [github.com/JackieJusuk/All-That-Quiz-Toss](https://github.com/JackieJusuk/All-That-Quiz-Toss) (2026-10-02 `EconomyQuiz-toss`에서 이름 변경 — 앱 이름 "올댓퀴즈"에 맞춤)
-- 운영 서버: Render **싱가포르** `https://all-that-quiz-sg.onrender.com`(서비스 `all-that-quiz-sg`, 2026-10-03부터 앱 번들이 사용, `.env.production`의 `VITE_API_BASE`) — 이전 번들용 오레곤 서버 `https://all-that-quiz.onrender.com`(서비스 `all-that-quiz`)은 새 번들 출시 후 삭제 예정. 세팅 과정은 §6.1
+- 운영 서버: Render **싱가포르** `https://all-that-quiz-sg.onrender.com`(서비스 `all-that-quiz-sg`, 2026-10-03부터 앱 번들이 사용, `.env.production`의 `VITE_API_BASE`) — 처음 만든 오레곤 서버 `https://all-that-quiz.onrender.com`(서비스 `all-that-quiz`)은 새 번들 출시 후 **2026-10-04 삭제**(삭제 전 약 10시간 40분간 요청 0건 확인). 세팅 과정은 §6.1
 - appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다. **경제만 다루는 앱이 아니므로 로고·스토어 문구·검색 키워드 등 앱을 소개하는 문구에는 "경제"라는 단어를 쓰지 않는다**(2026-10-02 사용자 지시). 앱 안의 주제 이름에서도 "경제"를 뺐다: `basic` "경제 기초"→**"시장 원리"**, `life` "생활 경제"→**"세금·연금"**(2026-10-02). 주제가 다루는 내용(`TOPIC_CONCEPTS`)과 AI 문제 생성용 시스템 프롬프트는 그대로이며, 화면에 보이지 않는 내부 프롬프트의 "경제 상식" 표현도 유지한다
 
 > **포크 이력(2026-10-02)**: 이 저장소는 [CashQuiz-toss](https://github.com/JackieJusuk/CashQuiz-toss)(투자 퀴즈, 포인트퀴즈)의 `master` 전체 히스토리를 그대로 복제한 뒤, 같은 형식(광고 게이팅·포인트·등급·랭킹·친구 초대)으로 **경제 상식 퀴즈**를 만들기 위해 주제/브랜딩/배포 대상을 바꾼 것이다. 아래 §3 이후의 구현 이력·버그 사례·심사 반려 이력(§3.14, §3.15, §11.1 등)은 CashQuiz에서 겪은 내용을 교훈으로 그대로 물려받은 것이며, 코드도 같은 구조다. 올댓퀴즈 전용 인프라(Render 서비스, Supabase 프로젝트, 앱인토스 앱/광고 그룹)는 **CashQuiz와 완전히 분리**한다 — 같은 DB/서버를 공유하면 포인트·랭킹·문제 풀이 섞인다. 설정 체크리스트는 §12.0.
@@ -265,8 +265,8 @@
 | 구성 | 올댓퀴즈 | (참고) CashQuiz |
 |---|---|---|
 | Supabase 프로젝트 | `all-that-quiz` (ref `hlcbnslrwpligowjkvyf`, ap-northeast-1 도쿄), URL `https://hlcbnslrwpligowjkvyf.supabase.co` | `JackieJusuk's Project` (`efzqvlgbbcfejtwfxssv`) — **절대 올댓퀴즈에 연결하지 않는다** |
-| Render 워크스페이스 / 서비스 | All-That-Quiz / `all-that-quiz` (`srv-davromid0e5s7394s0r0`), 오레곤, **Free**, `master` push 시 자동 배포 | My Workspace / `CashQuiz2` (`cashquiz2.onrender.com`), 오레곤, 유료 0.5 CPU |
-| Render 서비스 (싱가포르, 2026-10-03 추가) | All-That-Quiz / `all-that-quiz-sg` (`srv-db0f1jfavr4c73fdcin0`), **싱가포르**, Free, 주소 `https://all-that-quiz-sg.onrender.com` — **2026-10-03 21:22 KST 배포 성공**(환경변수 4개 입력 완료, 시작 시 문제 풀 조회 정상 = 비밀 키 정상) — 한국 사용자·도쿄 DB와 가까운 리전으로 옮겨 응답 지연을 줄이기 위함(Render는 리전 변경이 안 돼 새 서비스로 생성). 새 앱 번들부터 이 주소를 쓰고, 기존 오레곤 서비스는 이전 번들을 위해 당분간 유지(둘 다 같은 Supabase DB 사용). 새 번들이 출시되면 오레곤 서비스 삭제 | |
+| Render 서비스 (오레곤, **2026-10-04 삭제됨**) | All-That-Quiz / `all-that-quiz` (`srv-davromid0e5s7394s0r0`), 오레곤, **Free**, `master` push 시 자동 배포 | My Workspace / `CashQuiz2` (`cashquiz2.onrender.com`), 오레곤, 유료 0.5 CPU |
+| Render 서비스 (싱가포르, 2026-10-03 추가) | All-That-Quiz / `all-that-quiz-sg` (`srv-db0f1jfavr4c73fdcin0`), **싱가포르**, Free, 주소 `https://all-that-quiz-sg.onrender.com` — **2026-10-03 21:22 KST 배포 성공**(환경변수 4개 입력 완료, 시작 시 문제 풀 조회 정상 = 비밀 키 정상) — 한국 사용자·도쿄 DB와 가까운 리전으로 옮겨 응답 지연을 줄이기 위함(Render는 리전 변경이 안 돼 새 서비스로 생성). 2026-10-03 새 번들부터 이 주소를 쓴다. **현재 유일한 백엔드 서버**(오레곤 서비스는 2026-10-04 삭제) | |
 | 서버 주소 | `https://all-that-quiz.onrender.com` — 1차 업로드한 `.ait`에 박힌 주소와 **정확히 일치**(재빌드 불필요) | |
 | 빌드 / 시작 명령 | `npm install` / `npm run server` | |
 
