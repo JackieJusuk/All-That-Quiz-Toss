@@ -256,17 +256,23 @@ body{
 }
 .promo-card-sub b{color:var(--ink); font-weight:800;}
 
-.promo-card-upcoming{
-  background:var(--surface-2);
-  border:1.5px dashed var(--line);
-}
-.promo-card-upcoming .promo-card-badge{
-  color:var(--ink-soft);
-  margin-bottom:0;
-}
-.promo-card-upcoming-highlight .promo-card-badge{color:var(--gold);}
+.promo-card:not(.promo-card-static){cursor:pointer;}
 
-.promo-card:not(.promo-card-upcoming){cursor:pointer;}
+/* "시상" 섹션: 최근 시상 주의 1~3등 */
+.award-list{list-style:none; margin:0.2rem 0 0; padding:0; display:flex; flex-direction:column; gap:0.35rem;}
+.award-row{
+  display:flex;
+  align-items:center;
+  gap:0.6rem;
+  padding:0.45rem 0.7rem;
+  background:var(--surface);
+  border-radius:10px;
+}
+.award-row.me{background:var(--accent-soft);}
+.award-rank{flex:none; width:2.2rem; font-weight:800; font-size:0.88rem; color:var(--gold);}
+.award-name{flex:1; min-width:0; font-size:0.9rem; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.award-row.me .award-name{color:var(--accent);}
+.award-points{flex:none; font-family:var(--font-mono); font-size:0.84rem; font-weight:700; color:var(--gold);}
 
 .promo-detail-backdrop{
   position:fixed;
@@ -310,7 +316,8 @@ body{
 .promo-friend-name{font-size:0.9rem; font-weight:700;}
 .promo-friend-count{font-family:var(--font-mono); font-size:0.8rem; color:var(--ink-soft);}
 
-.section-label.section-label-spaced{margin-top:2rem;}
+.section-label.section-label-spaced{margin-top:clamp(1rem, 3vh, 2rem);}
+.section-label-icon svg{vertical-align:-2px; margin-right:0.2rem;}
 
 .section-label{
   font-family:var(--font-mono);

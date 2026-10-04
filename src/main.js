@@ -95,6 +95,7 @@ const ICONS = {
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>',
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
+  mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
 };
 
@@ -193,6 +194,7 @@ let state = {
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false, suggestedNickname:null,
   promoDetail:null,
+  awards:null, // 가장 최근 시상한 주의 1~3등(/api/awards). null = 아직 못 받음, { error:true } = 실패
   myStatsDetailOpen:false,
 };
 
@@ -575,8 +577,20 @@ async function shareWithFriend(){
 async function openPromotion(){
   state.promoDetail = null;
   go('promotion');
-  await fetchStatus();
+  await Promise.all([fetchStatus(), fetchAwards()]);
   render();
+}
+
+// 시상 결과는 일주일에 한 번만 바뀌므로, 한 번 받은 값이 있으면 그걸 먼저 보여주고 뒤에서 갱신한다.
+async function fetchAwards(){
+  try{
+    const res = await fetch(`${API_BASE}/api/awards?userKey=${encodeURIComponent(userKey)}`);
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    state.awards = await res.json();
+  }catch(e){
+    console.warn('시상 결과를 불러오지 못했습니다.', e);
+    if(!state.awards || state.awards.error) state.awards = { error:true };
+  }
 }
 
 async function openWrongnote(){
@@ -779,11 +793,38 @@ function weeklyAwardPromoHTML(){
   </div>`;
 }
 
-function upcomingPromoHTML(title, opts){
-  const { icon, highlight } = opts || {};
+// "시상" 섹션: 가장 최근에 시상한 주(일~토)의 1~3등을 게시한다.
+function formatMonthDay(dateStr){
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${m}/${d}`;
+}
+
+function awardsHTML(){
+  const a = state.awards;
+  let body;
+  if(!a){
+    body = `<p class="promo-card-sub"><span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 불러오는 중...</p>`;
+  }else if(a.error){
+    body = `<p class="promo-card-sub">시상 결과를 불러오지 못했어요. 잠시 후 다시 열어주세요.</p>`;
+  }else if(!a.weekEnd){
+    body = `<p class="promo-card-text">첫 시상 결과는 이번 주 토요일 밤 자정 직전에 게시돼요.</p>`;
+  }else{
+    body = `
+    <ul class="award-list">${a.winners.map(w => `
+      <li class="award-row${w.me ? ' me' : ''}">
+        <span class="award-rank">${w.rank}등</span>
+        <span class="award-name">${w.label}${w.me ? ' (나)' : ''}</span>
+        <span class="award-points">+${w.points}P</span>
+      </li>`).join('')}
+    </ul>`;
+  }
+  const badge = a && a.weekEnd
+    ? `${formatMonthDay(a.weekStart)}(일) ~ ${formatMonthDay(a.weekEnd)}(토) 주간 우등생`
+    : '주간 우등생';
   return `
-  <div class="promo-card promo-card-upcoming${highlight ? ' promo-card-upcoming-highlight' : ''}">
-    <span class="promo-card-badge">${icon || ''}${title}</span>
+  <div class="promo-card promo-card-static">
+    <span class="promo-card-badge">${ICONS.trophy} ${badge}</span>
+    ${body}
   </div>`;
 }
 
@@ -870,10 +911,9 @@ function promotionHTML(){
       ${friendPromoHTML()}
       ${weeklyAwardPromoHTML()}
     </div>
-    <p class="section-label section-label-spaced">향후 프로모션</p>
+    <p class="section-label section-label-spaced section-label-icon">${ICONS.mic} 시상</p>
     <div class="promo-list">
-      ${upcomingPromoHTML('포인트를 현금화', { icon: ICONS.coin, highlight: true })}
-      ${upcomingPromoHTML('미정')}
+      ${awardsHTML()}
     </div>
   </div>
   ${promoDetailHTML()}`;
@@ -1307,6 +1347,7 @@ async function init(){
   // 첫 퀴즈는 광고 없이 풀 수 있지만 두 번째부터 광고가 필요하므로, 앱 진입 시 하나를 미리 로드해 둔다.
   preloadRewardedAd();
   prefetchRanking();
+  fetchAwards(); // 프로모션 탭의 "시상" 섹션도 미리 받아둔다(화면에 바로 반영할 필요는 없어 render 생략)
 }
 
 init();

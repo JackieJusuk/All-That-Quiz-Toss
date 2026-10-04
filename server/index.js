@@ -774,6 +774,40 @@ setInterval(() => {
   awardWeeklyTop3IfDue().catch(e => console.error('weekly award check error', e));
 }, 60 * 1000);
 
+// 가장 최근에 시상한 주의 1~3등(프로모션 화면 "시상" 섹션). 아직 한 번도 시상하지 않았으면 weekEnd가 null.
+app.get('/api/awards', async (req, res) => {
+  const userKey = String(req.query.userKey || 'guest');
+  try {
+    const { data: latest, error: latestErr } = await supabase
+      .from('weekly_awards').select('week_end_date').order('week_end_date', { ascending: false }).limit(1);
+    if (latestErr) throw latestErr;
+    if (!latest.length) return res.json({ weekStart: null, weekEnd: null, winners: [] });
+
+    const weekEnd = latest[0].week_end_date;
+    const { data: awards, error: awardsErr } = await supabase
+      .from('weekly_awards').select('user_key, rank, points').eq('week_end_date', weekEnd).order('rank');
+    if (awardsErr) throw awardsErr;
+    const { data: profiles, error: profErr } = await supabase
+      .from('profiles').select('user_key, nickname').in('user_key', awards.map(a => a.user_key));
+    if (profErr) throw profErr;
+    const nicknameMap = Object.fromEntries(profiles.map(p => [p.user_key, p.nickname]));
+
+    res.json({
+      weekStart: weekRangeKST(weekEnd).sunday,
+      weekEnd,
+      winners: awards.map(a => ({
+        rank: a.rank,
+        points: a.points,
+        me: a.user_key === userKey,
+        label: nicknameMap[a.user_key] || `사용자-${a.user_key.slice(-4)}`,
+      })),
+    });
+  } catch (err) {
+    console.error('awards failed:', err);
+    res.status(502).json({ error: 'awards_failed' });
+  }
+});
+
 // 랭킹 (일간/주간/전체 실제 집계, 닉네임 표시)
 app.get('/api/ranking', async (req, res) => {
   const period = ['weekly', 'all'].includes(req.query.period) ? req.query.period : 'daily';
