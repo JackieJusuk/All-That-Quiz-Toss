@@ -1,8 +1,10 @@
 # 올댓퀴즈(All-That-Quiz) Render Blueprint — 대시보드에서 New > Blueprint로 이 저장소를 선택하면 백엔드 서비스가 생성된다.
-# 서비스 이름이 곧 URL(https://all-that-quiz.onrender.com)이 되며, .env.production의 VITE_API_BASE와 같아야 한다.
+# 서비스 이름이 곧 URL(https://all-that-quiz-sg.onrender.com)이 되며, .env.production의 VITE_API_BASE와 같아야 한다.
+# 리전은 반드시 싱가포르(§13 원칙 22) — 생략하면 Render 기본값인 미국 오레곤으로 만들어진다(2026-10-03 실제 사례).
 services:
   - type: web
-    name: all-that-quiz
+    name: all-that-quiz-sg
+    region: singapore
     runtime: node
     branch: master
     buildCommand: npm install
