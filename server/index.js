@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import { readFileSync } from 'node:fs';
 
 const app = express();
 app.use(cors());
@@ -29,7 +30,7 @@ function nextDayKST() {
 }
 
 // ---- 문제 생성 (기존 로직 그대로) ----
-const TOPIC_LABELS = { basic: '시장 원리', money: '금융·금리', life: '세금·연금' };
+const TOPIC_LABELS = { basic: '시장 원리', money: '금융·금리', life: '세금·연금', invest: '재테크' };
 
 const TOPIC_CONCEPTS = {
   basic: [
@@ -46,6 +47,14 @@ const TOPIC_CONCEPTS = {
     '연말정산', '소득세 누진세율', '4대 보험', '국민연금', '퇴직연금(DB/DC/IRP)', '부가가치세',
     '신용카드와 체크카드 소득공제', '비상금', '신용카드 리볼빙', '보장성 보험과 저축성 보험',
     '실손보험', '최저임금', 'ISA 계좌', '고정비와 변동비 관리',
+  ],
+  // 재테크(2026-10-04 추가): CashQuiz의 주식·펀드·부동산 문제 290개를 옮겨 와 하나로 묶은 주제.
+  // 문제 풀이 부족할 때만 아래 개념으로 새 문제를 만든다(requirements.md §3.1).
+  invest: [
+    '주식과 채권의 차이', '시가총액', 'PER(주가수익비율)', 'PBR(주가순자산비율)', '배당금과 배당수익률',
+    '보통주와 우선주', '액면분할', '상한가와 하한가', 'ETF', '펀드 기준가', '인덱스펀드와 액티브펀드',
+    '펀드 보수와 수수료', '적립식 투자', '분산투자', '전세와 월세', '전입신고와 확정일자',
+    '계약갱신청구권', 'LTV와 DSR', '주택청약통장', '재건축과 재개발', '취득세',
   ],
 };
 
@@ -184,13 +193,33 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
 // 풀이 활발한 사용자는 개인별로 "안 푼 문제"가 이 숫자보다 먼저 바닥날 수 있고, 그러면
 // pickQuestionForUser가 실시간 생성(자가치유)으로 빠지며 응답이 느려진다. 여유를 넉넉히 둬서
 // 실시간 생성 자체가 거의 발생하지 않도록 한다.
-const POOL_TARGET_PER_TOPIC = 80; // 3개 주제 * 80 = 240문제
+const POOL_TARGET_PER_TOPIC = 80; // 주제마다 최소 80문제(재테크는 CashQuiz에서 옮겨 온 290문제로 이미 넘음)
 let topupInFlight = false;
+
+// 재테크 주제의 초기 문제(CashQuiz의 주식·펀드·부동산 문제 290개, 같은 질문 중복 제거, 2026-10-04 이관).
+// DB에 아직 없으면 서버 시작 시 채운다 — 새 Supabase 프로젝트로 옮길 때도 자동으로 들어간다.
+// 이미 있는 문제(id 기준)는 건너뛰므로 여러 번 실행돼도 중복되지 않는다. AI 생성(ensurePoolTopUp)보다 먼저
+// 실행해야 재테크 주제가 "문제 부족"으로 보여 불필요하게 새 문제를 만들지 않는다.
+const INVEST_SEED = JSON.parse(readFileSync(new URL('./seed/invest_questions.json', import.meta.url), 'utf8'));
+
+async function seedInvestQuestions() {
+  const { count, error } = await supabase
+    .from('questions').select('id', { count: 'exact', head: true }).eq('topic', 'invest');
+  if (error) throw error;
+  if ((count ?? 0) >= INVEST_SEED.length) return;
+  const rows = INVEST_SEED.map(q => ({ ...q, topic: 'invest' }));
+  const { error: upErr } = await supabase.from('questions').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+  if (upErr) throw upErr;
+  console.log(`invest seed: ${rows.length}문제 확인/추가 (기존 ${count ?? 0})`);
+}
+// 서버가 뜨자마자(콜드 스타트 직후 첫 요청과 동시에) 시작하고, ensurePoolTopUp은 이게 끝날 때까지 기다린다.
+const investSeedReady = seedInvestQuestions().catch(e => console.error('invest seed error', e));
 
 async function ensurePoolTopUp() {
   if (topupInFlight) return;
   topupInFlight = true;
   try {
+    await investSeedReady;
     for (const topicId of Object.keys(TOPIC_LABELS)) {
       const { count, error } = await supabase
         .from('questions')
