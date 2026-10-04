@@ -96,6 +96,7 @@ const ICONS = {
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
   mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>',
+  invest: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
 };
 
@@ -133,6 +134,15 @@ const TOPICS = [
       { q:"우리나라 '4대 보험'에 포함되지 않는 것은?",
         choices:['국민연금','건강보험','고용보험','자동차보험'],
         correct:3, explain:'4대 보험은 국민연금·건강보험·고용보험·산재보험이고, 자동차보험은 민간 보험이에요.', difficulty:'easy' },
+    ]},
+  { id:'invest', name:'재테크', desc:'주식, 펀드, 부동산', color:'#8e3fb8', bg:'#f2e6f8', icon:'invest',
+    questions:[
+      { q:"여러 종목이나 자산에 나눠 투자해 위험을 줄이는 방법을 무엇이라고 할까요?",
+        choices:['분산투자','집중투자','레버리지 투자','공매도'],
+        correct:0, explain:'분산투자는 한 곳이 손실을 봐도 다른 곳이 받쳐 주도록 여러 자산에 나눠 담는 방법이에요.', difficulty:'easy' },
+      { q:"펀드 기준가가 1,000원에서 1,100원이 됐다면 수익률은 얼마일까요? (보수·세금 제외)",
+        choices:['1%','10%','11%','100%'],
+        correct:1, explain:'(1,100 - 1,000) ÷ 1,000 = 0.1, 즉 10%예요.', difficulty:'medium' },
     ]},
 ];
 
