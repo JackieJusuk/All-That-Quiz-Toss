@@ -1513,4 +1513,32 @@ async function init(){
   fetchAwards(); // 프로모션 탭의 "시상" 섹션도 미리 받아둔다(화면에 바로 반영할 필요는 없어 render 생략)
 }
 
+// 미니앱 WebView는 완전히 새로 로드되지 않고 백그라운드로 갔다가 그대로 재개되는 경우가 많다 —
+// 바텀시트(프로모션 상세, 내 기록)를 열어둔 채 나갔다가 다시 들어오면 그 시트가 바로 다시 뜨는
+// 문제가 CashQuiz에서 반복 제보됐다(원본 레포 §3.16, 여러 차례). document.visibilitychange
+// 하나에만 기대면 앱인토스가 WebView를 네이티브 컨테이너에 올리는 방식에 따라 신호를 놓칠 수
+// 있어 보여서, ① visibilitychange ② pageshow ③ window focus 세 이벤트를 전부 구독하고
+// ④ setInterval 하트비트로 "최근 1초 안에 틱이 있었는지"를 직접 측정해 보강한다 — 백그라운드로
+// 가면 타이머가 멈추거나 느려지는 건 거의 모든 웹뷰 구현체의 공통 동작이라, 특정 이벤트 지원
+// 여부와 무관하게 "실행이 끊겼다 재개됐다"를 안정적으로 감지할 수 있다(requirements.md §3.16).
+function closeEphemeralSheets(){
+  if(state.promoDetail || state.myStatsDetailOpen){
+    state.promoDetail = null;
+    state.myStatsDetailOpen = false;
+    render();
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') closeEphemeralSheets();
+});
+window.addEventListener('pageshow', closeEphemeralSheets);
+window.addEventListener('focus', closeEphemeralSheets);
+let lastHeartbeat = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const gap = now - lastHeartbeat;
+  lastHeartbeat = now;
+  if(gap > 3000) closeEphemeralSheets();
+}, 1000);
+
 init();
