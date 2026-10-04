@@ -286,6 +286,42 @@ function saveCachedState(key, data){
   }catch(e){ /* 저장 실패(용량 초과, 프라이빗 모드 등)는 무시 — 다음엔 캐시 없이 진행 */ }
 }
 
+// 랭킹·시상 결과도 휴대폰에 저장해 두고 다음 접속 때 서버 응답을 기다리지 않고 먼저 보여준다.
+// 홈은 위 캐시 덕분에 서버가 잠들어 있어도(무료 서버 콜드 스타트 20~30초) 바로 뜨는데, 랭킹은 메모리에만
+// 있어서 앱을 다시 열면 서버가 깨어날 때까지 기다려야 했다(2026-10-04 실측 8.7~31.8초, requirements.md §3.11).
+const BOARD_CACHE_KEY_PREFIX = 'allthatquiz_board_v1_';
+
+// KST 기준 오늘 날짜(YYYY-MM-DD)와 그 주 일요일 날짜 — 저장해 둔 일간/주간 랭킹이 지난 기간 것인지 판단용.
+function kstDay(){
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+function kstWeekStart(day){
+  const d = new Date(`${day}T00:00:00Z`);
+  return new Date(d.getTime() - d.getUTCDay() * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function loadBoardCache(key){
+  try{
+    const raw = localStorage.getItem(BOARD_CACHE_KEY_PREFIX + key);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    const today = kstDay();
+    const ranking = { ...(saved.ranking || {}) };
+    // 날짜(주)가 바뀌었으면 지난 기간의 일간(주간) 순위를 오늘 것처럼 보여주지 않는다.
+    if(saved.day !== today) delete ranking.daily;
+    if(!saved.day || kstWeekStart(saved.day) !== kstWeekStart(today)) delete ranking.weekly;
+    state.rankingCache = { ...ranking, ...state.rankingCache };
+    if(!state.awards && saved.awards) state.awards = saved.awards;
+  }catch(e){ /* 캐시가 깨졌으면 무시 — 서버 응답을 기다리면 된다 */ }
+}
+
+function saveBoardCache(){
+  try{
+    const awards = state.awards && !state.awards.error ? state.awards : null;
+    localStorage.setItem(BOARD_CACHE_KEY_PREFIX + userKey, JSON.stringify({ day: kstDay(), ranking: state.rankingCache, awards }));
+  }catch(e){ /* 저장 실패는 무시 */ }
+}
+
 // 보상형 광고를 끝까지 보면 +10포인트와 함께 문제 풀이권을 1개 얻는다. 풀이 횟수 제한은 없다.
 async function watchAdThenFetchQuestion(){
   if(state.watchingAd) return;
@@ -449,6 +485,7 @@ async function fetchRanking(period){
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
     state.rankingCache = { ...state.rankingCache, [period]: data.rows };
+    saveBoardCache();
   }catch(e){
     console.warn('랭킹을 불러오지 못했습니다.', e);
     if(!state.rankingCache[period]) state.rankingCache = { ...state.rankingCache, [period]: [] };
@@ -587,6 +624,7 @@ async function fetchAwards(){
     const res = await fetch(`${API_BASE}/api/awards?userKey=${encodeURIComponent(userKey)}`);
     if(!res.ok) throw new Error(`status ${res.status}`);
     state.awards = await res.json();
+    saveBoardCache();
   }catch(e){
     console.warn('시상 결과를 불러오지 못했습니다.', e);
     if(!state.awards || state.awards.error) state.awards = { error:true };
@@ -1304,6 +1342,7 @@ async function init(){
   // (아래에서 fetchInit이 끝나면 실제 값으로 갱신한다.) 최초 접속(캐시 없음)에는 효과가 없지만,
   // 재방문 시 체감 로딩 시간을 크게 줄여준다.
   const cached = loadCachedState(userKey);
+  loadBoardCache(userKey);
   if(cached && cached.nickname){
     Object.assign(state, cached);
     go('home');
@@ -1346,7 +1385,8 @@ async function init(){
   }
   // 첫 퀴즈는 광고 없이 풀 수 있지만 두 번째부터 광고가 필요하므로, 앱 진입 시 하나를 미리 로드해 둔다.
   preloadRewardedAd();
-  prefetchRanking();
+  // 일간·주간·전체를 모두 미리 받아둔다 — 어느 탭을 눌러도 기다리지 않게.
+  for(const period of ['daily', 'weekly', 'all']) fetchRanking(period);
   fetchAwards(); // 프로모션 탭의 "시상" 섹션도 미리 받아둔다(화면에 바로 반영할 필요는 없어 render 생략)
 }
 
