@@ -82,6 +82,7 @@ as $$
     'ref_as_referrer', (select count(*) from referrals where referrer_key = p_user_key),
     'ref_as_referred', (select count(*) from referrals where referred_key = p_user_key),
     'weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key),
+    'migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key),
     'quiz_dates', (select coalesce(jsonb_agg(d order by d), '[]'::jsonb)
                    from (select distinct answered_date as d from used_questions where user_key = p_user_key) x),
     'today_topics', (select coalesce(jsonb_object_agg(topic, jsonb_build_object('correct', c, 'wrong', w)), '{}'::jsonb)
@@ -93,7 +94,9 @@ as $$
     'today_referrals', (select count(*) from referrals where referrer_key = p_user_key and created_date = p_today)
                      + (select count(*) from referrals where referred_key = p_user_key and created_date = p_today),
     'today_weekly_award_count', (select count(*) from weekly_awards where user_key = p_user_key and week_end_date = p_today),
-    'today_weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key and week_end_date = p_today)
+    'today_weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key and week_end_date = p_today),
+    'today_migration_count', (select count(*) from migration_credits where user_key = p_user_key and claimed_date = p_today),
+    'today_migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key and claimed_date = p_today)
   );
 $$;
 

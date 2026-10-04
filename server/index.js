@@ -255,6 +255,11 @@ const STREAK_BONUS_POINTS = 100;
 // 주간 우등생 시상: 매주 일요일 0시~토요일 23:59:59(KST) 성적 1~3등에게 지급. 인덱스 0=1등.
 const WEEKLY_AWARD_POINTS = [100, 50, 20];
 
+// CashQuiz 종료(2026-11-04)에 따른 포인트 이관 — CashQuiz가 발급한 클레임 코드를 이 서버가
+// 서버-서버로 검증받아 적립한다(requirements.md §3.X).
+const CASHQUIZ_API_BASE = process.env.CASHQUIZ_API_BASE || 'https://cashquiz2-sg.onrender.com';
+const MIGRATION_SHARED_SECRET = process.env.MIGRATION_SHARED_SECRET;
+
 // KST 벽시계 값을 담은 Date(내부 필드는 UTC로 읽어야 KST 시/분/요일이 나옴) — todayKST()와 같은 트릭.
 function nowKST() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -376,12 +381,14 @@ async function computeUserStats(userKey) {
   const rem = streak % STREAK_BONUS_DAYS;
   const daysToNextStreakBonus = rem === 0 ? STREAK_BONUS_DAYS : STREAK_BONUS_DAYS - rem;
   const weeklyAwardPoints = n('weekly_award_points');
+  const migrationPoints = n('migration_points');
   // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100
-  //        + 주간 우등생 시상(주간 1~3등에게 지급된 실제 포인트 합).
+  //        + 주간 우등생 시상(주간 1~3등에게 지급된 실제 포인트 합) + CashQuiz에서 이관받은 포인트 합(§3.X).
   const points = (n('attendance') + n('ads') + totalCorrect + n('ref_as_referrer') + n('ref_as_referred')) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
     + streakBonusCount * STREAK_BONUS_POINTS
-    + weeklyAwardPoints;
+    + weeklyAwardPoints
+    + migrationPoints;
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
   const todayTopics = agg.today_topics || {};
@@ -406,6 +413,7 @@ async function computeUserStats(userKey) {
     referral: { count: todayReferralCount, points: todayReferralCount * POINTS_PER_EVENT },
     streakBonus: { count: todayStreakBonusCount, points: todayStreakBonusCount * STREAK_BONUS_POINTS },
     weeklyAward: { count: n('today_weekly_award_count'), points: n('today_weekly_award_points') },
+    migration: { count: n('today_migration_count'), points: n('today_migration_points') },
   };
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
@@ -895,6 +903,63 @@ app.get('/api/ranking', async (req, res) => {
   } catch (err) {
     console.error('ranking failed:', err);
     res.status(502).json({ error: 'ranking_failed' });
+  }
+});
+
+// ---- CashQuiz 포인트 이관 수신(§3.X) ----
+// 사용자가 CashQuiz에서 발급받은 코드를 입력하면, 이 서버가 CashQuiz의 /api/migration/redeem을
+// 서버-서버로 호출해 검증받고 포인트를 적립한다. 양쪽 Render에 같은 MIGRATION_SHARED_SECRET이
+// 설정되어 있어야 한다.
+app.post('/api/migration/import', async (req, res) => {
+  if (!MIGRATION_SHARED_SECRET) {
+    console.error('MIGRATION_SHARED_SECRET 환경변수가 설정되지 않았습니다.');
+    res.status(500).json({ error: 'migration_not_configured' });
+    return;
+  }
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const code = String(body.code || '').trim().toUpperCase();
+  if (!code) {
+    res.status(400).json({ error: 'invalid_code' });
+    return;
+  }
+  try {
+    // 같은 코드를 이 서버에 두 번 보내도 source_code unique 제약으로 중복 적립은 막히지만,
+    // CashQuiz 쪽을 매번 다시 호출하지 않도록 여기서도 먼저 확인한다.
+    const { data: already, error: checkErr } = await supabase
+      .from('migration_credits').select('points').eq('source_code', code).maybeSingle();
+    if (checkErr) throw checkErr;
+    if (already) { res.status(409).json({ error: 'already_imported' }); return; }
+
+    const redeemRes = await fetch(`${CASHQUIZ_API_BASE}/api/migration/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-migration-secret': MIGRATION_SHARED_SECRET },
+      body: JSON.stringify({ code, targetUserKey: userKey }),
+    });
+    if (!redeemRes.ok) {
+      const errBody = await redeemRes.json().catch(() => ({}));
+      const map = { 404: 'code_not_found', 409: 'already_redeemed', 410: 'expired', 403: 'invalid_secret' };
+      res.status(redeemRes.status === 403 ? 502 : redeemRes.status)
+        .json({ error: map[redeemRes.status] || errBody.error || 'redeem_failed' });
+      return;
+    }
+    const { points, sourceUserKey } = await redeemRes.json();
+
+    const { error: insErr } = await supabase
+      .from('migration_credits')
+      .insert({ user_key: userKey, points, source: 'cashquiz', source_code: code, claimed_date: todayKST() });
+    if (insErr) {
+      // source_code unique 위반(23505) = 동시에 두 번 호출된 race. CashQuiz 쪽은 이미 redeemed로
+      // 바뀌었으니 포인트 자체는 안전하지만, 이 insert가 실패하면 적립이 반영되지 않으므로 그대로 알린다.
+      console.error('migration_credits insert failed:', insErr);
+      res.status(502).json({ error: 'credit_insert_failed' });
+      return;
+    }
+
+    res.json({ points, sourceUserKey });
+  } catch (err) {
+    console.error('migration import failed:', err);
+    res.status(502).json({ error: 'migration_import_failed' });
   }
 });
 

@@ -206,6 +206,7 @@ let state = {
   promoDetail:null,
   awards:null, // 가장 최근 시상한 주의 1~3등(/api/awards). null = 아직 못 받음, { error:true } = 실패
   myStatsDetailOpen:false,
+  migrationCode:'', migrationSubmitting:false, migrationResult:null, // 포인트퀴즈 이관 코드 입력(§3.X)
 };
 
 // 문제풀이권(광고 게이팅), 문제 풀 사전생성, 사용자별 진행 기록은 모두 서버(DB)가 진짜 기준이다.
@@ -829,6 +830,16 @@ function friendPromoHTML(){
   </div>`;
 }
 
+// 종료 예정인 포인트퀴즈(CashQuiz)의 포인트를 코드로 받아오는 카드(§3.X).
+function migrationPromoHTML(){
+  return `
+  <div class="promo-card" data-promo="migrationImport">
+    <span class="promo-card-badge">${ICONS.gift} 포인트퀴즈에서 가져오기</span>
+    <p class="promo-card-text">종료 예정인 포인트퀴즈의 보유 포인트를 코드로 받아 이어가세요.</p>
+    <p class="promo-card-sub">포인트퀴즈 홈 화면의 안내 배너에서 코드를 발급받을 수 있어요.</p>
+  </div>`;
+}
+
 // 매주 일~토 성적 1~3등에게 포인트를 지급하는 프로모션. 실제 지급은 서버가 토요일 23:59:59(KST)에
 // 자동으로 처리하고(server/index.js awardWeeklyTop3IfDue), 여기서는 안내와 다음 시상까지 남은
 // 일수만 보여준다.
@@ -902,6 +913,26 @@ function promoDetailHTML(){
       <p class="promo-detail-row">토요일 밤 자정 직전에 <b>1등 +100포인트 · 2등 +50포인트 · 3등 +20포인트</b>를 자동으로 지급해요.</p>
       <p class="promo-detail-note">* 랭킹 화면의 "주간" 탭과 같은 기간(일요일~토요일)이에요 — 거기서 보이는 순위가 곧 시상 대상 순위예요.</p>
     `;
+  }else if(d.type === 'migrationImport'){
+    title = '포인트퀴즈에서 가져오기';
+    const r = state.migrationResult;
+    if(r && r.success){
+      body = `<p class="promo-detail-row"><b>${r.points.toLocaleString()}점</b>을 받았어요! 홈 화면에서 보유 포인트를 확인해보세요.</p>`;
+    }else{
+      const errMsg = {
+        code_not_found: '코드를 찾을 수 없어요. 다시 확인해주세요.',
+        already_redeemed: '이미 사용된 코드예요.',
+        already_imported: '이미 이 코드로 포인트를 받으셨어요.',
+        expired: '코드 사용 기한이 지났어요.',
+        migration_not_configured: '지금은 이관을 받을 수 없어요. 잠시 후 다시 시도해주세요.',
+      };
+      body = `
+        <p class="promo-detail-row">포인트퀴즈 홈 화면 배너에서 발급받은 코드를 입력하세요.</p>
+        <input id="migration-code-input" class="nickname-input" type="text" maxlength="12" placeholder="예: PQ-7X9K2M" value="${state.migrationCode}" ${state.migrationSubmitting ? 'disabled' : ''} />
+        ${r && r.error ? `<p class="promo-detail-row ad-error">${errMsg[r.error] || '코드를 처리하지 못했어요. 잠시 후 다시 시도해주세요.'}</p>` : ''}
+        <button class="btn-primary" id="migration-submit-btn" ${state.migrationSubmitting ? 'disabled' : ''}>${state.migrationSubmitting ? '확인 중...' : '포인트 받기'}</button>
+      `;
+    }
   }else{
     title = '친구 초대';
     if(d.loading){
@@ -932,6 +963,9 @@ function promoDetailHTML(){
 
 async function openPromoDetail(type){
   state.promoDetail = { type, loading: type === 'referral', friends: null };
+  if(type === 'migrationImport'){
+    state.migrationCode = ''; state.migrationSubmitting = false; state.migrationResult = null;
+  }
   render();
   if(type !== 'referral') return;
   try{
@@ -948,6 +982,35 @@ async function openPromoDetail(type){
   render();
 }
 
+async function submitMigrationCode(){
+  if(state.migrationSubmitting) return;
+  const input = screenEl.querySelector('#migration-code-input');
+  const code = input ? input.value.trim() : '';
+  if(!code) return;
+  state.migrationCode = code;
+  state.migrationSubmitting = true;
+  state.migrationResult = null;
+  render();
+  try{
+    const res = await fetch(`${API_BASE}/api/migration/import`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userKey, code }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      state.migrationResult = { success:false, error: data.error || 'unknown' };
+    }else{
+      state.migrationResult = { success:true, points: data.points };
+      await fetchStatus(); // 보유 포인트를 즉시 화면에 반영
+    }
+  }catch(e){
+    console.warn('포인트 이관 코드 처리에 실패했습니다.', e);
+    state.migrationResult = { success:false, error:'network' };
+  }
+  state.migrationSubmitting = false;
+  render();
+}
+
 function closePromoDetail(){
   state.promoDetail = null;
   render();
@@ -957,6 +1020,7 @@ function promotionHTML(){
   return `<div class="scroll">
     <p class="section-label">진행 중인 프로모션</p>
     <div class="promo-list">
+      ${migrationPromoHTML()}
       ${streakPromoHTML()}
       ${friendPromoHTML()}
       ${weeklyAwardPromoHTML()}
@@ -1067,6 +1131,8 @@ function todayScoresHTML(){
           // 주간 시상도 마찬가지로, 터진 날(토요일)에만 0보다 큰 값이 나오므로 다음 시상까지 남은
           // 일수를 같이 보여준다.
           ['weeklyAward', '주간 시상', () => state.daysToNextWeeklyAward === 0 ? '오늘 시상!' : `다음 시상까지 ${state.daysToNextWeeklyAward}일`],
+          // CashQuiz에서 이관받은 포인트는 코드를 입력한 그날만 0보다 큰 값이 나온다(일회성).
+          ['migration', '포인트퀴즈 이관', v => v.count ? '적립 완료' : '-'],
         ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
@@ -1323,6 +1389,10 @@ function bindScreenEvents(){
   if(promoDetailBackdrop) promoDetailBackdrop.addEventListener('click', e=>{
     if(e.target === promoDetailBackdrop) closePromoDetail();
   });
+  const migrationSubmitBtn = screenEl.querySelector('#migration-submit-btn');
+  if(migrationSubmitBtn) migrationSubmitBtn.addEventListener('click', submitMigrationCode);
+  const migrationCodeInput = screenEl.querySelector('#migration-code-input');
+  if(migrationCodeInput) migrationCodeInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submitMigrationCode(); });
   screenEl.querySelectorAll('[data-myrank]').forEach(el=>{
     el.addEventListener('click', openMyStatsDetail);
   });

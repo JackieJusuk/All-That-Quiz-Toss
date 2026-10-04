@@ -78,6 +78,20 @@ create table if not exists weekly_awards (
   unique (week_end_date, rank)
 );
 
+-- CashQuiz 종료(2026-11-04)에 따른 포인트 이관 적립 이력. CashQuiz의 /api/migration/redeem이
+-- 발급한 클레임 코드 1개당 이 테이블에 행이 하나 생긴다(source_code unique로 같은 코드 중복 적립 방지).
+-- 2026-10-04 추가, requirements.md §3.X 참고.
+create table if not exists migration_credits (
+  id uuid primary key default gen_random_uuid(),
+  user_key text not null,
+  points integer not null,
+  source text not null default 'cashquiz',
+  source_code text not null unique,
+  claimed_date date not null,          -- KST 기준 날짜. "오늘 적립한 포인트"에 집계하는 용도
+  claimed_at timestamptz not null default now()
+);
+create index if not exists migration_credits_user_idx on migration_credits (user_key);
+
 -- 서버는 service_role 키로만 접근하므로(RLS 우회) 클라이언트용 정책은 만들지 않는다.
 -- 대신 RLS를 켜서 anon 키로는 아무 테이블도 읽고 쓸 수 없게 막아둔다.
 alter table questions enable row level security;
@@ -87,3 +101,4 @@ alter table ad_views enable row level security;
 alter table attendance enable row level security;
 alter table referrals enable row level security;
 alter table weekly_awards enable row level security;
+alter table migration_credits enable row level security;

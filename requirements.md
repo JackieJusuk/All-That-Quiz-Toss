@@ -206,6 +206,17 @@
 - **해결**: `fetchInit()` 완료 시점에 `state.screen`이 아직 `'loading'`이거나 `'home'`일 때만(= 사용자가 그 사이 다른 화면으로 넘어가지 않았을 때만) `go('home')`을 호출하도록 가드 추가. 사용자가 이미 퀴즈 등 다른 화면으로 넘어갔다면 그 네비게이션을 존중하고 홈으로 강제 이동시키지 않는다(단, `state` 자체는 이미 최신 값으로 갱신돼 있으므로 다음 렌더링부터는 정확한 값이 반영됨).
 - **교훈**(§13 원칙 18): **비동기 초기화 작업(네트워크 요청 등)이 끝난 뒤 화면을 전환하는 코드는, 그 사이 사용자가 이미 다른 화면으로 넘어갔을 가능성을 항상 고려해야 한다.** "요청이 끝나면 무조건 화면 X로 이동"은 요청이 느릴 때 사용자의 최신 네비게이션을 덮어쓰는 경쟁 조건 버그를 만든다 — 화면을 강제 전환하기 전에 현재 화면 상태를 확인해서, 사용자가 이미 다른 곳으로 움직였다면 그 네비게이션을 존중한다.
 
+### 3.16 CashQuiz 포인트 이관 수신 (2026-10-04 추가)
+
+- **배경**: CashQuiz(포인트퀴즈)는 **2026-11-04 종료**하고 올댓퀴즈로 통합한다(CashQuiz 쪽 `requirements.md` §3.17 참고). CashQuiz 사용자는 그쪽 홈 화면 배너에서 클레임 코드를 발급받아, 올댓퀴즈의 이 화면에 입력해 포인트를 이어받는다.
+- **왜 자동 매칭이 아니라 코드 입력 방식인가**: 두 앱은 `getAnonymousKey()`로 사용자를 식별하는데 앱인토스 콘솔 `appName`이 서로 달라(`cash-quiz` vs `all-that-quiz`) 같은 사용자라도 `userKey`가 일치하지 않는다. 그래서 사용자가 직접 코드를 옮겨 입력해야 한다.
+- **구현**:
+  - `migration_credits` 테이블(`user_key, points, source, source_code` unique, `claimed_date`) — 코드 1개당 행 1개, 같은 코드로 중복 적립 불가
+  - `user_stats()` RPC(`supabase/aggregates.sql`)에 `migration_points`/`today_migration_points`/`today_migration_count` 필드 추가, `computeUserStats()`(`server/index.js`)가 이를 전체 포인트 합산과 "오늘의 항목별 점수"에 반영
+  - `POST /api/migration/import` — 사용자가 입력한 코드를 CashQuiz의 `POST /api/migration/redeem`에 **서버-서버로** 전달해 검증받는다. 인증은 `x-migration-secret` 헤더(양쪽 Render 환경변수 `MIGRATION_SHARED_SECRET`, 동일 값). 검증 성공 시 `migration_credits`에 적립(이 서버에서도 `source_code` unique로 중복 적립을 한 번 더 막음 — CashQuiz 쪽 redeem이 이미 1회성이지만 방어적으로 이중 체크)
+  - 프로모션 화면 맨 위 "포인트퀴즈에서 가져오기" 카드 → 코드 입력 바텀시트(기존 `promoDetail` 패턴 재사용, `nickname-input`/`btn-primary` 스타일 그대로 사용) → 성공 시 포인트 즉시 반영(`fetchStatus()` 재호출)
+- **CashQuiz 쪽 설정**: `cashquiz2-sg`에 같은 `MIGRATION_SHARED_SECRET`을 이미 설정해둠(2026-10-04) — 이 값이 바뀌면 양쪽을 함께 갱신해야 한다.
+
 ## 4. 핵심 사용자 흐름 (현재)
 
 1. 사용자가 토스 앱에서 올댓퀴즈 진입 → 익명 사용자 키로 자동 식별
@@ -229,8 +240,9 @@
 | `attendance` | 사용자별 하루 1회 출석 기록 (user_key, checked_date unique) — 출석 포인트 중복 방지 |
 | `referrals` | 친구 초대 이벤트 (referrer_key, referred_key, created_date) — 초대 포인트 계산 기준(§3.7.1) |
 | `weekly_awards` | 주간 우등생 시상 지급 이력 (user_key, week_end_date, rank, points) — `(week_end_date, rank)` 유니크로 같은 주 중복 지급 방지(§3.6.1). **수동 마이그레이션 필요**(§3.6.1의 SQL) |
+| `migration_credits` | CashQuiz 포인트 이관 적립 이력 (user_key, points, source, `source_code` unique, claimed_date) — §3.16. Supabase MCP(`apply_migration`)로 생성 완료(2026-10-04) |
 
-- **전체 스키마 파일: `supabase/schema.sql`** — CashQuiz는 테이블을 대시보드에서 수동으로 만들어 마이그레이션 파일이 없었으므로, 올댓퀴즈에서는 `server/index.js`가 실제로 쓰는 컬럼/제약(출석 `(user_key, checked_date)` 유니크, `profiles.user_key` PK, 오답노트 조인용 `used_questions.question_id` FK 등)을 역추적해 한 파일로 정리했다. 새 Supabase 프로젝트의 SQL Editor에서 한 번 실행하면 7개 테이블이 모두 생성된다(`weekly_awards` 포함). 테이블 구조를 바꾸면 이 파일도 함께 갱신한다.
+- **전체 스키마 파일: `supabase/schema.sql`** — CashQuiz는 테이블을 대시보드에서 수동으로 만들어 마이그레이션 파일이 없었으므로, 올댓퀴즈에서는 `server/index.js`가 실제로 쓰는 컬럼/제약(출석 `(user_key, checked_date)` 유니크, `profiles.user_key` PK, 오답노트 조인용 `used_questions.question_id` FK 등)을 역추적해 한 파일로 정리했다. 새 Supabase 프로젝트의 SQL Editor에서 한 번 실행하면 8개 테이블이 모두 생성된다(`weekly_awards`, `migration_credits` 포함). 테이블 구조를 바꾸면 이 파일도 함께 갱신한다.
 - **집계 함수 파일: `supabase/aggregates.sql`(2026-10-04 추가, schema.sql 다음에 실행)** — 점수·랭킹·통계를 DB 안에서 계산해 결과 몇 줄만 서버로 돌려주는 SQL 함수 4개: `leaderboard(from, to, 시상포함여부, limit)`(일간/주간/전체 랭킹과 주간 시상 순위), `user_stats(user_key, 오늘)`(내 포인트·오늘의 항목별 점수), `unused_questions(user_key, topic, difficulty, limit)`(안 푼 문제 후보), `streak_bonus_dates()`(연속 학습 10일 단위 보너스 날짜, gaps-and-islands). 서버(service_role)만 실행할 수 있게 공개 키 권한은 막아 두었다. **이유**: Supabase(PostgREST)는 한 번의 조회에 최대 1,000행만 돌려줘서, 예전처럼 기록을 통째로 가져와 서버에서 더하면 기록이 1,000행을 넘는 순간 오류 없이 점수가 덜 계산되고 푼 문제 목록이 잘려 같은 문제가 다시 나올 수 있었다(§12). **검증**: 연속 학습 보너스 SQL을 가짜 데이터 5종(10·20·30일째, 구간 끊김, 9일, 날짜 중복, 띄엄띄엄)으로 기존 JS와 비교해 일치, 운영 데이터로 랭킹 4종·사용자 7명 통계 일치, 옛 서버/새 서버를 같은 데이터로 띄워 `/api/status`·`/api/ranking` 응답 12건이 글자 단위로 일치함을 확인
 
 ## 6. 기술 아키텍처
@@ -403,6 +415,7 @@
 - ~~**랭킹/통계 계산의 1,000행 제한(잠재 버그, 2026-10-03 발견)**~~ — **해결(2026-10-04)**: 랭킹·주간 시상·내 통계·안 푼 문제 고르기를 DB 집계 함수(`supabase/aggregates.sql`, §5)로 바꿨다. 같은 문제가 CashQuiz에도 있다(같은 코드)
 - **친구 초대 포인트 어뷰징 방지 장치 추가(§3.7.1, §9)** — 현재는 무제한 반복 지급을 의도적으로 허용 중("이런 어뷰징은 나중에 막는 것으로 하자", 사용자 지시, 2026-09-17). 실캐시 지급(§7) 착수 전에 최소 하나는 반드시 적용해야 함: (a) 초대자 기준 일일/누적 횟수 상한, (b) 피초대자가 실제로 퀴즈를 최소 1회 이상 풀었을 때만 지급, (c) 동일 두 사람 조합은 일정 주기(예: 하루 1회)로 제한 — 옵션 선택은 사용자 확인 필요. DB의 `referrals.referred_key` 유니크 제약은 이미 제거된 상태(2026-09-17)라, 방지 장치는 애플리케이션 로직(`server/index.js`의 `/api/profile`)에서 새로 설계해야 함
 - 앱이 콘솔 "버전 내역"에 "현재 출시됨" 상태로 표시되는 빌드가 있는 것을 확인함(2026-09-14) — 본인이 직접 공개 심사를 제출한 것인지 아직 미확인. 만약 이미 제출/통과된 것이라면 위 "공개 심사 제출 아직 미착수" 항목은 갱신 필요
+- **CashQuiz 포인트 이관 수신 기능(§3.16) 실기기 종단 검증 필요** — 코드 발급(CashQuiz)→입력(올댓퀴즈)→포인트 반영까지 전체 흐름을 실제 두 앱으로 아직 테스트하지 못함(빌드/배포만 완료). CashQuiz의 `migration_claims`와 이 프로젝트의 `migration_credits`가 실제로 올바르게 연동되는지 실기기(또는 최소 두 서버에 curl)로 1회 확인 필요
 
 ## 13. 설계 원칙
 
