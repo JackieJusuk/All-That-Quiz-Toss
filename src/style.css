@@ -23,6 +23,10 @@
   /* 앱 전체 글씨체를 하나로 통일 — 숫자 전용으로 쓰던 모노스페이스 폰트도 동일한 폰트를 쓰도록
      --font-kr을 그대로 가리킨다(레이블은 남겨두되 별도 폰트는 로드하지 않음). */
   --font-mono:var(--font-kr);
+  /* 하단 안전영역. 기본은 CSS env 값이고, 토스 SDK의 SafeArea.get()이 값을 주면 main.js가 덮어쓴다.
+     안드로이드 실기기(2026-10-04)에서 env 값이 #app과 탭바에 이중으로 더해져 탭바 아래에 큰 빈 공간이
+     생겼다 — 하단 inset은 화면당 한 곳에만 적용한다(앱인토스 Safe Area 가이드). */
+  --safe-bottom:env(safe-area-inset-bottom, 0px);
 }
 
 @media (prefers-color-scheme: dark){
@@ -63,8 +67,9 @@ body{
   flex-direction:column;
   min-height:100dvh;
   padding-top:env(safe-area-inset-top);
-  padding-bottom:env(safe-area-inset-bottom);
 }
+/* 탭바가 없는 화면(퀴즈·결과 등)만 #app이 하단 inset을 맡는다. 탭바가 있으면 탭바가 맡는다(중복 금지). */
+#app.no-tabbar{padding-bottom:var(--safe-bottom);}
 
 .screen{
   flex:1;
@@ -287,7 +292,7 @@ body{
   max-height:75vh;
   background:var(--surface);
   border-radius:20px 20px 0 0;
-  padding:1.1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+  padding:1.1rem 1.1rem calc(1.2rem + var(--safe-bottom));
   display:flex;
   flex-direction:column;
   overflow:hidden;
@@ -490,7 +495,7 @@ body{
   flex-direction:column;
   align-items:center;
   justify-content:safe center;
-  padding:0.55rem 1.2rem calc(0.5rem + env(safe-area-inset-bottom));
+  padding:0.55rem 1.2rem 0.5rem; /* 하단 inset은 #app.no-tabbar가 맡는다 */
   text-align:center;
   gap:0.2rem;
 }
@@ -748,7 +753,7 @@ body{
   align-items:center;
   gap:0.1rem;
   /* 기기별 하단 안전영역이 과도하게 큰 경우에도 탭바가 지나치게 커지지 않도록 상한을 둔다 */
-  padding:0.28rem 0 min(calc(0.3rem + env(safe-area-inset-bottom)), 1rem);
+  padding:0.28rem 0 min(calc(0.3rem + var(--safe-bottom)), 1rem);
   border:none;
   background:none;
   color:var(--ink-soft);
