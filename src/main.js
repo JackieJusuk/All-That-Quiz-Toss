@@ -1,4 +1,4 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
@@ -754,7 +754,9 @@ function finishQuiz(){
 }
 
 function renderTabbar(){
-  if(state.screen==='quiz' || state.screen==='result' || state.screen==='nickname' || state.screen==='loading'){ tabbarEl.style.display='none'; return; }
+  const hideTabbar = state.screen==='quiz' || state.screen==='result' || state.screen==='nickname' || state.screen==='loading';
+  document.getElementById('app').classList.toggle('no-tabbar', hideTabbar); // 탭바가 없을 때만 #app이 하단 안전영역을 맡는다(style.css)
+  if(hideTabbar){ tabbarEl.style.display='none'; return; }
   tabbarEl.style.display='flex';
   const tabs = [['home','홈','home'],['ranking','랭킹','rank'],['wrongnote','오답노트','note'],['promotion','프로모션','gift']];
   tabbarEl.innerHTML = tabs.map(([key,label,ic])=>
@@ -1239,7 +1241,48 @@ function render(){
 
   renderTabbar();
   bindScreenEvents();
+  fitToScreen();
 }
+
+// ---- 화면 맞춤(§13 원칙 16) ----
+// 기기마다 화면 높이와 글자 크기(토스 큰 글씨 설정, 시스템 글꼴 크기 등)가 달라 CSS clamp()만으로는
+// 한 화면에 다 안 들어가는 경우가 있다(2026-10-04 실기기: 홈의 4번째 주제 카드가 잘림). 화면을 그린 뒤
+// 내용이 넘치면 루트 글자 크기(rem 기준 — 글자·여백·버튼이 함께 줄어든다)를 넘친 비율만큼 줄여 다시 맞춘다.
+// 최소 FIT_MIN_RATIO까지만 줄이고, 그래도 넘치면 기존처럼 화면 전체 스크롤이 최후의 안전장치가 된다.
+// 랭킹·오답노트처럼 원래 길어지는 목록 화면은 글자를 줄여도 다 안 들어가므로 대상에서 뺀다.
+const FIT_SCREENS = ['home', 'quiz', 'result', 'promotion', 'nickname'];
+const FIT_MIN_RATIO = 0.8; // 기본 16px 기준 12.8px까지
+
+function fitToScreen(){
+  const root = document.documentElement;
+  root.style.fontSize = ''; // 기기 기본 크기로 되돌린 뒤 다시 잰다(화면이 바뀌면 필요한 축소 정도도 바뀜)
+  if(!FIT_SCREENS.includes(state.screen)) return;
+  const base = parseFloat(getComputedStyle(root).fontSize) || 16;
+  let size = base;
+  for(let i = 0; i < 6; i++){
+    const box = screenEl.querySelector('.scroll, .result-wrap') || screenEl;
+    const over = box.scrollHeight - box.clientHeight;
+    if(over <= 1 || box.clientHeight <= 0) break;
+    // vh로 정해지는 부분은 rem을 줄여도 안 줄어들어 한 번에 비율대로 안 맞을 수 있으므로 몇 번 나눠 줄인다.
+    const next = Math.max(base * FIT_MIN_RATIO, size * Math.min(0.98, box.clientHeight / box.scrollHeight));
+    if(next >= size - 0.05) break;
+    size = next;
+    root.style.fontSize = `${size}px`;
+  }
+}
+
+window.addEventListener('resize', () => fitToScreen());
+
+// 하단 안전영역은 토스 SDK 값을 우선 쓴다(실패하면 CSS env 값 유지).
+function applySafeArea(insets){
+  if(insets && typeof insets.bottom === 'number'){
+    document.documentElement.style.setProperty('--safe-bottom', `${insets.bottom}px`);
+  }
+}
+try{
+  applySafeArea(SafeArea.get());
+  SafeArea.subscribe?.({ onEvent: insets => { applySafeArea(insets); fitToScreen(); } });
+}catch(e){ /* 토스 앱 밖(개발 서버 등)에서는 CSS env 값 그대로 */ }
 
 function bindScreenEvents(){
   screenEl.querySelectorAll('[data-topic]').forEach(el=>{
