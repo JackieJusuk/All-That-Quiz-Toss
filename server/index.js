@@ -889,12 +889,17 @@ app.get('/api/ranking', async (req, res) => {
     }
 
     const rows = keys
+      // 프로필(닉네임)이 없는 user_key는 공개 랭킹에 안 보여준다 — 정상 흐름에서는 닉네임 등록이
+      // 활동(퀴즈/출석/포인트 적립)보다 항상 먼저라 있을 수 없는 조합이고, 실제로는 테스트/검증용으로
+      // 직접 끼워넣은 데이터(예: migration_credits에 수동으로 넣은 검증용 행)가 섞여 보이는 걸 막는
+      // 용도다(2026-10-05, 실제로 테스트 유저가 공개 랭킹 2등으로 노출된 사례 발견).
+      .filter(key => nicknameMap[key])
       .map(key => ({
         userKey: key,
         me: key === userKey,
         // 실명 식별 없이, "내가 초대한 사람"인지 여부만 배지로 알려준다.
         friend: referredByMap[key] === userKey,
-        label: nicknameMap[key] || `사용자-${key.slice(-4)}`,
+        label: nicknameMap[key],
         score: scores[key],
       }))
       .sort((a, b) => b.score - a.score);
