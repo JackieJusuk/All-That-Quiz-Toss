@@ -557,6 +557,15 @@ let restoringFromHistory = false;
 
 function go(screen, extra){
   const wasRoot = isRootScreen(state.screen);
+  // 화면을 실제로 전환할 때는 이전 화면에 떠 있던 바텀시트를 항상 정리한다. go()는 "다른 화면으로
+  // 실제 이동"을 뜻하는 유일한 통로이고(openPromoDetail/openMyStatsDetail 등 시트를 여는 함수들은
+  // go()를 거치지 않고 지금 화면 위에 띄우기만 함), 그런데 여기서 시트 상태를 지우지 않으면: 시트를
+  // 연 채로 다른 탭에 갔다가 돌아왔을 때(미니앱을 나갔다 들어올 필요도 없이, 탭만 전환해도) 아무
+  // 조작 없이 시트가 다시 뜬다. CashQuiz 본체에서 "WebView 재개 문제"로 오진했다가 재조사로 발견한
+  // 진짜 원인(순수 네비게이션 버그)을 포크 시점부터 이 프로젝트도 그대로 물려받고 있었으므로 역이식
+  // 한다(CashQuiz `requirements.md` §3.19 참고).
+  state.promoDetail = null;
+  state.myStatsDetailOpen = false;
   state.screen = screen;
   if(screen!=='quiz' && screen!=='result'){
     state.tab = ['wrongnote','ranking','promotion'].includes(screen) ? screen : 'home';
@@ -1513,14 +1522,15 @@ async function init(){
   fetchAwards(); // 프로모션 탭의 "시상" 섹션도 미리 받아둔다(화면에 바로 반영할 필요는 없어 render 생략)
 }
 
-// 미니앱 WebView는 완전히 새로 로드되지 않고 백그라운드로 갔다가 그대로 재개되는 경우가 많다 —
-// 바텀시트(프로모션 상세, 내 기록)를 열어둔 채 나갔다가 다시 들어오면 그 시트가 바로 다시 뜨는
-// 문제가 CashQuiz에서 반복 제보됐다(원본 레포 §3.16, 여러 차례). document.visibilitychange
-// 하나에만 기대면 앱인토스가 WebView를 네이티브 컨테이너에 올리는 방식에 따라 신호를 놓칠 수
-// 있어 보여서, ① visibilitychange ② pageshow ③ window focus 세 이벤트를 전부 구독하고
-// ④ setInterval 하트비트로 "최근 1초 안에 틱이 있었는지"를 직접 측정해 보강한다 — 백그라운드로
-// 가면 타이머가 멈추거나 느려지는 건 거의 모든 웹뷰 구현체의 공통 동작이라, 특정 이벤트 지원
-// 여부와 무관하게 "실행이 끊겼다 재개됐다"를 안정적으로 감지할 수 있다(requirements.md §3.16).
+// 탭 전환 네비게이션 버그(go()가 시트 상태를 안 지우던 문제)는 go() 쪽에서 직접 고쳤다. 아래는
+// 그와 별개로, 탭 전환 없이 시트를 연 채로 미니앱 자체를 나갔다가 "같은 화면"으로 돌아오는 경우
+// (go()가 호출되지 않는 경로)까지 막기 위한 2차 방어선이다. 신호 하나에만 기대지 않도록
+// ① visibilitychange ② pageshow ③ window focus를 구독하고 ④ setInterval 하트비트로 "최근 1초
+// 안에 틱이 있었는지"를 직접 측정해 보강한다(백그라운드에서 타이머가 멈추거나 느려지는 건 거의
+// 모든 웹뷰 구현체의 공통 동작). 추가로 "재개 감지"는 신호가 안 올 수도 있다는 전제 자체가
+// 불확실하므로, 반대 방향(나가는 시점에 미리 닫아두기)도 함께 건다: graniteEvent의 homeEvent(토스
+// 홈으로 이동 = 미니앱을 벗어남)와 pagehide(표준 이벤트, 임베디드 웹뷰에서 더 안정적으로 발화하는
+// 경우가 많음). CashQuiz `requirements.md` §3.16/§3.19 참고.
 function closeEphemeralSheets(){
   if(state.promoDetail || state.myStatsDetailOpen){
     state.promoDetail = null;
@@ -1540,5 +1550,7 @@ setInterval(() => {
   lastHeartbeat = now;
   if(gap > 3000) closeEphemeralSheets();
 }, 1000);
+graniteEvent.addEventListener('homeEvent', { onEvent: closeEphemeralSheets });
+window.addEventListener('pagehide', closeEphemeralSheets);
 
 init();

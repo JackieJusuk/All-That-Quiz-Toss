@@ -255,7 +255,7 @@ const STREAK_BONUS_POINTS = 100;
 // 주간 우등생 시상: 매주 일요일 0시~토요일 23:59:59(KST) 성적 1~3등에게 지급. 인덱스 0=1등.
 const WEEKLY_AWARD_POINTS = [100, 50, 20];
 
-// CashQuiz 종료(2026-11-04)에 따른 포인트 이관 — CashQuiz가 발급한 클레임 코드를 이 서버가
+// CashQuiz 종료(2026-11-06)에 따른 포인트 이관 — CashQuiz가 발급한 클레임 코드를 이 서버가
 // 서버-서버로 검증받아 적립한다(requirements.md §3.X).
 const CASHQUIZ_API_BASE = process.env.CASHQUIZ_API_BASE || 'https://cashquiz2-sg.onrender.com';
 const MIGRATION_SHARED_SECRET = process.env.MIGRATION_SHARED_SECRET;
