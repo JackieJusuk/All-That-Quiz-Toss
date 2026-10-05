@@ -1,4 +1,4 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea, getClipboardText } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
@@ -937,7 +937,11 @@ function promoDetailHTML(){
       };
       body = `
         <p class="promo-detail-row">포인트퀴즈 홈 화면 배너에서 발급받은 코드를 입력하세요.</p>
-        <input id="migration-code-input" class="nickname-input" type="text" maxlength="12" placeholder="예: PQ-7X9K2M" value="${state.migrationCode}" ${state.migrationSubmitting ? 'disabled' : ''} />
+        <div class="migration-input-row">
+          <input id="migration-code-input" class="nickname-input" type="text" maxlength="12" placeholder="예: PQ-7X9K2M" value="${state.migrationCode}" ${state.migrationSubmitting ? 'disabled' : ''} />
+          <button class="migration-paste-btn" id="migration-paste-btn" type="button" ${state.migrationSubmitting ? 'disabled' : ''}>붙여넣기</button>
+        </div>
+        <p class="promo-detail-note">* 입력창 길게 눌러 붙여넣기가 안 되면 위 "붙여넣기" 버튼을 눌러주세요.</p>
         ${r && r.error ? `<p class="promo-detail-row ad-error">${errMsg[r.error] || '코드를 처리하지 못했어요. 잠시 후 다시 시도해주세요.'}</p>` : ''}
         <button class="btn-primary" id="migration-submit-btn" ${state.migrationSubmitting ? 'disabled' : ''}>${state.migrationSubmitting ? '확인 중...' : '포인트 받기'}</button>
       `;
@@ -989,6 +993,22 @@ async function openPromoDetail(type){
     state.promoDetail = { type, loading: false, friends: [] };
   }
   render();
+}
+
+// 임베디드 웹뷰는 입력창 길게 눌러 붙여넣기(네이티브 텍스트 선택 메뉴)가 아예 안 뜨거나 동작하지
+// 않는 경우가 흔하다(실제 사용자 제보, 2026-10-05) — CashQuiz의 setClipboardText(복사)는 정상 동작을
+// 확인했으므로, 같은 clipboard 영역을 읽는 getClipboardText로 직접 가져와 입력창에 채워 넣는다.
+// 이러면 웹뷰의 네이티브 붙여넣기 UI를 아예 거치지 않아 더 안정적이다.
+async function pasteMigrationCode(){
+  try{
+    const text = await getClipboardText();
+    if(text){
+      state.migrationCode = text.trim();
+      render();
+    }
+  }catch(e){
+    console.warn('클립보드를 읽지 못했습니다.', e);
+  }
 }
 
 async function submitMigrationCode(){
@@ -1402,6 +1422,8 @@ function bindScreenEvents(){
   if(migrationSubmitBtn) migrationSubmitBtn.addEventListener('click', submitMigrationCode);
   const migrationCodeInput = screenEl.querySelector('#migration-code-input');
   if(migrationCodeInput) migrationCodeInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submitMigrationCode(); });
+  const migrationPasteBtn = screenEl.querySelector('#migration-paste-btn');
+  if(migrationPasteBtn) migrationPasteBtn.addEventListener('click', pasteMigrationCode);
   screenEl.querySelectorAll('[data-myrank]').forEach(el=>{
     el.addEventListener('click', openMyStatsDetail);
   });

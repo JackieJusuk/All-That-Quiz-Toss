@@ -215,6 +215,7 @@
   - `user_stats()` RPC(`supabase/aggregates.sql`)에 `migration_points`/`today_migration_points`/`today_migration_count` 필드 추가, `computeUserStats()`(`server/index.js`)가 이를 전체 포인트 합산과 "오늘의 항목별 점수"에 반영
   - `POST /api/migration/import` — 사용자가 입력한 코드를 CashQuiz의 `POST /api/migration/redeem`에 **서버-서버로** 전달해 검증받는다. 인증은 `x-migration-secret` 헤더(양쪽 Render 환경변수 `MIGRATION_SHARED_SECRET`, 동일 값). 검증 성공 시 `migration_credits`에 적립(이 서버에서도 `source_code` unique로 중복 적립을 한 번 더 막음 — CashQuiz 쪽 redeem이 이미 1회성이지만 방어적으로 이중 체크)
   - 프로모션 화면 맨 위 "포인트퀴즈에서 가져오기" 카드 → 코드 입력 바텀시트(기존 `promoDetail` 패턴 재사용, `nickname-input`/`btn-primary` 스타일 그대로 사용) → 성공 시 포인트 즉시 반영(`fetchStatus()` 재호출)
+  - **붙여넣기 버튼 추가(2026-10-05)**: 임베디드 웹뷰에서 입력창을 길게 눌러 붙여넣는 네이티브 제스처가 동작하지 않는다는 실사용자 제보가 있었음 — CashQuiz의 `setClipboardText`(복사)는 정상 동작이 확인됐으므로, 같은 clipboard 영역을 읽는 `getClipboardText`로 직접 입력창에 채워 넣는 "붙여넣기" 버튼을 코드 입력창 옆에 추가해 네이티브 붙여넣기 UI를 아예 거치지 않도록 우회함
 - **CashQuiz 쪽 설정**: `cashquiz2-sg`에 같은 `MIGRATION_SHARED_SECRET`을 이미 설정해둠(2026-10-04) — 이 값이 바뀌면 양쪽을 함께 갱신해야 한다.
 
 ### 3.17 미니앱 재개(resume) 시 바텀시트가 열린 채로 다시 노출되는 버그 (2026-10-04 추가)
