@@ -60,6 +60,9 @@ as $$
     union all
     select sb.user_key, 100 from streak_bonus_dates() sb
       where (p_from is null or sb.bonus_date >= p_from) and (p_to is null or sb.bonus_date <= p_to)
+    union all
+    select mc.user_key, mc.points from migration_credits mc
+      where (p_from is null or mc.claimed_date >= p_from) and (p_to is null or mc.claimed_date <= p_to)
   )
   select ev.user_key, sum(ev.pts)::bigint as score
   from ev
