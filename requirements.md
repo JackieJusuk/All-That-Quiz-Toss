@@ -6,7 +6,7 @@
 - 영문명: **All-That-Quiz** (모든 문서에 이 표기로 통일. 저장소 이름만 CashQuiz-toss 계열 관례대로 `All-That-Quiz-Toss`). 단, 대문자를 쓸 수 없는 기술 식별자(appName `all-that-quiz`, Render 서비스명 `all-that-quiz`, 딥링크 `intoss://all-that-quiz`)는 소문자 kebab-case를 그대로 쓴다
 - 플랫폼: 토스(Toss) 미니앱 (AppsInToss, Web/WebView)
 - 저장소: [github.com/JackieJusuk/All-That-Quiz-Toss](https://github.com/JackieJusuk/All-That-Quiz-Toss) (2026-10-02 `EconomyQuiz-toss`에서 이름 변경 — 앱 이름 "올댓퀴즈"에 맞춤)
-- 운영 서버: Render **싱가포르** `https://all-that-quiz-sg.onrender.com`(서비스 `all-that-quiz-sg`, 2026-10-03부터 앱 번들이 사용, `.env.production`의 `VITE_API_BASE`) — 처음 만든 오레곤 서버 `https://all-that-quiz.onrender.com`(서비스 `all-that-quiz`)은 새 번들 출시 후 **2026-10-04 삭제**(삭제 전 약 10시간 40분간 요청 0건 확인). 세팅 과정은 §6.1
+- 운영 서버: Render **싱가포르** `https://all-that-quiz-sg-7szh.onrender.com`(서비스 `all-that-quiz-sg`, `My Workspace`, 2026-10-08부터 앱 번들이 사용, `.env.production`의 `VITE_API_BASE`) — 처음 만든 오레곤 서버 `https://all-that-quiz.onrender.com`(서비스 `all-that-quiz`)은 새 번들 출시 후 **2026-10-04 삭제**(삭제 전 약 10시간 40분간 요청 0건 확인). 싱가포르 서버는 **2026-10-08 워크스페이스 통합 과정에서 재생성**되며 주소가 `all-that-quiz-sg.onrender.com` → `all-that-quiz-sg-7szh.onrender.com`으로 바뀜(§3.21). 세팅 과정은 §6.1
 - appName: `all-that-quiz` (`intoss://all-that-quiz`, 2026-10-02 콘솔 등록. 처음 정한 `economy-quiz`는 이미 사용 중이라 변경). "All that quiz = 퀴즈의 모든 것"이라는 넓은 이름이라, 지금은 경제 주제만 있지만 나중에 다른 주제를 추가해도 이름과 어긋나지 않는다. **경제만 다루는 앱이 아니므로 로고·스토어 문구·검색 키워드 등 앱을 소개하는 문구에는 "경제"라는 단어를 쓰지 않는다**(2026-10-02 사용자 지시). 앱 안의 주제 이름에서도 "경제"를 뺐다: `basic` "경제 기초"→**"시장 원리"**, `life` "생활 경제"→**"세금·연금"**(2026-10-02). 주제가 다루는 내용(`TOPIC_CONCEPTS`)과 AI 문제 생성용 시스템 프롬프트는 그대로이며, 화면에 보이지 않는 내부 프롬프트의 "경제 상식" 표현도 유지한다
 
 > **포크 이력(2026-10-02)**: 이 저장소는 [CashQuiz-toss](https://github.com/JackieJusuk/CashQuiz-toss)(투자 퀴즈, 포인트퀴즈)의 `master` 전체 히스토리를 그대로 복제한 뒤, 같은 형식(광고 게이팅·포인트·등급·랭킹·친구 초대)으로 **경제 상식 퀴즈**를 만들기 위해 주제/브랜딩/배포 대상을 바꾼 것이다. 아래 §3 이후의 구현 이력·버그 사례·심사 반려 이력(§3.14, §3.15, §11.1 등)은 CashQuiz에서 겪은 내용을 교훈으로 그대로 물려받은 것이며, 코드도 같은 구조다. 올댓퀴즈 전용 인프라(Render 서비스, Supabase 프로젝트, 앱인토스 앱/광고 그룹)는 **CashQuiz와 완전히 분리**한다 — 같은 DB/서버를 공유하면 포인트·랭킹·문제 풀이 섞인다. 설정 체크리스트는 §12.0.
@@ -233,6 +233,16 @@
 - **교훈**: 플랫폼 공통의 알려진 버그 클래스는, 한 프로젝트에서 "1차 수정으로 안 끝났다"는 사실까지 포함해서 형제 프로젝트에 넘겨받아야 한다 — 1차 수정(단일 이벤트 구독)만 그대로 복사했다면 이 프로젝트도 똑같이 재발했을 것이다.
 - **정정(2026-10-05)**: 위 진단("WebView 재개" 문제)이 **애초에 주된 원인이 아니었다**는 게 CashQuiz 쪽 재조사로 밝혀짐 — 실제로는 화면 전환의 유일한 통로인 `go()`가 `state.promoDetail`/`state.myStatsDetailOpen`을 전혀 초기화하지 않아서, **미니앱을 나갈 필요도 없이 탭만 전환해도 100% 재현**되는 네비게이션 버그였다(`openRanking()`은 `myStatsDetailOpen`을 안 지움). 위 1~4번 다중 신호 수정은 "탭 전환 없이 미니앱 자체를 나갔다 돌아오는" 더 좁은 경우에만 유효한 2차 방어선으로 남기고, `go()`에서 직접 세 상태(이 프로젝트는 `migration.open`이 없어 두 가지)를 초기화하도록 근본 수정했다. 자세한 경위는 CashQuiz `requirements.md` §3.19 참고 — 이 프로젝트는 그 레포의 §3.19가 발견된 당일 바로 역이식했다. `graniteEvent`의 `homeEvent`(토스 홈 이동)·`pagehide`도 "나가는 시점에 미리 닫기" 2차 방어선으로 추가.
 
+### 3.18 Render 워크스페이스 통합 — `all-that-quiz-sg` 재생성, 주소가 `-7szh`로 바뀜 (2026-10-08)
+
+- **배경**: `all-that-quiz-sg`가 CashQuiz와 다른 Render 워크스페이스(`All-That-Quiz`)에 만들어져 있던 실수(§6.1 "겪은 실수와 주의점" 참고)를 바로잡기 위해, 같은 설정으로 `My Workspace`에 서비스를 다시 만들고 기존 걸 삭제하는 방식으로 통합을 진행함.
+- **1차 시도**: `My Workspace`에 임시 이름(`all-that-quiz-sg-new`)으로 새 서비스 생성 → 환경변수 5개 설정 → 정상 기동 확인 → 기존 서비스 삭제 → 새 서비스 이름(Name)을 `all-that-quiz-sg`로 변경. **그런데 Name을 바꿔도 실제 주소(slug, `.onrender.com` 앞부분)는 바뀌지 않는다는 걸 뒤늦게 발견** — Render 대시보드의 Settings → Custom Domains → Render Subdomain 항목에 가보니 실제 주소는 여전히 `all-that-quiz-sg-new.onrender.com`이었음. Render는 서비스 생성 후 slug를 바꾸는 self-serve 기능 자체가 없음(리전 변경 불가와 같은 종류의 제약).
+- **2차 시도**: 올바른 slug를 얻으려고 Name을 `all-that-quiz-sg`로 한 새 서비스를 또 만들었더니 `name: (all-that-quiz-sg) already in use` 오류 — 1차 시도에서 이미 그 **Name**을 쓰고 있어서(주소/slug와 Name은 Render에서 서로 다른 값이고, Name도 전역 유일) 충돌함. 1차 시도 서비스의 Name을 `all-that-quiz-sg-temp`로 되돌려서 이름을 반납한 뒤 재시도.
+- **3차 시도에서도 실패**: Name을 정확히 `all-that-quiz-sg`로 지정했는데도 Render가 **`all-that-quiz-sg-7szh`라는 임의의 slug를 자동으로 붙임** — 원래 쓰던 `all-that-quiz-sg`라는 slug 자체가 여전히 사용 불가 상태였다는 뜻. **Render는 삭제된 서비스의 `.onrender.com` slug를 즉시 반환하지 않고 일정 기간(정확한 기간 불명) 예약해두는 것으로 보인다.**
+- **최종 결정(사용자 승인)**: 더 기다리거나 Render 지원팀에 slug 반환을 요청하는 대신, **`all-that-quiz-sg-7szh.onrender.com`을 새 정식 주소로 받아들이고** 프론트엔드 `.env.production`의 `VITE_API_BASE`를 이 주소로 갱신 → 재빌드 → 앱인토스 콘솔에 재업로드하는 쪽을 선택함.
+- **정리**: 최종적으로 살아있는 서비스는 `My Workspace` / `all-that-quiz-sg`(Name) / `srv-db412tvlot8c73cb20jg` / 주소 `all-that-quiz-sg-7szh.onrender.com` 하나뿐이다. 과정에서 생긴 임시 서비스(`all-that-quiz-sg-temp`, `srv-db40nv7lot8c73ca0tm0`)는 삭제 대상.
+- **교훈(§6.1에도 추가)**: Render에서 "서비스 이름(Name)"과 "실제 주소(slug)"는 **서로 독립적인 값**이고, slug는 **생성 시점에 한 번 정해지면 이후 변경 불가**하다. 서비스를 지웠다가 같은 이름으로 다시 만들면 예전 주소를 그대로 돌려받을 거라고 가정하면 안 된다 — 실제로 돌려받지 못할 수 있다. 운영 중인 서비스의 Render 워크스페이스/리전을 옮길 계획이 있다면, **주소가 바뀔 가능성까지 미리 염두에 두고** 프론트엔드 재빌드·재배포 절차까지 계획에 포함시켜야 한다.
+
 ## 4. 핵심 사용자 흐름 (현재)
 
 1. 사용자가 토스 앱에서 올댓퀴즈 진입 → 익명 사용자 키로 자동 식별
@@ -298,7 +308,7 @@
 |---|---|---|
 | Supabase 프로젝트 | `all-that-quiz` (ref `hlcbnslrwpligowjkvyf`, ap-northeast-1 도쿄), URL `https://hlcbnslrwpligowjkvyf.supabase.co` | `JackieJusuk's Project` (`efzqvlgbbcfejtwfxssv`) — **절대 올댓퀴즈에 연결하지 않는다** |
 | Render 서비스 (오레곤, **2026-10-04 삭제됨**) | All-That-Quiz / `all-that-quiz` (`srv-davromid0e5s7394s0r0`), 오레곤, **Free**, `master` push 시 자동 배포 | My Workspace / `CashQuiz2` (`cashquiz2.onrender.com`), 오레곤, 유료 0.5 CPU |
-| Render 서비스 (싱가포르, 2026-10-03 추가) | All-That-Quiz / `all-that-quiz-sg` (`srv-db0f1jfavr4c73fdcin0`), **싱가포르**, **Starter(0.5 CPU/512MB, 2026-10-04 19:40 KST Free에서 전환 — 콜드 스타트 제거)**, 주소 `https://all-that-quiz-sg.onrender.com` — **2026-10-03 21:22 KST 배포 성공**(환경변수 4개 입력 완료, 시작 시 문제 풀 조회 정상 = 비밀 키 정상) — 한국 사용자·도쿄 DB와 가까운 리전으로 옮겨 응답 지연을 줄이기 위함(Render는 리전 변경이 안 돼 새 서비스로 생성). 2026-10-03 새 번들부터 이 주소를 쓴다. **현재 유일한 백엔드 서버**(오레곤 서비스는 2026-10-04 삭제) | |
+| Render 서비스 (싱가포르, 2026-10-03 추가, 2026-10-08 워크스페이스 통합으로 재생성) | `My Workspace` / `all-that-quiz-sg` (`srv-db412tvlot8c73cb20jg`), **싱가포르**, **Starter(0.5 CPU/512MB)**, 주소 **`https://all-that-quiz-sg-7szh.onrender.com`**(2026-10-08부터, §3.21 — Render가 삭제된 서비스의 slug를 즉시 반환하지 않아 `all-that-quiz-sg`라는 정확한 주소는 되찾지 못함) — 한국 사용자·도쿄 DB와 가까운 리전으로 옮겨 응답 지연을 줄이기 위함(Render는 리전 변경이 안 돼 새 서비스로 생성). **현재 유일한 백엔드 서버** | |
 | 서버 주소 | `https://all-that-quiz.onrender.com` — 1차 업로드한 `.ait`에 박힌 주소와 **정확히 일치**(재빌드 불필요) | |
 | 빌드 / 시작 명령 | `npm install` / `npm run server` | |
 
@@ -327,6 +337,8 @@
 - **CashQuiz 키/DB와 섞지 않는다**: 같은 Anthropic 키 재사용은 괜찮지만, Supabase 주소·키는 반드시 올댓퀴즈 프로젝트 것을 쓴다
 - **~~Free 요금제 한계~~ → 해결(2026-10-04 Starter 전환)**: Free는 15분 미사용 시 서버가 잠들고 깨는 데 20~30초(실측 22~34초) → 첫 접속이 느리고 주간 시상(토 23:59:59)이 늦게 지급될 수 있었다. 서비스 Settings → Instance Type에서 Starter로 전환함. 주의: 워크스페이스 Settings의 Plan(Hobby/Pro)은 팀 기능 요금제로 서버 사양과 무관 — 1인 운영엔 Hobby로 충분
 - 비밀 키는 Claude 커넥터로 읽거나 옮기지 않는다(Supabase 커넥터는 비밀 키를 제공하지 않고, Render 커넥터로 옮기면 값이 대화 기록에 남음) — 사용자가 대시보드에서 직접 입력
+- **Render 서비스를 새로 만들 때는 반드시 기존(CashQuiz) 서비스와 같은 Render 워크스페이스에 만든다(2026-10-08 실수로 확인)**: `all-that-quiz-sg`를 처음 만들 때 별도의 `All-That-Quiz` 워크스페이스(team)에 생성해버려서, CashQuiz(`My Workspace`)와 올댓퀴즈가 서로 다른 워크스페이스로 나뉘는 실수가 있었다. 결과: 대시보드에서 한 화면에 두 서비스가 같이 안 보이고 워크스페이스를 매번 전환해야 했으며, Environment Groups(환경변수 묶음) 공유도 불가능했다. **Render는 기존 서비스를 다른 워크스페이스로 옮기는 self-serve 기능이 없어서(Render 지원팀에 수동 요청하거나, 새 서비스를 만들어 환경변수를 옮기고 기존 걸 지우는 방식으로만 가능)** 되돌리는 비용이 크다 — 서비스 생성 전에 `list_workspaces`로 워크스페이스 ID를 확인하고, 자매 프로젝트(CashQuiz ↔ 올댓퀴즈)는 **항상 같은 워크스페이스**를 쓴다
+- **"서비스 이름(Name)"과 "실제 주소(slug)"는 Render에서 서로 다른 값이고, slug는 생성 후 변경 불가(2026-10-08 워크스페이스 통합 중 실제 발생, §3.18)**: Settings의 Name 필드를 바꿔도 `.onrender.com` 주소는 그대로다. 또한 **서비스를 삭제해도 그 slug가 바로 재사용 가능해지지 않는다**(예약 기간 존재, 정확한 기간 불명) — 같은 이름으로 다시 만들어도 다른 임의 문자열이 붙은 주소(`-7szh` 같은)를 받을 수 있다. 운영 중인 서비스를 지우고 다시 만드는 작업(워크스페이스 이전, 리전 변경 등)을 할 때는 **주소가 바뀔 수 있다는 전제로 프론트엔드 재빌드·재배포까지 계획에 포함**시킨다
 
 ## 7. 실제 금전 보상(리워드) 설계 — 내부 문서, 미노출/미구현
 
