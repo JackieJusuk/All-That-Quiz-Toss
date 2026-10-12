@@ -249,6 +249,7 @@ async function ensurePoolTopUp() {
 // 문제풀이권(광고 시청 기록)이 없어도 퀴즈는 풀 수 있다 — 광고 없이 풀면 광고 시청 포인트(10P)만 못 받을 뿐이다.
 const POINTS_PER_EVENT = 10;
 const POINTS_WRONG_EVENT = 2;
+const POINTS_OVERCOME = 1; // 오답노트에서 다시 풀어 맞힌(극복한) 문제 1개당(2026-10-13, 하루 개수 제한 없음)
 // 연속 학습(퀴즈를 푼 날짜 기준) 10일마다 100P 보너스. 끊기면 그 시점부터 다시 10일을 채워야 한다.
 const STREAK_BONUS_DAYS = 10;
 const STREAK_BONUS_POINTS = 100;
@@ -382,13 +383,16 @@ async function computeUserStats(userKey) {
   const daysToNextStreakBonus = rem === 0 ? STREAK_BONUS_DAYS : STREAK_BONUS_DAYS - rem;
   const weeklyAwardPoints = n('weekly_award_points');
   const migrationPoints = n('migration_points');
+  const overcomeCount = n('overcome_count');
   // 포인트 = (출석 + 광고 시청 + 정답 + 친구 초대(초대자/피초대자 모두)) * 10 + 오답 * 2 + 연속학습 10일 보너스 * 100
   //        + 주간 우등생 시상(주간 1~3등에게 지급된 실제 포인트 합) + CashQuiz에서 이관받은 포인트 합(§3.X).
+  //        + 오답 극복 수 * 1(2026-10-13).
   const points = (n('attendance') + n('ads') + totalCorrect + n('ref_as_referrer') + n('ref_as_referred')) * POINTS_PER_EVENT
     + totalWrong * POINTS_WRONG_EVENT
     + streakBonusCount * STREAK_BONUS_POINTS
     + weeklyAwardPoints
-    + migrationPoints;
+    + migrationPoints
+    + overcomeCount * POINTS_OVERCOME;
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
   const todayTopics = agg.today_topics || {};
@@ -414,6 +418,7 @@ async function computeUserStats(userKey) {
     streakBonus: { count: todayStreakBonusCount, points: todayStreakBonusCount * STREAK_BONUS_POINTS },
     weeklyAward: { count: n('today_weekly_award_count'), points: n('today_weekly_award_points') },
     migration: { count: n('today_migration_count'), points: n('today_migration_points') },
+    overcome: { count: n('today_overcome_count'), points: n('today_overcome_count') * POINTS_OVERCOME },
   };
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
@@ -694,7 +699,9 @@ app.get('/api/wrongnote', async (req, res) => {
   }
 });
 
-// 오답 극복: 오답노트에서 다시 풀어 맞혔을 때 기록한다. 실제로 틀렸던 문제인지 확인하고, 포인트는 주지 않는다.
+// 오답 극복: 오답노트에서 다시 풀어 맞혔을 때 기록한다. 실제로 틀렸던 문제인지 확인한다. 극복 1개당 +1포인트
+// (2026-10-13 사용자 결정, 하루 개수 제한 없음). 같은 문제는 (user_key, question_id) 기본키로 한 번만 기록되므로
+// 같은 문제를 반복해 포인트를 쌓을 수는 없다. 응답에 갱신된 통계를 담아 앱이 포인트를 바로 반영하게 한다.
 app.post('/api/wrongnote/overcome', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
@@ -707,9 +714,10 @@ app.post('/api/wrongnote/overcome', async (req, res) => {
     if (error) throw error;
     if (!wrong.length) { res.status(404).json({ error: 'not_in_wrongnote' }); return; }
     const { error: insErr } = await supabase
-      .from('wrong_overcomes').upsert({ user_key: userKey, question_id: questionId }, { onConflict: 'user_key,question_id', ignoreDuplicates: true });
+      .from('wrong_overcomes').upsert({ user_key: userKey, question_id: questionId, overcome_date: todayKST() }, { onConflict: 'user_key,question_id', ignoreDuplicates: true });
     if (insErr) throw insErr;
-    res.json({ ok: true });
+    const [hasAdTicket, stats] = await Promise.all([hasUnconsumedAdTicket(userKey), computeUserStats(userKey)]);
+    res.json({ ok: true, hasAdTicket, ...stats });
   } catch (err) {
     console.error('wrongnote overcome failed:', err);
     res.status(502).json({ error: 'overcome_failed' });

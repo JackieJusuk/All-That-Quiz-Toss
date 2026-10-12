@@ -236,12 +236,12 @@ body{
   transition:width 0.25s ease;
 }
 
-.promo-list{display:flex; flex-direction:column; gap:0.7rem;}
+.promo-list{display:flex; flex-direction:column; gap:clamp(0.45rem, 1.1vh, 0.7rem);}
 .promo-card{
   background:var(--gold-soft);
   border:1px solid var(--gold);
   border-radius:14px;
-  padding:0.9rem 1.1rem;
+  padding:clamp(0.6rem, 1.6vh, 0.9rem) 1.1rem; /* 카드가 5장으로 늘어(포인트 이관) 작은 화면에서 넘치던 것을 높이에 비례해 줄임 */
 }
 .promo-card-badge{
   display:inline-block;
@@ -305,7 +305,9 @@ body{
 }
 .promo-detail-sheet{
   width:100%;
-  max-height:75vh;
+  /* 75vh였을 때 "오늘의 내 기록" 표(13행)의 합계가 시트 안 작은 스크롤에 숨었다(원칙 16 위반) — 화면 높이에서
+     위쪽 여백만 남기고 시트가 다 펼쳐지게 한다. 이보다 길면 그때만 시트 안에서 스크롤된다(최후의 안전장치) */
+  max-height:calc(100dvh - 2.5rem);
   background:var(--surface);
   border-radius:20px 20px 0 0;
   padding:1.1rem 1.1rem calc(1.2rem + var(--safe-bottom));

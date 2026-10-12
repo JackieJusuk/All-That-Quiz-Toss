@@ -5,7 +5,7 @@
 -- 1,000행을 넘는 순간 오류 없이 점수·랭킹이 덜 더해지고, 이미 푼 문제 목록이 잘려 같은 문제가 다시 나올 수
 -- 있었다(requirements.md §12, §13 원칙 7). 아래 함수들은 행 수와 무관하게 정확하다.
 --
--- 점수 산식은 server/index.js와 동일하다:
+-- 점수 산식은 server/index.js와 동일하다(오답 극복 1개당 1점 추가, 2026-10-13):
 --   출석·광고 시청·정답·친구 초대(초대자/피초대자 각각) 10점, 오답 2점,
 --   연속 학습(퀴즈 푼 날짜 기준) 10일째·20일째…마다 100점, 주간 우등생 시상으로 받은 포인트.
 --
@@ -63,6 +63,9 @@ as $$
     union all
     select mc.user_key, mc.points from migration_credits mc
       where (p_from is null or mc.claimed_date >= p_from) and (p_to is null or mc.claimed_date <= p_to)
+    union all
+    select wo.user_key, 1 from wrong_overcomes wo -- 오답 극복 1개당 1점(2026-10-13)
+      where (p_from is null or wo.overcome_date >= p_from) and (p_to is null or wo.overcome_date <= p_to)
   )
   select ev.user_key, sum(ev.pts)::bigint as score
   from ev
@@ -86,6 +89,7 @@ as $$
     'ref_as_referred', (select count(*) from referrals where referred_key = p_user_key),
     'weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key),
     'migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key),
+    'overcome_count', (select count(*) from wrong_overcomes where user_key = p_user_key),
     'quiz_dates', (select coalesce(jsonb_agg(d order by d), '[]'::jsonb)
                    from (select distinct answered_date as d from used_questions where user_key = p_user_key) x),
     'today_topics', (select coalesce(jsonb_object_agg(topic, jsonb_build_object('correct', c, 'wrong', w)), '{}'::jsonb)
@@ -99,7 +103,8 @@ as $$
     'today_weekly_award_count', (select count(*) from weekly_awards where user_key = p_user_key and week_end_date = p_today),
     'today_weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key and week_end_date = p_today),
     'today_migration_count', (select count(*) from migration_credits where user_key = p_user_key and claimed_date = p_today),
-    'today_migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key and claimed_date = p_today)
+    'today_migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key and claimed_date = p_today),
+    'today_overcome_count', (select count(*) from wrong_overcomes where user_key = p_user_key and overcome_date = p_today)
   );
 $$;
 
