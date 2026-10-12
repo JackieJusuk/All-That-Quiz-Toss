@@ -368,6 +368,44 @@ function computeStreakBonusDates(datesAsc) {
 // 한 사용자의 누적·오늘 집계는 DB 함수 user_stats가 계산해 JSON 하나로 돌려준다(supabase/aggregates.sql).
 // 예전처럼 기록을 통째로 가져와 더하면 Supabase의 1회 조회 최대 1,000행 제한에 걸려, 1,000문제 넘게 푼
 // 사용자의 포인트가 조용히 덜 계산됐다(2026-10-04 수정).
+// ---- 업적 배지(2026-10-13, 재미 요소 2차) ----
+// 배지는 꾸미기·성취감용이라 포인트를 주지 않는다. 별도 테이블 없이 이미 있는 기록(user_stats)에서 매번 계산한다
+// — 기록이 남아 있는 한 배지도 항상 일관된다. 이름·설명·아이콘은 앱(src/main.js BADGE_INFO)이 갖고, 서버는
+// key·진행도·목표만 준다. 순서가 곧 화면 배치 순서다.
+const BADGES = [
+  { key: 'first_correct', target: 1, metric: m => m.totalCorrect },
+  { key: 'correct_50', target: 50, metric: m => m.totalCorrect },
+  { key: 'correct_200', target: 200, metric: m => m.totalCorrect },
+  { key: 'streak_7', target: 7, metric: m => m.longestStreak },
+  { key: 'streak_30', target: 30, metric: m => m.longestStreak },
+  { key: 'all_topics', target: Object.keys(TOPIC_LABELS).length, metric: m => m.topicsCleared },
+  { key: 'invest_30', target: 30, metric: m => m.investCorrect },
+  { key: 'hard_10', target: 10, metric: m => m.hardCorrect },
+  { key: 'overcome_10', target: 10, metric: m => m.overcomeCount },
+  { key: 'friend_1', target: 1, metric: m => m.referrals },
+  { key: 'weekly_award', target: 1, metric: m => m.weeklyAwards },
+  { key: 'points_1000', target: 1000, metric: m => m.points },
+];
+
+// 퀴즈를 푼 날짜(오름차순, 중복 없음)에서 가장 길었던 연속 일수 — "지금" 연속이 끊겨도 한 번 달성한 배지는 유지된다.
+function longestStreakDays(datesAsc) {
+  let best = 0, run = 0, prev = null;
+  for (const d of datesAsc) {
+    const t = Date.parse(`${d}T00:00:00Z`);
+    run = prev !== null && t - prev === 24 * 60 * 60 * 1000 ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = t;
+  }
+  return best;
+}
+
+function computeBadges(m) {
+  return BADGES.map(b => {
+    const value = Number(b.metric(m) || 0);
+    return { key: b.key, progress: Math.min(value, b.target), target: b.target, earned: value >= b.target };
+  });
+}
+
 async function computeUserStats(userKey) {
   const today = todayKST();
   const { data: agg, error } = await supabase.rpc('user_stats', { p_user_key: userKey, p_today: today });
@@ -423,8 +461,21 @@ async function computeUserStats(userKey) {
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
 
+  const topicCorrect = agg.topic_correct || {};
+  const badges = computeBadges({
+    totalCorrect,
+    longestStreak: longestStreakDays(datesAsc),
+    topicsCleared: Object.keys(TOPIC_LABELS).filter(t => Number(topicCorrect[t] || 0) > 0).length,
+    investCorrect: Number(topicCorrect.invest || 0),
+    hardCorrect: n('hard_correct'),
+    overcomeCount,
+    referrals: n('ref_as_referrer'),
+    weeklyAwards: weeklyAwardPoints > 0 ? 1 : 0,
+    points,
+  });
+
   return {
-    totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus,
+    totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus, badges,
     referralCount: n('ref_as_referrer'), todayTopicScores, todayOtherScores, todayTotalPoints,
     daysToNextWeeklyAward: daysUntilNextWeeklyAwardKST(),
   };

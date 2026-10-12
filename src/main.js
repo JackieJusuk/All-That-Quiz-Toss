@@ -97,6 +97,7 @@ const ICONS = {
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
   mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>',
   invest: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  medal: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="6"/><path d="M8.5 9.8 6 3h4l2 5 2-5h4l-2.5 6.8"/><path d="m12 12.6.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="currentColor" stroke="none"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
 };
 
@@ -209,6 +210,8 @@ let state = {
   wnoteOpen:null, // 오답노트에서 펼친 카드 index
   wnoteRetry:{}, // 오답노트 다시 풀기 상태 { [index]: { selected, revealed } }
   overcomeCount:0, // 오답 극복(다시 풀어 맞힘)한 문제 수
+  badges:[], // 서버가 계산한 업적 배지 [{ key, progress, target, earned }] (재미 요소 2차)
+  badgeSheetOpen:false,
   awards:null, // 가장 최근 시상한 주의 1~3등(/api/awards). null = 아직 못 받음, { error:true } = 실패
   myStatsDetailOpen:false,
   migrationCode:'', migrationSubmitting:false, migrationResult:null, // 포인트퀴즈 이관 코드 입력(§3.X)
@@ -244,6 +247,7 @@ async function fetchStatus(){
     const res = await fetch(`${API_BASE}/api/status?userKey=${encodeURIComponent(userKey)}`);
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
+    updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
     state.streak = data.streak;
     state.points = data.points;
@@ -268,6 +272,7 @@ async function fetchInit(){
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
     state.nickname = data.nickname;
+    updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
     state.streak = data.streak;
     state.points = data.points;
@@ -480,8 +485,99 @@ function maybeRequestReview(){
   setTimeout(() => { requestReview().catch?.(() => {}); track('review_request'); }, 1200);
 }
 
+// ---- 업적 배지(2026-10-13, 재미 요소 2차) ----
+// 진행도·달성 여부는 서버가 기록에서 계산해 준다(computeBadges). 여기서는 이름·설명·아이콘만 갖는다.
+// 배지는 성취감용이라 포인트와 무관하다.
+const BADGE_INFO = {
+  first_correct: { name:'첫 정답', desc:'처음으로 정답 맞히기', icon:'book', color:'#3d5afe' },
+  correct_50: { name:'상식 수집가', desc:'정답 50개', icon:'book', color:'#3d5afe' },
+  correct_200: { name:'상식 박사', desc:'정답 200개', icon:'book', color:'#3d5afe' },
+  streak_7: { name:'일주일 개근', desc:'7일 연속 학습', icon:'flame', color:'#e2662a' },
+  streak_30: { name:'한 달 개근', desc:'30일 연속 학습', icon:'flame', color:'#e2662a' },
+  all_topics: { name:'두루두루', desc:'4개 주제 모두 정답', icon:'basic', color:'#1f8f5c' },
+  invest_30: { name:'재테크 고수', desc:'재테크 정답 30개', icon:'invest', color:'#8e3fb8' },
+  hard_10: { name:'어려움 정복', desc:'어려움 문제 정답 10개', icon:'trophy', color:'#d94848' },
+  overcome_10: { name:'오답 극복왕', desc:'오답 극복 10개', icon:'note', color:'#c9701a' },
+  friend_1: { name:'함께 해요', desc:'친구 1명 초대', icon:'share', color:'#1f8f5c' },
+  weekly_award: { name:'주간 우등생', desc:'주간 시상 수상', icon:'trophy', color:'#b9800f' },
+  points_1000: { name:'포인트 부자', desc:'포인트 1,000점', icon:'coin', color:'#b9800f' },
+};
+const BADGE_SEEN_PREFIX = 'allthatquiz_badges_seen_';
+
+function loadSeenBadges(){
+  try{ return new Set(JSON.parse(localStorage.getItem(BADGE_SEEN_PREFIX + userKey) || '[]')); }catch(e){ return new Set(); }
+}
+function saveSeenBadges(set){
+  try{ localStorage.setItem(BADGE_SEEN_PREFIX + userKey, JSON.stringify([...set])); }catch(e){ /* 무시 */ }
+}
+
+// 새로 얻은 배지가 있으면 알림을 띄운다. 앱을 열 때(fetchInit/fetchStatus)는 announce=false로 조용히 "본 것"으로만
+// 기록한다 — 기능이 생기기 전에 이미 조건을 채운 사용자에게 한꺼번에 알림이 쏟아지지 않게 하려는 것.
+function updateBadges(badges, announce){
+  if(!Array.isArray(badges)) return;
+  state.badges = badges;
+  const seen = loadSeenBadges();
+  const fresh = badges.filter(b => b.earned && !seen.has(b.key) && BADGE_INFO[b.key]);
+  if(!fresh.length) return;
+  fresh.forEach(b => seen.add(b.key));
+  saveSeenBadges(seen);
+  if(!announce) return;
+  fresh.forEach(b => track('badge_earned', { badge: b.key }));
+  haptic('confetti');
+  const first = BADGE_INFO[fresh[0].key];
+  showToast(`${ICONS.medal} 새 배지! ${first.name}${fresh.length > 1 ? ` 외 ${fresh.length - 1}개` : ''}`);
+}
+
+// 화면 위쪽에 잠깐 떴다 사라지는 알림(레이아웃을 밀어내지 않도록 화면 위에 겹쳐 띄움).
+const toastEl = document.createElement('div');
+toastEl.className = 'toast';
+toastEl.setAttribute('role', 'status');
+let toastTimer = null;
+function showToast(html){
+  toastEl.innerHTML = html;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+function badgeEntryHTML(){
+  if(!state.badges.length) return '';
+  const earned = state.badges.filter(b => b.earned).length;
+  return `<button class="badge-entry" id="badge-open">${ICONS.medal}<span>배지 <b>${earned}</b>/${state.badges.length}</span><span class="badge-entry-more">모아보기 ${ICONS.chev}</span></button>`;
+}
+
+function badgeSheetHTML(){
+  if(!state.badgeSheetOpen) return '';
+  const earned = state.badges.filter(b => b.earned).length;
+  return `
+  <div class="promo-detail-backdrop" id="badge-backdrop">
+    <div class="promo-detail-sheet">
+      <div class="promo-detail-head">
+        <span class="promo-detail-title">내 배지 ${earned}/${state.badges.length}</span>
+        <button class="iconbtn" id="badge-close">${ICONS.close}</button>
+      </div>
+      <div class="promo-detail-body">
+        <div class="badge-grid">
+          ${state.badges.map(b => {
+            const info = BADGE_INFO[b.key];
+            if(!info) return '';
+            return `
+            <div class="badge-tile${b.earned ? ' earned' : ''}">
+              <span class="badge-ic" style="${b.earned ? `background:${info.color};` : ''}">${ICONS[info.icon] || ICONS.medal}</span>
+              <span class="badge-name">${info.name}</span>
+              <span class="badge-desc">${b.earned ? info.desc : `${b.progress.toLocaleString()}/${b.target.toLocaleString()}`}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        <p class="promo-detail-note">* 배지는 지금까지의 기록으로 자동 계산돼요. 포인트와는 별개예요.</p>
+      </div>
+    </div>
+  </div>`;
+}
+
 // 서버가 돌려준 누적·오늘 통계를 화면 상태에 반영한다(정답 기록, 오답 극복 응답이 같은 모양).
-function applyStats(stats){
+function applyStats(stats, { announce = true } = {}){
+  updateBadges(stats.badges, announce);
   state.totalCorrect = stats.totalCorrect;
   state.streak = stats.streak;
   state.points = stats.points;
@@ -587,6 +683,7 @@ function mountShell(){
   const app = document.getElementById('app');
   app.appendChild(screenEl);
   app.appendChild(tabbarEl);
+  app.appendChild(toastEl);
 }
 
 // 뒤로가기(시스템 백버튼) 대응 — 'home'을 루트로 보고, 루트에서 벗어날 때만
@@ -607,6 +704,7 @@ function go(screen, extra){
   // 한다(CashQuiz `requirements.md` §3.19 참고).
   state.promoDetail = null;
   state.myStatsDetailOpen = false;
+  state.badgeSheetOpen = false;
   state.screen = screen;
   try{ Analytics.screen({ log_name: `${screen}_screen` })?.catch?.(() => {}); }catch(e){ /* 분석 실패는 무시 */ }
   if(screen!=='quiz' && screen!=='result'){
@@ -861,7 +959,8 @@ function homeHTML(){
         </button>
       `).join('')}
     </div>
-  </div>`;
+  </div>
+  ${badgeSheetHTML()}`;
 }
 
 function streakPromoHTML(){
@@ -1123,6 +1222,7 @@ function levelCardHTML(){
       <span class="level-sub">${sub}</span>
     </div>
     <div class="level-track"><div class="level-fill" style="width:${pct}%"></div></div>
+    ${badgeEntryHTML()}
   </div>`;
 }
 
@@ -1556,6 +1656,14 @@ function bindScreenEvents(){
   screenEl.querySelectorAll('[data-myrank]').forEach(el=>{
     el.addEventListener('click', openMyStatsDetail);
   });
+  const badgeOpen = screenEl.querySelector('#badge-open');
+  if(badgeOpen) badgeOpen.addEventListener('click', ()=>{ state.badgeSheetOpen = true; track('badge_sheet_open'); render(); });
+  const badgeClose = screenEl.querySelector('#badge-close');
+  if(badgeClose) badgeClose.addEventListener('click', ()=>{ state.badgeSheetOpen = false; render(); });
+  const badgeBackdrop = screenEl.querySelector('#badge-backdrop');
+  if(badgeBackdrop) badgeBackdrop.addEventListener('click', e=>{
+    if(e.target === badgeBackdrop){ state.badgeSheetOpen = false; render(); }
+  });
   const myStatsClose = screenEl.querySelector('#mystats-detail-close');
   if(myStatsClose) myStatsClose.addEventListener('click', closeMyStatsDetail);
   const myStatsBackdrop = screenEl.querySelector('#mystats-detail-backdrop');
@@ -1657,6 +1765,7 @@ async function init(){
       nickname: state.nickname, totalCorrect: state.totalCorrect, streak: state.streak, points: state.points,
       hasAdTicket: state.hasAdTicket, streakBonusDays: state.streakBonusDays,
       daysToNextStreakBonus: state.daysToNextStreakBonus, referralCount: state.referralCount,
+      badges: state.badges, // 다음 접속 때 홈의 배지 줄이 서버 응답 전에도 바로 보이게(레이아웃 흔들림 방지)
     });
   }
   // fetchInit()이 늦게 끝나는 동안(백엔드 콜드스타트 등) 사용자가 이미 퀴즈 등 다른 화면으로
@@ -1683,9 +1792,10 @@ async function init(){
 // 홈으로 이동 = 미니앱을 벗어남)와 pagehide(표준 이벤트, 임베디드 웹뷰에서 더 안정적으로 발화하는
 // 경우가 많음). CashQuiz `requirements.md` §3.16/§3.19 참고.
 function closeEphemeralSheets(){
-  if(state.promoDetail || state.myStatsDetailOpen){
+  if(state.promoDetail || state.myStatsDetailOpen || state.badgeSheetOpen){
     state.promoDetail = null;
     state.myStatsDetailOpen = false;
+    state.badgeSheetOpen = false;
     render();
   }
 }

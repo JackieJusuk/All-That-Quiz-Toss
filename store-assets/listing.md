@@ -46,5 +46,5 @@
 | 보조 전환 1 | 보상형 광고 시청 완료 | `rewarded_ad_earned` (또는 템플릿 "인앱 광고 시청한 유저") |
 | 보조 전환 2 | 친구 초대 공유 | `share_invite` |
 
-그 밖에 기록되는 이벤트: `wrongnote_overcome`(오답 극복), `review_request`(리뷰 요청 화면 호출), 화면 진입 `{화면}_screen`(home/quiz/result/ranking/wrongnote/promotion).
+그 밖에 기록되는 이벤트: `wrongnote_overcome`(오답 극복), `review_request`(리뷰 요청 화면 호출), `badge_earned`(새 배지, 파라미터 `badge`), `badge_sheet_open`(배지 모아보기), 화면 진입 `{화면}_screen`(home/quiz/result/ranking/wrongnote/promotion).
 `quiz_answer` 파라미터: `topic`(basic/money/life/invest), `difficulty`, `correct`(true/false), `combo`(연속 정답 수).
