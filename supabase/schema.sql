@@ -104,11 +104,13 @@ alter table weekly_awards enable row level security;
 alter table migration_credits enable row level security;
 
 -- 오답 극복 기록(2026-10-12): 오답노트에서 틀렸던 문제를 다시 풀어 맞히면 남긴다. 이 기록이 있는 문제는
--- 오답노트에서 빠진다("졸업"). 포인트는 주지 않는다(같은 문제를 반복해 포인트를 쌓는 길을 막기 위함).
+-- 오답노트에서 빠진다("졸업"). 극복 1개당 +1포인트(2026-10-13 사용자 결정, 하루 개수 제한 없음 —
+-- 문제 하나는 한 번만 극복할 수 있으므로 같은 문제로 반복 적립은 안 된다).
 create table if not exists wrong_overcomes (
   user_key text not null,
   question_id uuid not null references questions (id),
   overcome_at timestamptz not null default now(),
+  overcome_date date not null default ((now() at time zone 'Asia/Seoul')::date), -- KST 날짜(랭킹 기간 집계용)
   primary key (user_key, question_id)
 );
 alter table wrong_overcomes enable row level security;

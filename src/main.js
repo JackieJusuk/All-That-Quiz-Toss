@@ -480,6 +480,21 @@ function maybeRequestReview(){
   setTimeout(() => { requestReview().catch?.(() => {}); track('review_request'); }, 1200);
 }
 
+// 서버가 돌려준 누적·오늘 통계를 화면 상태에 반영한다(정답 기록, 오답 극복 응답이 같은 모양).
+function applyStats(stats){
+  state.totalCorrect = stats.totalCorrect;
+  state.streak = stats.streak;
+  state.points = stats.points;
+  state.streakBonusDays = stats.streakBonusDays ?? 10;
+  state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
+  state.referralCount = stats.referralCount ?? 0;
+  state.daysToNextWeeklyAward = stats.daysToNextWeeklyAward ?? 0;
+  state.hasAdTicket = stats.hasAdTicket ?? false;
+  state.todayTopicScores = stats.todayTopicScores ?? {};
+  state.todayOtherScores = stats.todayOtherScores ?? {};
+  state.todayTotalPoints = stats.todayTotalPoints ?? 0;
+}
+
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
@@ -505,17 +520,7 @@ async function recordAnswer(topic, question, correct){
     });
     if(!res.ok) throw new Error(`status ${res.status}`);
     const stats = await res.json();
-    state.totalCorrect = stats.totalCorrect;
-    state.streak = stats.streak;
-    state.points = stats.points;
-    state.streakBonusDays = stats.streakBonusDays ?? 10;
-    state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
-    state.referralCount = stats.referralCount ?? 0;
-    state.daysToNextWeeklyAward = stats.daysToNextWeeklyAward ?? 0;
-    state.hasAdTicket = stats.hasAdTicket ?? false;
-    state.todayTopicScores = stats.todayTopicScores ?? {};
-    state.todayOtherScores = stats.todayOtherScores ?? {};
-    state.todayTotalPoints = stats.todayTotalPoints ?? 0;
+    applyStats(stats);
     state.questionStats = stats.questionStats ?? null;
     prefetchRanking(); // 점수가 바뀌었으니 랭킹도 미리 새로 받아둔다(결과 화면 → 랭킹 보기가 바로 열리도록)
   }catch(e){
@@ -891,7 +896,6 @@ function migrationPromoHTML(){
   <div class="promo-card" data-promo="migrationImport">
     <span class="promo-card-badge">${ICONS.gift} 포인트퀴즈에서 가져오기</span>
     <p class="promo-card-text">종료 예정인 포인트퀴즈의 보유 포인트를 코드로 받아 이어가세요.</p>
-    <p class="promo-card-sub">포인트퀴즈 홈 화면의 안내 배너에서 코드를 발급받을 수 있어요.</p>
   </div>`;
 }
 
@@ -1216,7 +1220,11 @@ function todayScoresHTML(){
           // 일수를 같이 보여준다.
           ['weeklyAward', '주간 시상', () => state.daysToNextWeeklyAward === 0 ? '오늘 시상!' : `다음 시상까지 ${state.daysToNextWeeklyAward}일`],
           // CashQuiz에서 이관받은 포인트는 코드를 입력한 그날만 0보다 큰 값이 나온다(일회성).
-          ['migration', '포인트퀴즈 이관', v => v.count ? '적립 완료' : '-'],
+          // CashQuiz 이관은 평생 한 번뿐이라 적립한 날에만 보여준다(값이 0인 날까지 매일 한 줄을 차지하면
+          // 작은 화면·큰 글씨에서 결과 버튼이 밀려남, 원칙 16). 0점이라 숨겨도 합계와는 항상 일치한다.
+          ...((state.todayOtherScores.migration?.count) ? [['migration', '포인트 이관', () => '적립 완료']] : []),
+          // 오답노트에서 다시 풀어 맞힌 문제 1개당 1점(2026-10-13).
+          ['overcome', '오답 극복', v => `${v.count}개`],
         ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
@@ -1277,7 +1285,7 @@ function wrongnoteHTML(){
     return `<div class="empty"><b>${state.overcomeCount ? '틀린 퀴즈를 모두 극복했어요!' : '아직 틀린 퀴즈가 없어요'}</b><span>${state.overcomeCount ? `지금까지 ${state.overcomeCount}개를 다시 풀어 맞혔어요` : '퀴즈를 풀면 틀린 퀴즈가 여기에 모여요'}</span></div>`;
   }
   return `<div class="scroll">
-    <p class="section-label">틀린 퀴즈 ${state.wrongNoteItems.length}개${state.overcomeCount ? ` · 극복 ${state.overcomeCount}개` : ''} — 다시 풀어 맞히면 졸업해요</p>
+    <p class="section-label">틀린 퀴즈 ${state.wrongNoteItems.length}개${state.overcomeCount ? ` · 극복 ${state.overcomeCount}개` : ''} — 다시 풀어 맞히면 +1포인트, 졸업해요</p>
     ${state.wrongNoteItems.map((w,i)=>{
       const r = state.wnoteRetry[i] || {};
       const picked = r.selected !== undefined;
@@ -1300,7 +1308,7 @@ function wrongnoteHTML(){
             }).join('')}
           </div>
           ${revealed ? `
-            ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! 다음에 열면 오답노트에서 빠져요</div>` : ''}
+            ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! +1포인트 · 다음에 열면 오답노트에서 빠져요</div>` : ''}
             <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
             <div class="wnote-explain">${w.q.explain}</div>`
           : `<button class="wnote-reveal" data-wnote-reveal="${i}">정답만 보기</button>`}
@@ -1324,7 +1332,12 @@ async function pickWrongnoteRetry(i, ci){
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ userKey, questionId: w.id }),
     });
-    if(res.ok) state.overcomeCount += 1;
+    if(!res.ok) throw new Error(`status ${res.status}`);
+    const stats = await res.json();
+    if(typeof stats.points === 'number') applyStats(stats); // 극복 +1포인트가 보유 포인트·오늘의 항목별 점수에 바로 반영된다
+    state.overcomeCount += 1;
+    prefetchRanking();
+    render();
   }catch(e){ console.warn('오답 극복 기록 실패', e); }
 }
 
