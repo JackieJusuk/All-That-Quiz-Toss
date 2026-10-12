@@ -639,34 +639,80 @@ app.post('/api/questions/answer', async (req, res) => {
     });
     if (insErr) throw insErr;
 
-    const [hasAdTicket, stats] = await Promise.all([
+    const [hasAdTicket, stats, questionStats] = await Promise.all([
       hasUnconsumedAdTicket(userKey),
       computeUserStats(userKey),
+      fetchQuestionStats(questionId),
     ]);
-    res.json({ hasAdTicket, ...stats });
+    res.json({ hasAdTicket, ...stats, questionStats });
   } catch (err) {
     console.error('answer record failed:', err);
     res.status(502).json({ error: 'record_failed' });
   }
 });
 
-// 오답노트
+// 이 문제를 지금까지 푼 사람 수와 정답률(%) — 퀴즈 화면의 "이 문제 정답률" 표시용(재미 요소, 2026-10-12).
+// 실패해도 정답 기록 응답 자체는 막지 않는다(null이면 화면에서 표시만 생략).
+async function fetchQuestionStats(questionId) {
+  try {
+    const { data, error } = await supabase.rpc('question_stats', { p_question_id: questionId });
+    if (error) throw error;
+    const total = Number(data?.[0]?.total || 0);
+    const correct = Number(data?.[0]?.correct || 0);
+    return { total, correctRate: total ? Math.round((correct / total) * 100) : null };
+  } catch (e) {
+    console.warn('question stats failed', e.message);
+    return null;
+  }
+}
+
+// 오답노트 — 다시 풀어 맞힌 문제(wrong_overcomes, "오답 극복")는 빼고 보여준다.
 app.get('/api/wrongnote', async (req, res) => {
   const userKey = String(req.query.userKey || 'guest');
   try {
-    const { data, error } = await supabase
-      .from('used_questions')
-      .select('topic, answered_at, questions(q, choices, correct, explain, difficulty)')
-      .eq('user_key', userKey)
-      .eq('correct', false)
-      .order('answered_at', { ascending: false });
+    const [{ data, error }, { data: overcome, error: ovErr }] = await Promise.all([
+      supabase
+        .from('used_questions')
+        .select('question_id, topic, answered_at, questions(q, choices, correct, explain, difficulty)')
+        .eq('user_key', userKey)
+        .eq('correct', false)
+        .order('answered_at', { ascending: false }),
+      supabase.from('wrong_overcomes').select('question_id').eq('user_key', userKey),
+    ]);
     if (error) throw error;
+    if (ovErr) throw ovErr;
+    const done = new Set(overcome.map(r => r.question_id));
     res.json({
-      items: data.map(r => ({ topic: TOPIC_LABELS[r.topic] || r.topic, q: r.questions })),
+      items: data
+        .filter(r => !done.has(r.question_id))
+        .map(r => ({ id: r.question_id, topic: TOPIC_LABELS[r.topic] || r.topic, q: r.questions })),
+      overcomeCount: done.size,
     });
   } catch (err) {
     console.error('wrongnote failed:', err);
     res.status(502).json({ error: 'wrongnote_failed' });
+  }
+});
+
+// 오답 극복: 오답노트에서 다시 풀어 맞혔을 때 기록한다. 실제로 틀렸던 문제인지 확인하고, 포인트는 주지 않는다.
+app.post('/api/wrongnote/overcome', async (req, res) => {
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const questionId = String(body.questionId || '');
+  if (!questionId) { res.status(400).json({ error: 'invalid_request' }); return; }
+  try {
+    const { data: wrong, error } = await supabase
+      .from('used_questions').select('question_id')
+      .eq('user_key', userKey).eq('question_id', questionId).eq('correct', false).limit(1);
+    if (error) throw error;
+    if (!wrong.length) { res.status(404).json({ error: 'not_in_wrongnote' }); return; }
+    const { error: insErr } = await supabase
+      .from('wrong_overcomes').upsert({ user_key: userKey, question_id: questionId }, { onConflict: 'user_key,question_id', ignoreDuplicates: true });
+    if (insErr) throw insErr;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('wrongnote overcome failed:', err);
+    res.status(502).json({ error: 'overcome_failed' });
   }
 });
 

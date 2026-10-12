@@ -116,23 +116,36 @@ as $$
   limit p_limit;
 $$;
 
+-- 문제 하나의 전체 풀이 수와 정답 수(2026-10-12, 퀴즈 화면의 "이 문제 정답률" 표시용).
+create or replace function question_stats(p_question_id uuid)
+returns table (total bigint, correct bigint)
+language sql stable
+as $$
+  select count(*)::bigint, count(*) filter (where uq.correct)::bigint
+  from used_questions uq where uq.question_id = p_question_id;
+$$;
+
 -- 서버(service_role)만 호출할 수 있게 한다. 함수는 기본적으로 모두에게 실행 권한이 열려 있으므로 명시적으로 막는다.
 revoke all on function streak_bonus_dates() from public, anon, authenticated;
 revoke all on function leaderboard(date, date, boolean, int) from public, anon, authenticated;
 revoke all on function user_stats(text, date) from public, anon, authenticated;
 revoke all on function unused_questions(text, text, text, int) from public, anon, authenticated;
+revoke all on function question_stats(uuid) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
 grant execute on function leaderboard(date, date, boolean, int) to service_role;
 grant execute on function user_stats(text, date) to service_role;
 grant execute on function unused_questions(text, text, text, int) to service_role;
+grant execute on function question_stats(uuid) to service_role;
 
 -- 함수 안에서 테이블 이름이 항상 public 스키마를 가리키게 고정(Supabase 보안 점검 권고: function_search_path_mutable)
 alter function streak_bonus_dates() set search_path = public;
 alter function leaderboard(date, date, boolean, int) set search_path = public;
 alter function user_stats(text, date) set search_path = public;
 alter function unused_questions(text, text, text, int) set search_path = public;
+alter function question_stats(uuid) set search_path = public;
 
 -- 집계 속도용 인덱스(사용자별·날짜별 조회)
 create index if not exists used_questions_user_date_idx on used_questions (user_key, answered_date);
 create index if not exists attendance_user_idx on attendance (user_key);
 create index if not exists weekly_awards_user_idx on weekly_awards (user_key);
+create index if not exists used_questions_question_idx on used_questions (question_id); -- question_stats용

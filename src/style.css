@@ -468,6 +468,30 @@ body{
   line-height:1.55;
 }
 .explain b{color:var(--ink); font-weight:700;}
+/* 재미 요소(2026-10-12): 연속 정답 배지, 이 문제 정답률 */
+.combo-badge{
+  display:inline-flex; align-items:center; gap:0.25rem;
+  font-weight:800; font-size:0.8rem; color:#e2662a;
+  background:#fdeee4; border-radius:999px; padding:0.15rem 0.55rem;
+  margin:0 0 0.4rem; 
+}
+.combo-badge svg{width:1em; height:1em;}
+.explain .combo-badge + b{display:block;}
+.qstats{display:block; margin-top:0.45rem; font-size:0.78rem; color:var(--ink-soft);}
+.qstats b{color:var(--accent);}
+@media (prefers-color-scheme: dark){ .combo-badge{background:#3a2416; color:#ff9a5c;} }
+
+/* 승급·연속 정답 축하 꽃가루 — 화면을 덮지만 클릭은 통과시킨다 */
+.confetti{position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:40;}
+.confetti i{
+  position:absolute; top:-12px; width:8px; height:12px; border-radius:2px; opacity:0.9;
+  animation-name:confetti-fall; animation-timing-function:ease-in; animation-fill-mode:forwards;
+}
+@keyframes confetti-fall{
+  0%{transform:translateY(0) rotate(0deg); opacity:1;}
+  100%{transform:translateY(105vh) rotate(540deg); opacity:0;}
+}
+@media (prefers-reduced-motion: reduce){ .confetti{display:none;} }
 
 .quiz-foot{
   flex:none;
@@ -524,15 +548,7 @@ body{
   margin-bottom:0.15rem;
 }
 .result-title{font-size:clamp(0.85rem, 2.3vh, 1rem); font-weight:900; margin:0 0 0.6rem;}
-.levelup-banner{
-  background:var(--accent-soft);
-  color:var(--accent);
-  font-weight:700;
-  font-size:0.8rem;
-  padding:0.45rem 1rem;
-  border-radius:12px;
-  margin:-0.35rem 0 0.6rem;
-}
+.result-title.levelup-title{color:var(--accent);}
 .result-stats{
   display:flex;
   gap:0.5rem;
@@ -641,6 +657,33 @@ body{
   margin-bottom:0.55rem;
 }
 .wnote-explain{font-size:0.82rem; color:var(--ink-soft); line-height:1.55;}
+/* 오답 극복(2026-10-12): 펼치면 보기를 다시 골라볼 수 있고, 맞히면 "극복!"으로 바뀐다 */
+.wnote-choices{display:flex; flex-direction:column; gap:0.35rem; margin-bottom:0.55rem;}
+.wnote-choice{
+  text-align:left;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--ink);
+  border-radius:10px;
+  padding:0.5rem 0.7rem;
+  font-size:0.84rem;
+  cursor:pointer;
+}
+.wnote-choice.correct{border-color:var(--good); background:var(--good-soft);}
+.wnote-choice.wrong{border-color:var(--bad); background:var(--bad-soft);}
+.wnote-choice[disabled]{cursor:default;}
+.wnote-reveal{
+  border:none; background:none; padding:0.2rem 0;
+  color:var(--ink-soft); font-size:0.78rem; text-decoration:underline; cursor:pointer;
+}
+.wnote-pass{
+  display:flex; align-items:center; gap:0.3rem;
+  font-size:0.85rem; font-weight:800; color:var(--gold);
+  margin-bottom:0.45rem;
+}
+.wnote-pass svg{width:1em; height:1em;}
+.wnote-item.overcome{border-color:var(--gold);}
+.wnote-item.overcome .wnote-tag{color:var(--gold); background:var(--gold-soft);}
 
 .empty{
   flex:1;

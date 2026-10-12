@@ -27,7 +27,8 @@ CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱
 - `requirements.md`: 요구사항 명세서 — §13 설계 원칙은 항상 준수, §12는 남은 과제
 
 ## 배포 흐름
-- **백엔드**: `master`에 push하면 Render가 자동배포 — 서비스 `all-that-quiz-sg`(싱가포르, Render 워크스페이스 "All-That-Quiz"). 직접 확인은 브라우저로 `https://all-that-quiz-sg.onrender.com/api/...` 호출(이 세션 샌드박스에서는 onrender.com 접속이 막혀 Render MCP 로그로 확인). 오레곤 `all-that-quiz.onrender.com`은 2026-10-04 삭제됨
+- **백엔드**: `master`에 push하면 Render가 자동배포 — 서비스 `all-that-quiz-sg`(`srv-db412tvlot8c73cb20jg`, 싱가포르, Starter, Render 워크스페이스 "My Workspace" — CashQuiz와 같은 곳, 2026-10-08 재생성). 주소는 **`https://all-that-quiz-sg-7szh.onrender.com`**(재생성 때 slug가 바뀜, `requirements.md` §3.18). 이 세션 샌드박스에서는 onrender.com 접속이 막혀 Render MCP 로그로 확인한다
+- **분석 이벤트**: 핵심 지표용 이벤트를 `track()`(`Analytics.click`의 `log_name`)으로 기록한다. 이벤트 이름을 바꾸면 콘솔의 핵심 지표 설정이 끊기므로 `store-assets/listing.md` §3 표와 함께 바꾼다
 - **CashQuiz와 독립**: 코드·DB(Supabase `all-that-quiz`)·Render 워크스페이스·광고 그룹·GitHub 저장소(포크 아님) 모두 분리되어 있어 CashQuiz를 종료해도 영향이 없다. 재테크 문제도 `server/seed/`로 복사해 두었다. 단 Supabase는 같은 조직(organization)에 두 프로젝트가 있으므로 CashQuiz 정리 시 **조직이 아니라 CashQuiz 프로젝트만** 삭제한다
 - **프론트**: `npm run build`(`vite build && ait build`)로 `.ait` 파일 생성 → 앱인토스 콘솔에 업로드
   - `ait deploy` CLI는 원인 불명의 403 Forbidden으로 현재 막혀있음(키/appName/권한 전부 정상 확인됨) → **콘솔 웹 화면에서 `.ait` 파일을 직접 업로드**하는 방식으로 우회 중

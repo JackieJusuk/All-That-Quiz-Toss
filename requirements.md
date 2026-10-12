@@ -243,6 +243,20 @@
 - **정리**: 최종적으로 살아있는 서비스는 `My Workspace` / `all-that-quiz-sg`(Name) / `srv-db412tvlot8c73cb20jg` / 주소 `all-that-quiz-sg-7szh.onrender.com` 하나뿐이다. 과정에서 생긴 임시 서비스(`all-that-quiz-sg-temp`, `srv-db40nv7lot8c73ca0tm0`)는 삭제 대상.
 - **교훈(§6.1에도 추가)**: Render에서 "서비스 이름(Name)"과 "실제 주소(slug)"는 **서로 독립적인 값**이고, slug는 **생성 시점에 한 번 정해지면 이후 변경 불가**하다. 서비스를 지웠다가 같은 이름으로 다시 만들면 예전 주소를 그대로 돌려받을 거라고 가정하면 안 된다 — 실제로 돌려받지 못할 수 있다. 운영 중인 서비스의 Render 워크스페이스/리전을 옮길 계획이 있다면, **주소가 바뀔 가능성까지 미리 염두에 두고** 프론트엔드 재빌드·재배포 절차까지 계획에 포함시켜야 한다.
 
+### 3.19 노출 개선·재미 요소 (2026-10-12 추가)
+
+앱인토스 노출 정책(10-22부터): 출시 미니앱 → **추천 미니앱**(UX 원칙 + 재방문율·전환율 + 리뷰 + 성능 충족 시 미니앱 스토어·전체탭·검색 상단 노출) → 부스팅 미니앱(토스 홈 등). 이를 겨냥해 앱에서 할 수 있는 것을 넣었다.
+
+- **분석 이벤트(핵심 지표용)**: `track(logName, params)` = `Analytics.click({ log_name, ... })`. `quiz_answer`(topic·difficulty·correct·combo), `rewarded_ad_earned`, `share_invite`(from), `wrongnote_overcome`, `review_request`, 화면 진입 `Analytics.screen({ log_name: '{screen}_screen' })`. 콘솔 핵심 지표 추천값은 `store-assets/listing.md` §3(활성·대표 전환 = `quiz_answer`). 데이터는 출시 다음 날부터 콘솔에 나타난다
+- **리뷰 요청**: 퀴즈를 **맞힌 직후** 결과 화면에서 `requestReview()` — 누적 정답 3개 이상, 세션당 1회, 7일에 1회(`localStorage` `allthatquiz_review_asked_at`). 리뷰 작성 여부로 보상·흐름을 바꾸지 않는다(앱인토스 정책). 토스가 피로도·기작성 여부로 걸러 화면이 안 뜰 수 있음
+- **이 문제 정답률**: `POST /api/questions/answer` 응답에 `questionStats { total, correctRate }`(DB 함수 `question_stats`, 인덱스 `used_questions(question_id)`). 해설 아래 "이 문제 정답률 34% · 128명이 풀었어요", 40% 이하 문제를 맞히면 "어려운 문제를 맞혔어요!". 3명 미만이면 "이 문제를 푼 N번째 사람이에요"
+- **연속 정답(콤보)**: 세션 안에서 연속으로 맞힌 수(`state.combo`, 틀리면 0). 2연속부터 해설 위 배지 "N연속 정답!", 결과 제목 "N연속 정답 중이에요"
+- **축하 연출**: 정답·오답 진동(`Device.triggerHaptic` success/error), 승급 시 confetti 진동. 승급하거나 3·5·10·20연속 정답이면 결과 화면에 CSS 꽃가루(클릭 통과, 움직임 줄이기 설정이면 숨김). 승급은 별도 배너 대신 **결과 제목 줄을 "○○ 등급으로 승급했어요!"로 바꿔** 알린다 — 배너 한 줄이 360×640에서 결과 버튼을 밀어냈음(원칙 16)
+- **오답 극복**: 오답노트 카드를 펼치면 보기를 다시 골라볼 수 있고, 맞히면 "극복!" 표시 + `POST /api/wrongnote/overcome` → `wrong_overcomes` 테이블에 기록, 다음에 열면 오답노트에서 빠진다(졸업). 실제로 틀렸던 문제만 받는다(404 `not_in_wrongnote`). **포인트는 주지 않는다**(같은 문제 반복으로 포인트를 쌓는 길 차단). "정답만 보기"로 바로 확인도 가능
+- **AI 해설에 "알고 계셨나요?" 상식 한 줄 추가는 보류**: AI가 지어낸 사실(환각)이 섞일 위험이 있어 넣지 않았다
+- **검증**: Playwright 360×640 / 384×701 / 390×844에서 퀴즈 3연속 정답·결과·오답 극복 흐름 넘침 0, 서버 신규 기능은 가짜 PostgREST로 응답 확인
+- **스토어 자료 갱신**: `store-assets/` 스크린샷 5장+가로형(재테크·정답률·연속 정답·오답 극복 반영)과 콘솔 입력 문구 `store-assets/listing.md`
+
 ## 4. 핵심 사용자 흐름 (현재)
 
 1. 사용자가 토스 앱에서 올댓퀴즈 진입 → 익명 사용자 키로 자동 식별

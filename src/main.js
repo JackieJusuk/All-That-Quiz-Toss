@@ -1,4 +1,4 @@
-import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea, getClipboardText } from '@apps-in-toss/web-framework';
+import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea, getClipboardText, Analytics, Device, requestReview } from '@apps-in-toss/web-framework';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
@@ -204,6 +204,11 @@ let state = {
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false, suggestedNickname:null,
   promoDetail:null,
+  combo:0, // 이번 세션 연속 정답 수(틀리면 0). 퀴즈·결과 화면의 "N연속 정답" 연출용
+  questionStats:null, // 방금 푼 문제의 { total, correctRate } — "이 문제 정답률" 표시용(서버 응답)
+  wnoteOpen:null, // 오답노트에서 펼친 카드 index
+  wnoteRetry:{}, // 오답노트 다시 풀기 상태 { [index]: { selected, revealed } }
+  overcomeCount:0, // 오답 극복(다시 풀어 맞힘)한 문제 수
   awards:null, // 가장 최근 시상한 주의 1~3등(/api/awards). null = 아직 못 받음, { error:true } = 실패
   myStatsDetailOpen:false,
   migrationCode:'', migrationSubmitting:false, migrationResult:null, // 포인트퀴즈 이관 코드 입력(§3.X)
@@ -341,6 +346,7 @@ async function watchAdThenFetchQuestion(){
   render();
   try{
     const earned = await watchRewardedAd();
+    if(earned) track('rewarded_ad_earned');
     if(!earned){
       state.watchingAd = false;
       state.adError = '광고를 끝까지 보지 못했어요. 다시 시도해주세요.';
@@ -446,6 +452,34 @@ async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_M
   }
 }
 
+// ---- 분석 이벤트(콘솔 "핵심 지표"의 활성·전환 지표용, 2026-10-12) ----
+// 콘솔 분석 > 이벤트에 log_name으로 집계된다. 실패하거나 지원하지 않는 토스 버전이면 조용히 무시한다.
+function track(logName, params = {}){
+  try{ Analytics.click({ log_name: logName, ...params })?.catch?.(() => {}); }catch(e){ /* 분석 실패는 무시 */ }
+}
+
+// 정답·오답·승급 때 짧은 진동. 지원하지 않는 기기·토스 버전에서는 아무 일도 하지 않는다.
+function haptic(type){
+  try{ Device.triggerHaptic({ type })?.catch?.(() => {}); }catch(e){ /* 무시 */ }
+}
+
+// 리뷰 요청: 퀴즈를 맞힌 직후(앱의 가치를 체감한 순간)에, 세션당 한 번·7일에 한 번까지만 요청한다.
+// 토스가 피로도 정책과 "이미 리뷰한 사용자"를 걸러주므로 화면이 안 뜰 수도 있고, 뜨지 않아도 흐름은 그대로다.
+// 리뷰 작성 여부로 보상이나 다음 단계를 바꾸지 않는다(앱인토스 리뷰 요청 정책).
+const REVIEW_ASK_KEY = 'allthatquiz_review_asked_at';
+let reviewAskedThisSession = false;
+function maybeRequestReview(){
+  if(reviewAskedThisSession || state.totalCorrect < 3) return;
+  try{
+    const last = Number(localStorage.getItem(REVIEW_ASK_KEY) || 0);
+    if(Date.now() - last < 7 * 24 * 60 * 60 * 1000) return;
+    if(requestReview.isSupported && !requestReview.isSupported()) return;
+    reviewAskedThisSession = true;
+    localStorage.setItem(REVIEW_ASK_KEY, String(Date.now()));
+  }catch(e){ return; }
+  setTimeout(() => { requestReview().catch?.(() => {}); track('review_request'); }, 1200);
+}
+
 async function recordAnswer(topic, question, correct){
   if(!question.id){
     // 서버 연결이 끊긴 상태의 비상용 문제는 기록할 곳이 없어 로컬로만 대략 반영한다.
@@ -482,6 +516,7 @@ async function recordAnswer(topic, question, correct){
     state.todayTopicScores = stats.todayTopicScores ?? {};
     state.todayOtherScores = stats.todayOtherScores ?? {};
     state.todayTotalPoints = stats.todayTotalPoints ?? 0;
+    state.questionStats = stats.questionStats ?? null;
     prefetchRanking(); // 점수가 바뀌었으니 랭킹도 미리 새로 받아둔다(결과 화면 → 랭킹 보기가 바로 열리도록)
   }catch(e){
     console.warn('결과 기록에 실패했습니다.', e);
@@ -529,6 +564,7 @@ async function fetchWrongnote(){
     if(!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
     state.wrongNoteItems = data.items;
+    state.overcomeCount = data.overcomeCount ?? 0;
   }catch(e){
     console.warn('오답노트를 불러오지 못했습니다.', e);
     state.wrongNoteItems = [];
@@ -567,6 +603,7 @@ function go(screen, extra){
   state.promoDetail = null;
   state.myStatsDetailOpen = false;
   state.screen = screen;
+  try{ Analytics.screen({ log_name: `${screen}_screen` })?.catch?.(() => {}); }catch(e){ /* 분석 실패는 무시 */ }
   if(screen!=='quiz' && screen!=='result'){
     state.tab = ['wrongnote','ranking','promotion'].includes(screen) ? screen : 'home';
   }
@@ -614,6 +651,7 @@ async function openRanking(){
 // 받는 사람이 문자열에서 URL만 잘라내야 접속되는 문제가 있었다. Share.createLink로 실제 클릭 가능한
 // https:// 링크를 발급받아 대신 사용한다.
 async function shareWithFriend(){
+  track('share_invite', { from: state.screen });
   const name = state.nickname || '친구';
   const deepLink = `intoss://all-that-quiz?ref=${encodeURIComponent(userKey)}`;
   let link = deepLink;
@@ -655,6 +693,8 @@ async function openWrongnote(){
   state.wrongnoteLoading = !state.wrongnoteLoaded; // 이전에 받은 목록이 있으면 그걸 먼저 보여주고 뒤에서 갱신
   go('wrongnote');
   await fetchWrongnote();
+  state.wnoteRetry = {}; // 목록이 새로 왔으니(극복한 문제는 빠짐) 다시 풀기 상태도 초기화
+  state.wnoteOpen = null;
   state.wrongnoteLoaded = true;
   state.wrongnoteLoading = false;
   if(state.screen === 'wrongnote') render();
@@ -746,13 +786,18 @@ async function pickChoice(idx){
   state.answered = true;
   state.selected = idx;
   state.recording = true;
-  render();
 
   const q = state.question;
   const correct = idx === q.correct;
+  state.combo = correct ? state.combo + 1 : 0;
+  state.questionStats = null;
+  haptic(correct ? 'success' : 'error');
+  track('quiz_answer', { topic: state.topic.id, difficulty: q.difficulty, correct: String(correct), combo: state.combo });
+  render();
   await recordAnswer(state.topic, q, correct);
   const afterLevel = getLevelInfo(state.totalCorrect).level;
   state.leveledUp = afterLevel.key !== state.levelBefore.key;
+  if(state.leveledUp) haptic('confetti');
   state.levelAfterName = afterLevel.name;
   state.recording = false;
   render();
@@ -761,6 +806,7 @@ async function pickChoice(idx){
 function finishQuiz(){
   preloadRewardedAd(); // 결과 화면에서 "새로운 퀴즈 풀기"를 누르면 광고가 필요하므로 미리 로드해 둔다.
   go('result');
+  if(state.question && state.selected === state.question.correct) maybeRequestReview();
 }
 
 function renderTabbar(){
@@ -1123,12 +1169,21 @@ function quizHTML(){
         </button>`;
       }).join('')}
     </div>
-    ${state.answered? `<div class="explain"><b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}</div>` : ''}
+    ${state.answered? `<div class="explain">${state.selected===q.correct && state.combo>=2 ? `<span class="combo-badge">${ICONS.flame} ${state.combo}연속 정답!</span>` : ''}<b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}${questionStatsHTML()}</div>` : ''}
   </div>
   ${state.answered && !state.recording ? `
   <div class="quiz-foot">
     <button class="btn-primary" id="quiz-finish">결과 보기</button>
   </div>` : ''}`;
+}
+
+// "이 문제 정답률" — 다른 사용자들과 비교하는 재미. 3명 미만이면 비율이 의미 없어 "처음 푼 사람" 쪽 문구를 쓴다.
+function questionStatsHTML(){
+  const st = state.questionStats;
+  if(!st || !st.total) return '';
+  if(st.total < 3) return `<span class="qstats">이 문제를 푼 ${st.total}번째 사람이에요</span>`;
+  const hard = st.correctRate <= 40;
+  return `<span class="qstats">이 문제 정답률 <b>${st.correctRate}%</b> · ${st.total}명이 풀었어요${hard && state.selected===state.question.correct ? ' — 어려운 문제를 맞혔어요!' : ''}</span>`;
 }
 
 // 결과 화면과 랭킹의 "내 기록 보기"가 공유하는 오늘의 항목별 점수 표. 데이터는 state.todayTopicScores/
@@ -1180,6 +1235,13 @@ function todayScoresHTML(){
     </div>`;
 }
 
+// 승급하거나 3·5·10·20연속 정답일 때 결과 화면 위로 떨어지는 꽃가루(장식, 클릭 막지 않음, 움직임 줄이기 설정이면 숨김).
+function confettiHTML(){
+  const colors = ['#3d5afe', '#b9800f', '#1f8f5c', '#8e3fb8', '#d94848'];
+  return `<div class="confetti" aria-hidden="true">${Array.from({ length: 24 }, (_, i) =>
+    `<i style="left:${(i * 37) % 100}%;background:${colors[i % colors.length]};animation-delay:${(i % 8) * 0.12}s;animation-duration:${1.6 + (i % 5) * 0.25}s"></i>`).join('')}</div>`;
+}
+
 function resultHTML(){
   const q = state.question;
   const wasCorrect = state.selected === q.correct;
@@ -1187,8 +1249,11 @@ function resultHTML(){
   return `
   <div class="result-wrap">
     <div class="result-score">${wasCorrect ? '정답!' : '아쉬워요'}</div>
-    <p class="result-title">${wasCorrect ? '퀴즈를 맞혔어요' : '오늘도 하나 배워가요'}</p>
-    ${state.leveledUp ? `<div class="levelup-banner">${state.levelAfterName} 등급으로 승급했어요</div>` : ''}
+    ${state.leveledUp || (wasCorrect && [3,5,10,20].includes(state.combo)) ? confettiHTML() : ''}
+    ${state.leveledUp
+      // 승급은 제목 줄 자체를 바꿔 알린다 — 배너를 한 줄 더 두면 작은 화면(360×640)에서 결과 버튼이 밀려난다(원칙 16)
+      ? `<p class="result-title levelup-title">${state.levelAfterName} 등급으로 승급했어요!</p>`
+      : `<p class="result-title">${wasCorrect ? (state.combo>=2 ? `${state.combo}연속 정답 중이에요` : '퀴즈를 맞혔어요') : '오늘도 하나 배워가요'}</p>`}
     <div class="result-stats">
       <div class="result-stat gold"><div class="v">+${earned}</div><div class="l">이번 점수</div></div>
       <div class="result-stat"><div class="v">${state.streak}일째</div><div class="l">연속 학습</div></div>
@@ -1209,24 +1274,58 @@ function wrongnoteHTML(){
     return waitingHTML('불러오는 중이에요', '잠시만 기다려 주세요');
   }
   if(state.wrongNoteItems.length===0){
-    return `<div class="empty"><b>아직 틀린 퀴즈가 없어요</b><span>퀴즈를 풀면 틀린 퀴즈가 여기에 모여요</span></div>`;
+    return `<div class="empty"><b>${state.overcomeCount ? '틀린 퀴즈를 모두 극복했어요!' : '아직 틀린 퀴즈가 없어요'}</b><span>${state.overcomeCount ? `지금까지 ${state.overcomeCount}개를 다시 풀어 맞혔어요` : '퀴즈를 풀면 틀린 퀴즈가 여기에 모여요'}</span></div>`;
   }
   return `<div class="scroll">
-    <p class="section-label">틀린 퀴즈 ${state.wrongNoteItems.length}개</p>
-    ${state.wrongNoteItems.map((w,i)=>`
-      <div class="wnote-item" data-wnote="${i}">
-        <button class="wnote-head">
-          <span class="wnote-tag">${w.topic}</span>
+    <p class="section-label">틀린 퀴즈 ${state.wrongNoteItems.length}개${state.overcomeCount ? ` · 극복 ${state.overcomeCount}개` : ''} — 다시 풀어 맞히면 졸업해요</p>
+    ${state.wrongNoteItems.map((w,i)=>{
+      const r = state.wnoteRetry[i] || {};
+      const picked = r.selected !== undefined;
+      const revealed = picked || r.revealed;
+      const passed = picked && r.selected === w.q.correct;
+      return `
+      <div class="wnote-item${state.wnoteOpen===i?' open':''}${passed?' overcome':''}" data-wnote="${i}">
+        <button class="wnote-head" data-wnote-toggle="${i}">
+          <span class="wnote-tag">${passed ? '극복!' : w.topic}</span>
           <span class="wnote-q">${w.q.q}</span>
           <span class="wnote-chev">${ICONS.down}</span>
         </button>
         <div class="wnote-body">
-          <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
-          <div class="wnote-explain">${w.q.explain}</div>
+          <div class="wnote-choices">
+            ${w.q.choices.map((c,ci)=>{
+              let cls = 'wnote-choice';
+              if(revealed && ci===w.q.correct) cls += ' correct';
+              else if(picked && ci===r.selected) cls += ' wrong';
+              return `<button class="${cls}" data-wnote-pick="${i}:${ci}" ${revealed?'disabled':''}>${String.fromCharCode(65+ci)}. ${c}</button>`;
+            }).join('')}
+          </div>
+          ${revealed ? `
+            ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! 다음에 열면 오답노트에서 빠져요</div>` : ''}
+            <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
+            <div class="wnote-explain">${w.q.explain}</div>`
+          : `<button class="wnote-reveal" data-wnote-reveal="${i}">정답만 보기</button>`}
         </div>
-      </div>
-    `).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
+}
+
+async function pickWrongnoteRetry(i, ci){
+  const w = state.wrongNoteItems[i];
+  if(!w || state.wnoteRetry[i]?.selected !== undefined) return;
+  state.wnoteRetry = { ...state.wnoteRetry, [i]: { selected: ci } };
+  const passed = ci === w.q.correct;
+  haptic(passed ? 'success' : 'error');
+  render();
+  if(!passed || !w.id) return;
+  track('wrongnote_overcome', { difficulty: w.q.difficulty });
+  try{
+    const res = await fetch(`${API_BASE}/api/wrongnote/overcome`, {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ userKey, questionId: w.id }),
+    });
+    if(res.ok) state.overcomeCount += 1;
+  }catch(e){ console.warn('오답 극복 기록 실패', e); }
 }
 
 function rankSegHTML(){
@@ -1354,7 +1453,7 @@ function fitToScreen(){
   if(!FIT_SCREENS.includes(state.screen)) return;
   const base = parseFloat(getComputedStyle(root).fontSize) || 16;
   let size = base;
-  for(let i = 0; i < 6; i++){
+  for(let i = 0; i < 12; i++){
     const box = screenEl.querySelector('.scroll, .result-wrap') || screenEl;
     const over = box.scrollHeight - box.clientHeight;
     if(over <= 1 || box.clientHeight <= 0) break;
@@ -1406,8 +1505,25 @@ function bindScreenEvents(){
   if(waBtn) waBtn.addEventListener('click', watchAdThenFetchQuestion);
   const skBtn = screenEl.querySelector('#quiz-skip-ad');
   if(skBtn) skBtn.addEventListener('click', skipAdAndSolve);
-  screenEl.querySelectorAll('[data-wnote]').forEach(el=>{
-    el.addEventListener('click', ()=> el.classList.toggle('open'));
+  screenEl.querySelectorAll('[data-wnote-toggle]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const i = Number(el.dataset.wnoteToggle);
+      state.wnoteOpen = state.wnoteOpen === i ? null : i;
+      render();
+    });
+  });
+  screenEl.querySelectorAll('[data-wnote-pick]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const [i, ci] = el.dataset.wnotePick.split(':').map(Number);
+      pickWrongnoteRetry(i, ci);
+    });
+  });
+  screenEl.querySelectorAll('[data-wnote-reveal]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const i = Number(el.dataset.wnoteReveal);
+      state.wnoteRetry = { ...state.wnoteRetry, [i]: { revealed: true } };
+      render();
+    });
   });
   screenEl.querySelectorAll('[data-promo]').forEach(el=>{
     el.addEventListener('click', ()=> openPromoDetail(el.dataset.promo));
