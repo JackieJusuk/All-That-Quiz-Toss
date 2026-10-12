@@ -102,3 +102,13 @@ alter table attendance enable row level security;
 alter table referrals enable row level security;
 alter table weekly_awards enable row level security;
 alter table migration_credits enable row level security;
+
+-- 오답 극복 기록(2026-10-12): 오답노트에서 틀렸던 문제를 다시 풀어 맞히면 남긴다. 이 기록이 있는 문제는
+-- 오답노트에서 빠진다("졸업"). 포인트는 주지 않는다(같은 문제를 반복해 포인트를 쌓는 길을 막기 위함).
+create table if not exists wrong_overcomes (
+  user_key text not null,
+  question_id uuid not null references questions (id),
+  overcome_at timestamptz not null default now(),
+  primary key (user_key, question_id)
+);
+alter table wrong_overcomes enable row level security;
