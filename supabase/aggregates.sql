@@ -90,6 +90,12 @@ as $$
     'weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key),
     'migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key),
     'overcome_count', (select count(*) from wrong_overcomes where user_key = p_user_key),
+    -- 배지용(2026-10-13): 주제별 누적 정답 수, 어려움 난이도 누적 정답 수
+    'topic_correct', (select coalesce(jsonb_object_agg(topic, c), '{}'::jsonb)
+                      from (select topic, count(*) as c from used_questions
+                            where user_key = p_user_key and correct group by topic) tc),
+    'hard_correct', (select count(*) from used_questions uq join questions q on q.id = uq.question_id
+                     where uq.user_key = p_user_key and uq.correct and q.difficulty = 'hard'),
     'quiz_dates', (select coalesce(jsonb_agg(d order by d), '[]'::jsonb)
                    from (select distinct answered_date as d from used_questions where user_key = p_user_key) x),
     'today_topics', (select coalesce(jsonb_object_agg(topic, jsonb_build_object('correct', c, 'wrong', w)), '{}'::jsonb)
