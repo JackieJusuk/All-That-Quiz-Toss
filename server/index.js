@@ -147,7 +147,8 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
   const label = TOPIC_LABELS[topicId];
   const concepts = pickRandom(TOPIC_CONCEPTS[topicId], Math.min(5, TOPIC_CONCEPTS[topicId].length));
   const style = QUESTION_STYLES[Math.floor(Math.random() * QUESTION_STYLES.length)];
-  const diffInstruction = count === 1
+  // difficulty를 넘기면 모든 문제를 그 난이도로, null이면(백그라운드 풀 채우기) 골고루 섞는다.
+  const diffInstruction = (count === 1 || difficulty)
     ? `난이도는 ${DIFF_KO[difficulty] || DIFF_KO.medium} 수준으로 만들고, difficulty 필드는 "${difficulty || 'medium'}"으로 표기하세요.`
     : '난이도는 easy/medium/hard를 골고루 섞어주세요.';
   const avoidBlock = avoidQuestions && avoidQuestions.length
@@ -196,6 +197,69 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
 const POOL_TARGET_PER_TOPIC = 80; // 주제마다 최소 80문제(재테크는 CashQuiz에서 옮겨 온 290문제로 이미 넘음)
 let topupInFlight = false;
 
+// ---- 비슷한 문제 중복 방지(2026-10-17, requirements.md §3.21) ----
+// 문구만 조금 다른 같은 문제(예: "기준금리에 대한 설명으로 옳은/적절한 것은?")는 ID가 달라 "이미 푼 문제"
+// 제외에 걸리지 않아 사용자에게는 반복 출제로 보였다. 새 문제를 넣기 전에 DB 함수 similar_question
+// (pg_trgm, 상투적 문구를 뺀 핵심 문장끼리 유사도 0.55 이상)으로 걸러내고, AI에게도 기존 문제를 보여준다.
+const SIMILAR_THRESHOLD = 0.55;
+const AVOID_SAMPLE_SIZE = 60; // 프롬프트에 넣을 기존 문제 수(토큰 비용과 효과의 균형)
+
+// AI 프롬프트에 "이미 있는 문제" 목록으로 넣을 기존 문제 문장(활성 문제 중 무작위).
+async function fetchAvoidQuestions(topicId) {
+  const { data, error } = await supabase
+    .from('questions').select('q').eq('topic', topicId).eq('active', true)
+    .order('created_at', { ascending: false }).limit(400);
+  if (error) { console.error('avoid fetch error', topicId, error); return []; }
+  return pickRandom(data.map(r => r.q), AVOID_SAMPLE_SIZE);
+}
+
+// 생성된 문제를 하나씩 넣되, 이미 있는 활성 문제와 비슷하면 건너뛴다. 한 개씩 넣으므로 같은 묶음 안의
+// 비슷한 문제끼리도 걸러진다. 실제로 들어간 행들을 돌려준다.
+async function insertDistinctQuestions(topicId, questions) {
+  const inserted = [];
+  for (const g of questions) {
+    const { data: dup, error: simErr } = await supabase.rpc('similar_question', {
+      p_topic: topicId, p_q: g.q, p_threshold: SIMILAR_THRESHOLD,
+    });
+    if (simErr) { console.error('similar check error', topicId, simErr); continue; }
+    if (dup && dup.length) {
+      console.log(`skip similar (${Number(dup[0].sim).toFixed(2)}): ${g.q.slice(0, 40)} ≈ ${dup[0].q.slice(0, 40)}`);
+      continue;
+    }
+    const { data: row, error: insErr } = await supabase
+      .from('questions')
+      .insert({ topic: topicId, q: g.q, choices: g.choices, correct: g.correct, explain: g.explain, difficulty: g.difficulty })
+      .select()
+      .single();
+    if (insErr) { console.error('question insert error', topicId, insErr); continue; }
+    inserted.push(row);
+  }
+  return inserted;
+}
+
+// ---- 사용자별 미리 채우기(2026-10-17) ----
+// 많이 푸는 사용자는 주제 전체 문제 수(80)와 무관하게 "본인이 안 푼 문제"가 먼저 바닥나고, 그때 실시간
+// 생성으로 빠지면 응답이 느려 앱이 임시 문제로 대체하던 문제가 있었다. 안 푼 문제가 PREFILL_THRESHOLD개
+// 밑으로 내려가면 그 주제·난이도로 미리 몇 문제를 만들어 둔다(전체 풀에 들어가므로 다른 사용자도 쓴다).
+const PREFILL_THRESHOLD = 10;
+const PREFILL_COUNT = 5;
+const prefillInFlight = new Set(); // `${topic}:${difficulty}` — 같은 주제·난이도를 동시에 여러 번 만들지 않는다
+
+function maybePrefill(topicId, difficulty, remaining) {
+  if (remaining >= PREFILL_THRESHOLD) return;
+  const key = `${topicId}:${difficulty}`;
+  if (prefillInFlight.has(key) || prefillInFlight.size >= 3) return;
+  prefillInFlight.add(key);
+  (async () => {
+    const avoid = await fetchAvoidQuestions(topicId);
+    const generated = await generateQuizSet(topicId, PREFILL_COUNT, difficulty, avoid);
+    const inserted = await insertDistinctQuestions(topicId, generated.questions);
+    console.log(`prefill: +${inserted.length}/${generated.questions.length} ${key} (remaining ${remaining})`);
+  })()
+    .catch(e => console.error('prefill failed', key, e))
+    .finally(() => prefillInFlight.delete(key));
+}
+
 // 재테크 주제의 초기 문제(CashQuiz의 주식·펀드·부동산 문제 290개, 같은 질문 중복 제거, 2026-10-04 이관).
 // DB에 아직 없으면 서버 시작 시 채운다 — 새 Supabase 프로젝트로 옮길 때도 자동으로 들어간다.
 // 이미 있는 문제(id 기준)는 건너뛰므로 여러 번 실행돼도 중복되지 않는다. AI 생성(ensurePoolTopUp)보다 먼저
@@ -224,18 +288,16 @@ async function ensurePoolTopUp() {
       const { count, error } = await supabase
         .from('questions')
         .select('id', { count: 'exact', head: true })
-        .eq('topic', topicId);
+        .eq('topic', topicId)
+        .eq('active', true); // 비슷한 문제로 비활성화된 것은 세지 않는다
       if (error) { console.error('topup count error', topicId, error); continue; }
       const current = count ?? 0;
       if (current < POOL_TARGET_PER_TOPIC) {
         const need = Math.min(10, POOL_TARGET_PER_TOPIC - current); // 한 번에 최대 10개씩 채운다
-        const generated = await generateQuizSet(topicId, need, 'medium');
-        const rows = generated.questions.map(q => ({
-          topic: topicId, q: q.q, choices: q.choices, correct: q.correct, explain: q.explain, difficulty: q.difficulty,
-        }));
-        const { error: insErr } = await supabase.from('questions').insert(rows);
-        if (insErr) console.error('topup insert error', topicId, insErr);
-        else console.log(`pool topup: +${rows.length} ${topicId} (was ${current})`);
+        const avoid = await fetchAvoidQuestions(topicId);
+        const generated = await generateQuizSet(topicId, need, null, avoid);
+        const inserted = await insertDistinctQuestions(topicId, generated.questions);
+        console.log(`pool topup: +${inserted.length}/${generated.questions.length} ${topicId} (was ${current})`);
       }
     }
   } catch (e) {
@@ -495,19 +557,17 @@ async function pickQuestionForUser(topicId, difficulty, userKey) {
   }
 
   let candidates = await query(true);
+  maybePrefill(topicId, difficulty, candidates.length); // 이 난이도의 안 푼 문제가 얼마 안 남았으면 미리 채운다
   if (!candidates.length) candidates = await query(false);
   if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
 
   // 사용자가 화면에서 직접 기다리는 경로라 계산 문제 자기검증(추가 API 왕복)은 생략해 응답을 빠르게 한다.
-  const generated = await generateQuizSet(topicId, 1, difficulty, undefined, { verify: false });
-  const g = generated.questions[0];
-  const { data: inserted, error: insErr } = await supabase
-    .from('questions')
-    .insert({ topic: topicId, q: g.q, choices: g.choices, correct: g.correct, explain: g.explain, difficulty: g.difficulty })
-    .select()
-    .single();
-  if (insErr) throw insErr;
-  return inserted;
+  // 기존 문제와 비슷한 것이 나올 수 있어 한 번에 3개를 만들고, 걸러지고 남은 것 중 첫 문제를 낸다.
+  const avoid = await fetchAvoidQuestions(topicId);
+  const generated = await generateQuizSet(topicId, 3, difficulty, avoid, { verify: false });
+  const inserted = await insertDistinctQuestions(topicId, generated.questions);
+  if (!inserted.length) throw new Error('all generated questions were similar to existing ones');
+  return inserted[0];
 }
 
 // ---- 라우트 ----

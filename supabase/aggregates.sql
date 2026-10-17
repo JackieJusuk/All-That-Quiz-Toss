@@ -122,10 +122,46 @@ language sql stable
 as $$
   select q.* from questions q
   where q.topic = p_topic
+    and q.active -- 비슷한 문제로 비활성화된 것은 내지 않는다(2026-10-17)
     and (p_difficulty is null or q.difficulty = p_difficulty)
     and not exists (select 1 from used_questions uq where uq.user_key = p_user_key and uq.question_id = q.id)
   limit p_limit;
 $$;
+
+-- 비슷한 문제 판별(2026-10-17, requirements.md §3.21). 문구만 다른 같은 문제가 ID가 달라 "이미 푼 문제" 제외에
+-- 걸리지 않고 반복 출제되던 문제를 막는다. "~에 대한 설명으로 옳은 것은?" 같은 상투적 문구를 지운 핵심 문장끼리
+-- pg_trgm 유사도를 비교한다(원문 그대로 비교하면 상투구 때문에 서로 다른 문제도 비슷하게 나옴).
+-- 0.55 이상이면 같은 문제로 본다 — 실제 데이터로 확인한 경계(0.50~0.52는 같은 문제/다른 문제가 섞임).
+create or replace function question_core(p_q text) returns text language sql immutable as $$
+  select trim(regexp_replace(regexp_replace(p_q,
+    '(에 대한|에 대해|설명으로|설명 중|설명한|설명은|가장|옳은|올바른|옳게|적절한|정확한|타당한|바로잡은|것은|것을|고르면|무엇일까요|무엇인가요|무엇인가|무엇이라|하는가|일까요|얼마인가요|얼마인가|얼마일까요|얼마인지|흔히|오해하는|오해하기 쉬운|내용 중|다음 중|사례로|의미로|특징으로|어떻게|있는|해당하는)', ' ', 'g'),
+    '[^가-힣A-Za-z0-9%,.]+', ' ', 'g'));
+$$;
+
+-- 같은 주제의 활성 문제 중 p_q와 가장 비슷한 1개(유사도 p_threshold 이상일 때만). 서버가 새 문제를 넣기 전에 호출.
+create or replace function similar_question(p_topic text, p_q text, p_threshold real default 0.55)
+returns table (id uuid, q text, sim real) language sql stable as $$
+  select qq.id, qq.q, extensions.similarity(question_core(qq.q), question_core(p_q)) as sim
+  from questions qq where qq.topic = p_topic and qq.active
+    and extensions.similarity(question_core(qq.q), question_core(p_q)) >= p_threshold
+  order by sim desc limit 1;
+$$;
+
+-- 이미 쌓인 비슷한 문제 정리(2026-10-17에 1회 실행, 74개 비활성화): 주제별로 오래된 문제부터 남기고,
+-- 먼저 남긴 문제와 비슷한 나중 문제를 active=false로 바꾼다. 다시 실행해도 안전(이미 정리된 것은 건너뜀).
+-- do $$
+-- declare r record; dropped uuid[] := '{}';
+-- begin
+--   for r in
+--     with c as materialized (select id, topic, created_at, question_core(q) core from questions where active)
+--     select a.id aid, b.id bid from c a join c b on a.topic = b.topic and (a.created_at, a.id) < (b.created_at, b.id)
+--     where extensions.similarity(a.core, b.core) >= 0.55
+--     order by b.created_at, b.id, a.created_at
+--   loop
+--     if not (r.bid = any(dropped)) and not (r.aid = any(dropped)) then dropped := dropped || r.bid; end if;
+--   end loop;
+--   update questions set active = false where id = any(dropped);
+-- end $$;
 
 -- 문제 하나의 전체 풀이 수와 정답 수(2026-10-12, 퀴즈 화면의 "이 문제 정답률" 표시용).
 create or replace function question_stats(p_question_id uuid)
@@ -142,11 +178,15 @@ revoke all on function leaderboard(date, date, boolean, int) from public, anon, 
 revoke all on function user_stats(text, date) from public, anon, authenticated;
 revoke all on function unused_questions(text, text, text, int) from public, anon, authenticated;
 revoke all on function question_stats(uuid) from public, anon, authenticated;
+revoke all on function question_core(text) from public, anon, authenticated;
+revoke all on function similar_question(text, text, real) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
 grant execute on function leaderboard(date, date, boolean, int) to service_role;
 grant execute on function user_stats(text, date) to service_role;
 grant execute on function unused_questions(text, text, text, int) to service_role;
 grant execute on function question_stats(uuid) to service_role;
+grant execute on function question_core(text) to service_role;
+grant execute on function similar_question(text, text, real) to service_role;
 
 -- 함수 안에서 테이블 이름이 항상 public 스키마를 가리키게 고정(Supabase 보안 점검 권고: function_search_path_mutable)
 alter function streak_bonus_dates() set search_path = public;
@@ -154,6 +194,8 @@ alter function leaderboard(date, date, boolean, int) set search_path = public;
 alter function user_stats(text, date) set search_path = public;
 alter function unused_questions(text, text, text, int) set search_path = public;
 alter function question_stats(uuid) set search_path = public;
+alter function question_core(text) set search_path = public;
+alter function similar_question(text, text, real) set search_path = public, extensions;
 
 -- 집계 속도용 인덱스(사용자별·날짜별 조회)
 create index if not exists used_questions_user_date_idx on used_questions (user_key, answered_date);
