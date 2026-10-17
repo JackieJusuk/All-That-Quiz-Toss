@@ -117,6 +117,15 @@ const TOPICS = [
       { q:"다른 조건이 같을 때, 어떤 상품의 수요가 늘어나면 일반적으로 가격은 어떻게 될까요?",
         choices:['오른다','내린다','변하지 않는다','항상 0이 된다'],
         correct:0, explain:'공급이 그대로인데 수요가 늘어나면 사려는 사람이 많아져 가격이 오르는 경향이 있어요.', difficulty:'easy' },
+      { q:"물가가 전반적으로 계속 오르는 현상을 무엇이라고 할까요?",
+        choices:['디플레이션','인플레이션','스태그네이션','리세션'],
+        correct:1, explain:'인플레이션은 물가 수준이 지속적으로 오르는 현상으로, 같은 돈으로 살 수 있는 양이 줄어들어요.', difficulty:'easy' },
+      { q:"한 나라 안에서 일정 기간 새로 생산된 최종 재화와 서비스의 시장 가치를 합한 것은?",
+        choices:['GDP(국내총생산)','GNI(국민총소득)','CPI(소비자물가지수)','경상수지'],
+        correct:0, explain:'GDP는 나라 안에서 일정 기간 새로 만들어진 최종 생산물의 가치를 모두 더한 값이에요.', difficulty:'medium' },
+      { q:"이미 써버려서 어떤 선택을 해도 되찾을 수 없는 비용을 무엇이라고 할까요?",
+        choices:['기회비용','변동비용','매몰비용','한계비용'],
+        correct:2, explain:'매몰비용은 이미 지출해 회수할 수 없는 비용이라, 합리적인 선택을 할 때는 고려하지 않는 게 좋아요.', difficulty:'medium' },
     ]},
   { id:'money', name:'금융·금리', desc:'금리, 복리, 환율 기초', color:'#c9701a', bg:'#faeadb', icon:'money',
     questions:[
@@ -126,6 +135,15 @@ const TOPICS = [
       { q:"환율이 1달러=1,300원에서 1,400원으로 올랐다면 원화 가치는 어떻게 된 걸까요?",
         choices:['원화 가치가 올랐다(원화 강세)','원화 가치가 내렸다(원화 약세)','변화가 없다','달러 가치가 내렸다'],
         correct:1, explain:'같은 1달러를 사는 데 더 많은 원화가 필요해졌으니 원화 가치가 떨어진(약세) 거예요.', difficulty:'medium' },
+      { q:"원금 1,000만 원을 연 3% 단리로 2년간 맡기면 받는 이자(세전)는 얼마일까요?",
+        choices:['30만 원','60만 원','60만 9천 원','90만 원'],
+        correct:1, explain:'단리는 원금에만 이자가 붙어 1,000만 × 3% × 2년 = 60만 원이에요.', difficulty:'easy' },
+      { q:"예금자보호제도로 보호받을 수 있는 금액은 한 금융회사당 1인 최대 얼마일까요? (2025년 9월 이후, 원금+이자)",
+        choices:['3천만 원','5천만 원','1억 원','한도 없음'],
+        correct:2, explain:'2025년 9월부터 예금자보호 한도가 5천만 원에서 1억 원으로 올랐어요(원금과 이자를 합한 금액 기준).', difficulty:'medium' },
+      { q:"한국은행이 기준금리를 올리면 일반적으로 나타나는 현상은?",
+        choices:['대출 금리가 내려간다','예금 금리가 올라간다','시중에 돈이 더 많이 풀린다','물가 상승 압력이 커진다'],
+        correct:1, explain:'기준금리가 오르면 은행의 예금·대출 금리가 함께 오르는 경향이 있어 돈을 빌리기보다 저축할 유인이 커져요.', difficulty:'easy' },
     ]},
   { id:'life', name:'세금·연금', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
     questions:[
@@ -135,6 +153,15 @@ const TOPICS = [
       { q:"우리나라 '4대 보험'에 포함되지 않는 것은?",
         choices:['국민연금','건강보험','고용보험','자동차보험'],
         correct:3, explain:'4대 보험은 국민연금·건강보험·고용보험·산재보험이고, 자동차보험은 민간 보험이에요.', difficulty:'easy' },
+      { q:"물건을 살 때 가격에 포함되어 소비자가 부담하는 우리나라의 부가가치세율은 일반적으로 몇 %일까요?",
+        choices:['3%','5%','10%','20%'],
+        correct:2, explain:'우리나라 부가가치세 기본세율은 10%로, 상품·서비스 가격에 포함되어 소비자가 부담해요.', difficulty:'easy' },
+      { q:"소득공제와 세액공제의 차이에 대한 설명으로 옳은 것은?",
+        choices:['둘은 같은 말이다','소득공제는 세금을 매기는 소득을 줄이고, 세액공제는 계산된 세금에서 직접 뺀다','세액공제는 소득을 줄이고, 소득공제는 세금에서 직접 뺀다','둘 다 사업자만 받을 수 있다'],
+        correct:1, explain:'소득공제는 과세표준(세금 매길 소득)을 줄이고, 세액공제는 이미 계산된 세금 자체를 줄여 줘요.', difficulty:'medium' },
+      { q:"국민연금 보험료를 직장가입자는 회사와 어떻게 나눠 낼까요?",
+        choices:['근로자가 전액 부담','회사가 전액 부담','근로자와 회사가 절반씩 부담','정부가 전액 부담'],
+        correct:2, explain:'직장가입자의 국민연금 보험료는 근로자와 사업주가 절반씩 나눠 내요.', difficulty:'easy' },
     ]},
   { id:'invest', name:'재테크', desc:'주식, 펀드, 부동산', color:'#8e3fb8', bg:'#f2e6f8', icon:'invest',
     questions:[
@@ -144,6 +171,15 @@ const TOPICS = [
       { q:"펀드 기준가가 1,000원에서 1,100원이 됐다면 수익률은 얼마일까요? (보수·세금 제외)",
         choices:['1%','10%','11%','100%'],
         correct:1, explain:'(1,100 - 1,000) ÷ 1,000 = 0.1, 즉 10%예요.', difficulty:'medium' },
+      { q:"주가지수를 그대로 따라가도록 만들어 주식처럼 거래소에서 사고팔 수 있는 펀드는?",
+        choices:['ETF(상장지수펀드)','MMF(머니마켓펀드)','사모펀드','적립식 예금'],
+        correct:0, explain:'ETF는 지수 등을 추종하도록 설계된 펀드로, 주식처럼 거래소에 상장되어 실시간으로 사고팔 수 있어요.', difficulty:'easy' },
+      { q:"주가가 20,000원이고 주당순이익(EPS)이 2,000원인 회사의 PER은 얼마일까요?",
+        choices:['0.1배','10배','20배','40배'],
+        correct:1, explain:'PER = 주가 ÷ 주당순이익 = 20,000 ÷ 2,000 = 10배예요.', difficulty:'medium' },
+      { q:"전세 계약 후 보증금을 지키기 위해 전입신고와 함께 받아 두는 것이 좋은 것은?",
+        choices:['확정일자','인감증명서','등기권리증','재직증명서'],
+        correct:0, explain:'전입신고와 확정일자를 갖추면 집이 경매에 넘어가도 순서에 따라 보증금을 우선 돌려받을 수 있어요.', difficulty:'easy' },
     ]},
 ];
 
@@ -168,10 +204,17 @@ function getLevelInfo(totalCorrect){
   return { level, next, progress, remain };
 }
 
+// 비상용 문제는 이번 접속 동안 한 번씩만 낸다(2026-10-17). 예전에는 주제당 2문제 중 무작위라 서버가
+// 느릴 때 같은 문제가 계속 반복돼 보였다. 다 쓰면 null을 돌려주고, 화면은 "다시 시도"를 보여준다.
+const shownFallback = new Set();
 function pickFallbackQuestion(topic, difficulty){
-  const matched = topic.questions.filter(q => q.difficulty === difficulty);
-  const list = matched.length ? matched : topic.questions;
-  return { ...list[Math.floor(Math.random() * list.length)], id: null };
+  const unseen = topic.questions.filter(q => !shownFallback.has(q.q));
+  if(!unseen.length) return null;
+  const matched = unseen.filter(q => q.difficulty === difficulty);
+  const list = matched.length ? matched : unseen;
+  const picked = list[Math.floor(Math.random() * list.length)];
+  shownFallback.add(picked.q);
+  return { ...picked, id: null };
 }
 
 // 닉네임을 아직 안 정한 사람에게 보여줄 추천 닉네임. 형용사+동물+숫자 조합.
@@ -202,6 +245,7 @@ let state = {
   wrongnoteLoaded:false,
   wrongNoteItems:[], wrongnoteLoading:false,
   loadingQuestions:false,
+  questionError:false, // 서버도 실패하고 비상용 문제도 다 써서 보여줄 문제가 없을 때(다시 시도 화면)
   levelBefore:null, leveledUp:false, levelAfterName:'',
   nickname:null, savingNickname:false, suggestedNickname:null,
   promoDetail:null,
@@ -391,7 +435,7 @@ async function watchAdThenFetchQuestion(){
       // 문제풀이권 소비 자체는 화면에 영향 주지 않도록 뒤에서 마저 처리한다(실패해도 이미 보여준 문제는 그대로 유지).
       state.question = prefetched.question;
       state.loadingQuestions = false;
-      fetchQuestion(state.topic, difficulty, BACKGROUND_TIMEOUT_MS);
+      fetchQuestion(state.topic, difficulty, BACKGROUND_TIMEOUT_MS, { fallback: false }); // 결과는 안 쓰므로 비상용 문제를 소모하지 않는다
     }else{
       state.loadingQuestions = true;
       render();
@@ -403,6 +447,7 @@ async function watchAdThenFetchQuestion(){
           preloadRewardedAd();
         }else{
           state.question = q;
+          state.questionError = !q;
         }
         state.loadingQuestions = false;
       }
@@ -412,9 +457,9 @@ async function watchAdThenFetchQuestion(){
 }
 
 // 화면에서 사용자가 직접 기다리는 경로(광고 스킵 등)는 이 시간 안에 응답이 없으면
-// 로컬 비상용 문제은행으로 바로 전환한다 — 서버가 실시간 생성(AI 호출)으로 빠졌을 때
-// 체감 대기시간이 몇 초씩 길어지는 걸 막기 위함이다.
-const FOREGROUND_TIMEOUT_MS = 3000;
+// 로컬 비상용 문제은행으로 전환한다. 예전 3초는 서버가 새 문제를 만드는 동안(수 초) 끊겨 비상용 문제만
+// 반복되는 원인이었다 — 모래시계를 보여주며 10초까지 기다린다(2026-10-17).
+const FOREGROUND_TIMEOUT_MS = 10000;
 // 광고 재생 중 미리 받아두는 경로는 화면에 안 보이므로, 로컬 대체보다 실제 서버 문제를
 // 받을 확률을 높이는 쪽이 낫다 — 더 길게 기다린다.
 const BACKGROUND_TIMEOUT_MS = 8000;
@@ -438,7 +483,7 @@ async function peekQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS
   }
 }
 
-async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS){
+async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS, { fallback = true } = {}){
   try{
     const res = await fetch(`${API_BASE}/api/questions`, {
       method: 'POST',
@@ -453,7 +498,7 @@ async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_M
     return q;
   }catch(e){
     console.warn('AI 문제를 불러오지 못해 기본 문제은행으로 대체합니다.', e);
-    return pickFallbackQuestion(topic, difficulty);
+    return fallback ? pickFallbackQuestion(topic, difficulty) : null;
   }
 }
 
@@ -808,6 +853,7 @@ async function startTopic(topic){
   state.answered = false;
   state.selected = null;
   state.question = null;
+  state.questionError = false;
   state.needsAd = false;
   state.adError = null;
   state.prefetched = null;
@@ -825,6 +871,7 @@ async function startTopic(topic){
     const q = await peekQuestion(topic, difficulty);
     if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
     state.question = q || pickFallbackQuestion(topic, difficulty);
+    state.questionError = !state.question;
     state.loadingQuestions = false;
     render();
     return;
@@ -854,6 +901,7 @@ async function startTopic(topic){
     return;
   }
   state.question = q;
+  state.questionError = !q;
   state.loadingQuestions = false;
   render();
 }
@@ -864,6 +912,7 @@ async function skipAdAndSolve(){
   const difficulty = state.levelBefore.difficulty;
   state.needsAd = false;
   state.adError = null;
+  state.questionError = false;
 
   const prefetched = state.prefetched;
   state.prefetched = null;
@@ -880,6 +929,26 @@ async function skipAdAndSolve(){
   const q = await peekQuestion(topic, difficulty);
   if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
   state.question = q || pickFallbackQuestion(topic, difficulty);
+  state.questionError = !state.question;
+  state.loadingQuestions = false;
+  render();
+}
+
+// "퀴즈를 불러오지 못했어요" 화면의 다시 시도. 문제풀이권이 있으면 그것으로, 없으면 미리보기로 받는다.
+async function retryQuestion(){
+  const topic = state.topic;
+  const difficulty = state.levelBefore.difficulty;
+  state.questionError = false;
+  state.loadingQuestions = true;
+  render();
+  let q = state.hasAdTicket ? await fetchQuestion(topic, difficulty) : await peekQuestion(topic, difficulty);
+  if(state.screen!=='quiz' || state.topic!==topic) return;
+  if(q === 'ad_required'){
+    q = await peekQuestion(topic, difficulty);
+    if(state.screen!=='quiz' || state.topic!==topic) return;
+  }
+  state.question = q || pickFallbackQuestion(topic, difficulty);
+  state.questionError = !state.question;
   state.loadingQuestions = false;
   render();
 }
@@ -1240,6 +1309,19 @@ function quizHTML(){
     <div class="quiz-foot">
       <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?`<span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 광고 불러오는 중...`:'광고 보고 +10포인트 받기'}</button>
       <button class="btn-ghost" id="quiz-skip-ad" ${state.watchingAd?'disabled':''}>광고 없이 퀴즈만 풀기</button>
+    </div>`;
+  }
+  if(state.questionError && !state.loadingQuestions){
+    return `
+    <div class="quiz-head">
+      <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
+    </div>
+    <div class="empty">
+      <b>퀴즈를 불러오지 못했어요</b>
+      <span>새 퀴즈를 만드는 데 시간이 걸리고 있어요. 잠시 후 다시 시도해 주세요.</span>
+    </div>
+    <div class="quiz-foot">
+      <button class="btn-primary" id="quiz-retry">다시 시도</button>
     </div>`;
   }
   if(state.loadingQuestions || !state.question){
@@ -1618,6 +1700,8 @@ function bindScreenEvents(){
   if(waBtn) waBtn.addEventListener('click', watchAdThenFetchQuestion);
   const skBtn = screenEl.querySelector('#quiz-skip-ad');
   if(skBtn) skBtn.addEventListener('click', skipAdAndSolve);
+  const qrBtn = screenEl.querySelector('#quiz-retry');
+  if(qrBtn) qrBtn.addEventListener('click', retryQuestion);
   screenEl.querySelectorAll('[data-wnote-toggle]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const i = Number(el.dataset.wnoteToggle);

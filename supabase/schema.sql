@@ -6,7 +6,7 @@
 
 create table if not exists questions (
   id uuid primary key default gen_random_uuid(),
-  topic text not null,                 -- 'basic' | 'money' | 'life'
+  topic text not null,                 -- 'basic' | 'money' | 'life' | 'invest'
   q text not null,
   choices jsonb not null,              -- 보기 4개 문자열 배열
   correct integer not null,
@@ -15,6 +15,11 @@ create table if not exists questions (
   created_at timestamptz not null default now()
 );
 create index if not exists questions_topic_difficulty_idx on questions (topic, difficulty);
+-- 비슷한 문제 중복 방지(2026-10-17): 문구만 다른 같은 문제는 지우지 않고 active=false로 출제에서만 뺀다
+-- (푼 기록·오답노트가 참조하므로 삭제하지 않는다. 되돌리려면 active=true). 유사도 계산용 pg_trgm 확장.
+alter table questions add column if not exists active boolean not null default true;
+create index if not exists questions_topic_active_idx on questions (topic, difficulty) where active;
+create extension if not exists pg_trgm with schema extensions;
 
 create table if not exists used_questions (
   user_key text not null,
