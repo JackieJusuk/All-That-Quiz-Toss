@@ -333,6 +333,37 @@ async function insertDistinctQuestions(topicId, questions) {
   return inserted;
 }
 
+// ---- 기존 영어 문제 일괄 재검사(2026-10-18, 1회성) ----
+// 검증 기준(다의어·실제로 통하는 오답 확인)을 강화하기 전에 만들어진 영어 문제를 새 기준으로 한 번 더 푼다.
+// 정답과 다르거나 애매(-1)하면 출제에서 뺀다(active=false, 삭제 아님). 끝난 문제는 recheck_at을 남겨
+// 재시작·재배포 때 다시 검사하지 않는다(멱등). 검증 호출 자체가 실패한 문제는 이번 실행에서 건너뛰고 다음 시작 때 다시 시도한다.
+const RECHECK_CUTOFF = '2026-10-18T06:22:00Z'; // 강화된 검증으로 배포된 시각 — 이후 생성분은 이미 새 기준으로 검증됨
+async function recheckEnglishQuestions() {
+  const skipped = new Set();
+  let checked = 0, dropped = 0;
+  for (;;) {
+    let query = supabase.from('questions').select('id, topic, q, choices, correct')
+      .in('topic', CATEGORY_TOPICS.english).eq('active', true).is('recheck_at', null)
+      .lt('created_at', RECHECK_CUTOFF).order('created_at').limit(10);
+    if (skipped.size) query = query.not('id', 'in', `(${[...skipped].join(',')})`);
+    const { data: rows, error } = await query;
+    if (error) throw error;
+    if (!rows.length) break;
+    await Promise.all(rows.map(async row => {
+      const verified = await verifyEnglishAnswer(row);
+      if (verified === null) { skipped.add(row.id); return; }
+      const ok = verified === row.correct;
+      const { error: upErr } = await supabase.from('questions')
+        .update(ok ? { recheck_at: new Date().toISOString() } : { recheck_at: new Date().toISOString(), active: false })
+        .eq('id', row.id);
+      if (upErr) { console.error('recheck update error', row.id, upErr); skipped.add(row.id); return; }
+      checked++;
+      if (!ok) { dropped++; console.log(`recheck drop (${verified}≠${row.correct}): ${row.q.replace(/\n/g, ' / ').slice(0, 80)}`); }
+    }));
+  }
+  console.log(`english recheck done: checked ${checked}, dropped ${dropped}, skipped ${skipped.size}`);
+}
+
 // ---- 사용자별 미리 채우기(2026-10-17) ----
 // 많이 푸는 사용자는 주제 전체 문제 수(80)와 무관하게 "본인이 안 푼 문제"가 먼저 바닥나고, 그때 실시간
 // 생성으로 빠지면 응답이 느려 앱이 임시 문제로 대체하던 문제가 있었다. 안 푼 문제가 PREFILL_THRESHOLD개
@@ -1252,6 +1283,7 @@ const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`quiz question API listening on http://localhost:${port}`);
   ensurePoolTopUp().catch(e => console.error('startup topup error', e));
+  recheckEnglishQuestions().catch(e => console.error('english recheck error', e));
   // 재시작 사이에 토요일 23:59:59를 놓쳤을 수 있으므로 시작 시에도 한 번 확인한다.
   awardWeeklyTop3IfDue().catch(e => console.error('weekly award startup check error', e));
 });

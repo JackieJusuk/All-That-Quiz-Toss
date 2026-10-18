@@ -19,6 +19,8 @@ create index if not exists questions_topic_difficulty_idx on questions (topic, d
 -- (푼 기록·오답노트가 참조하므로 삭제하지 않는다. 되돌리려면 active=true). 유사도 계산용 pg_trgm 확장.
 alter table questions add column if not exists active boolean not null default true;
 create index if not exists questions_topic_active_idx on questions (topic, difficulty) where active;
+-- 영어 문제 일괄 재검사(2026-10-18)를 마친 시각 — 서버 recheckEnglishQuestions가 재시작 때 다시 검사하지 않게 하는 표시
+alter table questions add column if not exists recheck_at timestamptz;
 create extension if not exists pg_trgm with schema extensions;
 
 create table if not exists used_questions (
