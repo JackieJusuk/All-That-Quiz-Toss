@@ -298,6 +298,12 @@ function categoryLevel(category){
   return getLevelInfo(state.categoryCorrect[category] ?? 0);
 }
 
+// 서버 통계의 오늘 남은 퀴즈 수를 반영한다(옛 서버 응답이면 그대로 둔다).
+function applyQuizCredits(stats){
+  if(typeof stats.quizRemaining === 'number') state.quizRemaining = stats.quizRemaining;
+  if(typeof stats.quizzesPerAd === 'number') state.quizzesPerAd = stats.quizzesPerAd;
+}
+
 // 서버 통계의 분야별 정답 수를 반영한다. 옛 서버 응답(categoryScores 없음)이면 전부 경제로 본다.
 function applyCategoryCorrect(stats){
   const cs = stats.categoryScores;
@@ -339,8 +345,10 @@ let state = {
   todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
   todayOtherScores:{}, // 오늘 주제 외 점수: { attendance, ad, referral, streakBonus: { count, points } }
   todayTotalPoints:0, // 오늘의 주제별 점수 + 주제 외 점수의 합(= 오늘 실제 적립된 포인트 총합)
-  hasAdTicket:false, needsAd:false, watchingAd:false, adError:null, prefetched:null,
-  freeQuestionAvailable:true, // 로그인(앱 진입)당 첫 문제는 광고 없이 바로 풀 수 있다. 두 번째 문제부터 광고가 필요하다.
+  needsAd:false, watchingAd:false, adError:null, prefetched:null,
+  // 오늘 남은 퀴즈 수(2026-10-18, §3.25): 하루 5문제 무료 + 광고 1회당 5문제. 서버 통계(quizRemaining)가 기준이고,
+  // 아직 서버 응답 전(null)이면 막지 않는다(서버가 답안 기록 시 다시 확인).
+  quizRemaining:null, quizzesPerAd:5,
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   rankingCache:{}, // 기간별로 마지막에 받은 랭킹 — 다시 열 때 즉시 보여주고 뒤에서 최신값으로 갱신한다
   wrongnoteLoaded:false,
@@ -395,9 +403,9 @@ async function fetchStatus(){
     updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
     applyCategoryCorrect(data);
+    applyQuizCredits(data);
     state.streak = data.streak;
     state.points = data.points;
-    state.hasAdTicket = data.hasAdTicket ?? false;
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
@@ -421,9 +429,9 @@ async function fetchInit(){
     updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
     applyCategoryCorrect(data);
+    applyQuizCredits(data);
     state.streak = data.streak;
     state.points = data.points;
-    state.hasAdTicket = data.hasAdTicket ?? false;
     state.streakBonusDays = data.streakBonusDays ?? 10;
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
@@ -490,7 +498,7 @@ function saveBoardCache(){
   }catch(e){ /* 저장 실패는 무시 */ }
 }
 
-// 보상형 광고를 끝까지 보면 +10포인트와 함께 문제 풀이권을 1개 얻는다. 풀이 횟수 제한은 없다.
+// 보상형 광고를 끝까지 보면 +10포인트와 함께 퀴즈 5개를 더 풀 수 있다(§3.25). 광고 시청 횟수 제한은 없다.
 async function watchAdThenFetchQuestion(){
   if(state.watchingAd) return;
   state.watchingAd = true;
@@ -515,8 +523,8 @@ async function watchAdThenFetchQuestion(){
       state.points = data.points;
       state.totalCorrect = data.totalCorrect;
       applyCategoryCorrect(data);
+      applyQuizCredits(data);
       state.streak = data.streak;
-      state.hasAdTicket = data.hasAdTicket ?? true;
       state.streakBonusDays = data.streakBonusDays ?? 10;
       state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
       state.referralCount = data.referralCount ?? 0;
@@ -528,39 +536,40 @@ async function watchAdThenFetchQuestion(){
   }
   state.watchingAd = false;
 
-  if(state.hasAdTicket && state.topic){
+  if(!state.adError && state.screen === 'quiz' && state.topic && hasQuizCredit()){
     state.needsAd = false;
-    const difficulty = state.levelBefore.difficulty;
-    const prefetched = state.prefetched;
-    state.prefetched = null;
-
-    if(prefetched && prefetched.topicId === state.topic.id && prefetched.difficulty === difficulty){
-      // 광고 재생 중에 미리 받아둔 문제가 있으면 로딩 없이 바로 보여준다.
-      // 문제풀이권 소비 자체는 화면에 영향 주지 않도록 뒤에서 마저 처리한다(실패해도 이미 보여준 문제는 그대로 유지).
-      state.question = prefetched.question;
-      state.loadingQuestions = false;
-      fetchQuestion(state.topic, difficulty, BACKGROUND_TIMEOUT_MS, { fallback: false }); // 결과는 안 쓰므로 비상용 문제를 소모하지 않는다
-    }else{
-      state.loadingQuestions = true;
-      render();
-      const q = await fetchQuestion(state.topic, difficulty);
-      if(state.screen==='quiz' && state.topic){
-        if(q === 'ad_required'){
-          state.needsAd = true;
-          state.question = null;
-          preloadRewardedAd();
-        }else{
-          state.question = q;
-          state.questionError = !q;
-        }
-        state.loadingQuestions = false;
-      }
-    }
+    await showNextQuestion(state.topic);
+    return;
   }
   render();
 }
 
-// 화면에서 사용자가 직접 기다리는 경로(광고 스킵 등)는 이 시간 안에 응답이 없으면
+function hasQuizCredit(){
+  return state.quizRemaining === null || state.quizRemaining > 0;
+}
+
+// 문제를 받아 퀴즈 화면에 띄운다. 광고 재생 중(또는 광고 안내 화면에서) 미리 받아둔 문제가 있으면 기다림 없이 바로 쓴다.
+async function showNextQuestion(topic){
+  const difficulty = state.levelBefore.difficulty;
+  const prefetched = state.prefetched;
+  state.prefetched = null;
+  if(prefetched && prefetched.topicId === topic.id && prefetched.difficulty === difficulty){
+    state.question = prefetched.question;
+    state.loadingQuestions = false;
+    render();
+    return;
+  }
+  state.loadingQuestions = true;
+  render();
+  const q = await peekQuestion(topic, difficulty);
+  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
+  state.question = q || pickFallbackQuestion(topic, difficulty);
+  state.questionError = !state.question;
+  state.loadingQuestions = false;
+  render();
+}
+
+// 화면에서 사용자가 직접 기다리는 경로(퀴즈 시작 등)는 이 시간 안에 응답이 없으면
 // 로컬 비상용 문제은행으로 전환한다. 예전 3초는 서버가 새 문제를 만드는 동안(수 초) 끊겨 비상용 문제만
 // 반복되는 원인이었다 — 모래시계를 보여주며 10초까지 기다린다(2026-10-17).
 const FOREGROUND_TIMEOUT_MS = 10000;
@@ -569,7 +578,7 @@ const FOREGROUND_TIMEOUT_MS = 10000;
 const BACKGROUND_TIMEOUT_MS = 8000;
 
 // 광고 시청권을 쓰지 않는 미리보기 조회. 광고가 재생되는 동안 미리 불러와두면
-// 광고가 끝난 직후 로딩 없이 바로 문제를 보여줄 수 있다. 실패해도 조용히 무시한다(뒷단 fetchQuestion이 안전망).
+// 광고가 끝난 직후 로딩 없이 바로 문제를 보여줄 수 있다. 실패하면 null을 돌려주고, 호출부가 비상용 문제나 다시 시도 화면으로 처리한다.
 async function peekQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS){
   try{
     const res = await fetch(`${API_BASE}/api/questions/peek`, {
@@ -584,25 +593,6 @@ async function peekQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS
     return q;
   }catch(e){
     return null;
-  }
-}
-
-async function fetchQuestion(topic, difficulty, timeoutMs = FOREGROUND_TIMEOUT_MS, { fallback = true } = {}){
-  try{
-    const res = await fetch(`${API_BASE}/api/questions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userKey, topic: topic.id, difficulty }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if(res.status === 403) return 'ad_required';
-    if(!res.ok) throw new Error(`status ${res.status}`);
-    const q = await res.json();
-    if(!q || typeof q.q !== 'string' || !Array.isArray(q.choices) || q.choices.length !== 4) throw new Error('malformed response');
-    return q;
-  }catch(e){
-    console.warn('AI 문제를 불러오지 못해 기본 문제은행으로 대체합니다.', e);
-    return fallback ? pickFallbackQuestion(topic, difficulty) : null;
   }
 }
 
@@ -729,13 +719,13 @@ function applyStats(stats, { announce = true } = {}){
   updateBadges(stats.badges, announce);
   state.totalCorrect = stats.totalCorrect;
   applyCategoryCorrect(stats);
+  applyQuizCredits(stats);
   state.streak = stats.streak;
   state.points = stats.points;
   state.streakBonusDays = stats.streakBonusDays ?? 10;
   state.daysToNextStreakBonus = stats.daysToNextStreakBonus ?? 10;
   state.referralCount = stats.referralCount ?? 0;
   state.daysToNextWeeklyAward = stats.daysToNextWeeklyAward ?? 0;
-  state.hasAdTicket = stats.hasAdTicket ?? false;
   state.todayTopicScores = stats.todayTopicScores ?? {};
   state.todayOtherScores = stats.todayOtherScores ?? {};
   state.todayTotalPoints = stats.todayTotalPoints ?? 0;
@@ -750,7 +740,7 @@ async function recordAnswer(topic, question, correct){
     if(correct) state.categoryCorrect = { ...state.categoryCorrect, [topic.category]: (state.categoryCorrect[topic.category] ?? 0) + 1 };
     state.points += earned;
     state.streak += 1;
-    state.hasAdTicket = false;
+    if(state.quizRemaining !== null) state.quizRemaining = Math.max(0, state.quizRemaining - 1);
     const prev = state.todayTopicScores[topic.id] || { correct: 0, wrong: 0, points: 0 };
     state.todayTopicScores = { ...state.todayTopicScores, [topic.id]: {
       correct: prev.correct + (correct ? 1 : 0), wrong: prev.wrong + (correct ? 0 : 1), points: prev.points + earned,
@@ -763,8 +753,10 @@ async function recordAnswer(topic, question, correct){
     const res = await fetch(`${API_BASE}/api/questions/answer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userKey, questionId: question.id, topic: topic.id, correct }),
+      body: JSON.stringify({ userKey, questionId: question.id, topic: topic.id, correct, quizMode: 'credits' }),
     });
+    // 서버 기준으로 오늘 남은 퀴즈가 없었으면 기록되지 않는다(다른 기기에서 먼저 쓴 경우 등) — 다음은 광고 안내로
+    if(res.status === 403){ state.quizRemaining = 0; return; }
     if(!res.ok) throw new Error(`status ${res.status}`);
     const stats = await res.json();
     applyStats(stats);
@@ -970,21 +962,8 @@ async function startTopic(topic){
 
   const difficulty = state.levelBefore.difficulty;
 
-  if(state.freeQuestionAvailable){
-    // 로그인 후 첫 문제는 광고 게이팅 없이 바로 보여준다. 문제풀이권을 쓰지 않으므로
-    // 광고 시청 포인트(+10포인트)는 못 받고, 두 번째 문제부터는 평소처럼 광고가 필요하다.
-    state.freeQuestionAvailable = false;
-    const q = await peekQuestion(topic, difficulty);
-    if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
-    state.question = q || pickFallbackQuestion(topic, difficulty);
-    state.questionError = !state.question;
-    state.loadingQuestions = false;
-    render();
-    return;
-  }
-
-  if(!state.hasAdTicket){
-    // 문제 풀이권(광고 시청권)이 없으면 먼저 광고를 봐야 한다. 풀이 횟수 자체엔 제한이 없다.
+  if(!hasQuizCredit()){
+    // 오늘 남은 퀴즈가 없으면 광고 안내를 먼저 보여준다(광고 1회 = 퀴즈 5개 + 10포인트, §3.25).
     // 광고가 재생되는 동안 화면 뒤에서 문제를 미리 받아두면, 광고가 끝난 직후 기다림 없이 바로 보여줄 수 있다.
     state.needsAd = true;
     preloadRewardedAd();
@@ -995,64 +974,19 @@ async function startTopic(topic){
     });
     return;
   }
-
-  const q = await fetchQuestion(topic, difficulty);
-  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
-
-  if(q === 'ad_required'){
-    state.needsAd = true;
-    preloadRewardedAd();
-    state.loadingQuestions = false;
-    render();
-    return;
-  }
-  state.question = q;
-  state.questionError = !q;
-  state.loadingQuestions = false;
-  render();
+  if(state.quizRemaining !== null && state.quizRemaining <= 1) preloadRewardedAd(); // 마지막 남은 퀴즈 — 다음엔 광고가 필요하다
+  await showNextQuestion(topic);
 }
 
-// 광고 없이 바로 퀴즈만 푼다. 문제풀이권을 쓰지 않으므로 광고 시청 포인트(+10포인트)는 받지 못한다.
-async function skipAdAndSolve(){
-  const topic = state.topic;
-  const difficulty = state.levelBefore.difficulty;
-  state.needsAd = false;
-  state.adError = null;
-  state.questionError = false;
-
-  const prefetched = state.prefetched;
-  state.prefetched = null;
-  if(prefetched && prefetched.topicId === topic.id && prefetched.difficulty === difficulty){
-    // needsAd 화면을 보여주는 동안 미리 받아둔 문제가 있으면 로딩 없이 바로 보여준다.
-    state.question = prefetched.question;
-    state.loadingQuestions = false;
-    render();
-    return;
-  }
-
-  state.loadingQuestions = true;
-  render();
-  const q = await peekQuestion(topic, difficulty);
-  if(state.screen!=='quiz' || state.topic!==topic) return; // 로딩 중 화면을 벗어났으면 무시
-  state.question = q || pickFallbackQuestion(topic, difficulty);
-  state.questionError = !state.question;
-  state.loadingQuestions = false;
-  render();
-}
-
-// "퀴즈를 불러오지 못했어요" 화면의 다시 시도. 문제풀이권이 있으면 그것으로, 없으면 미리보기로 받는다.
+// "퀴즈를 불러오지 못했어요" 화면의 다시 시도.
 async function retryQuestion(){
   const topic = state.topic;
   const difficulty = state.levelBefore.difficulty;
   state.questionError = false;
   state.loadingQuestions = true;
   render();
-  let q = state.hasAdTicket ? await fetchQuestion(topic, difficulty) : await peekQuestion(topic, difficulty);
+  const q = await peekQuestion(topic, difficulty);
   if(state.screen!=='quiz' || state.topic!==topic) return;
-  if(q === 'ad_required'){
-    q = await peekQuestion(topic, difficulty);
-    if(state.screen!=='quiz' || state.topic!==topic) return;
-  }
   state.question = q || pickFallbackQuestion(topic, difficulty);
   state.questionError = !state.question;
   state.loadingQuestions = false;
@@ -1082,7 +1016,7 @@ async function pickChoice(idx){
 }
 
 function finishQuiz(){
-  preloadRewardedAd(); // 결과 화면에서 "새로운 퀴즈 풀기"를 누르면 광고가 필요하므로 미리 로드해 둔다.
+  if(!hasQuizCredit()) preloadRewardedAd(); // 남은 퀴즈가 없으면 "광고 보고 더 풀기"를 누를 테니 미리 로드해 둔다.
   go('result');
   if(state.question && state.selected === state.question.correct) maybeRequestReview();
 }
@@ -1118,7 +1052,11 @@ function homeHTML(){
   return `
   <div class="scroll">
     <button class="greet greet-edit" id="nickname-edit" aria-label="닉네임 바꾸기">${state.nickname}님, 오늘의 퀴즈를 풀어봐요 <span class="greet-edit-hint">${ICONS.pencil}</span></button>
-    <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
+    <p class="greet-sub">${state.quizRemaining === null
+      ? `매일 퀴즈 5개 무료 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`
+      : state.quizRemaining > 0
+        ? `오늘 남은 퀴즈 ${state.quizRemaining}개 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`
+        : `오늘 무료 퀴즈 완료 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`}</p>
     ${topChips}
     ${levelCardHTML()}
     <div class="seg seg-compact" role="tablist" aria-label="분야 선택">
@@ -1410,13 +1348,13 @@ function quizHTML(){
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
     <div class="empty">
-      <b>어떻게 풀까요?</b>
-      <span>광고를 보면 +10포인트를 먼저 받고 퀴즈를 풀 수 있어요. 정답은 +10포인트, 오답도 +2포인트예요.</span>
+      <b>오늘 무료 퀴즈를 다 풀었어요</b>
+      <span>광고를 보면 퀴즈 ${state.quizzesPerAd}개를 더 풀 수 있고, +10포인트도 바로 받아요. 정답은 +10포인트, 오답도 +2포인트예요.</span>
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
     <div class="quiz-foot">
-      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?`<span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 광고 불러오는 중...`:'광고 보고 +10포인트 받기'}</button>
-      <button class="btn-ghost" id="quiz-skip-ad" ${state.watchingAd?'disabled':''}>광고 없이 퀴즈만 풀기</button>
+      <button class="btn-primary" id="quiz-watch-ad" ${state.watchingAd?'disabled':''}>${state.watchingAd?`<span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 광고 불러오는 중...`:`광고 보고 퀴즈 ${state.quizzesPerAd}개 더 풀기`}</button>
+      <button class="btn-ghost" id="quiz-ad-home" ${state.watchingAd?'disabled':''}>홈으로</button>
     </div>`;
   }
   if(state.questionError && !state.loadingQuestions){
@@ -1562,7 +1500,9 @@ function resultHTML(){
     </div>
     ${todayScoresHTML()}
     <div class="result-actions">
-      <button class="btn-primary" id="result-next">새로운 퀴즈 풀기</button>
+      <button class="btn-primary" id="result-next">${hasQuizCredit()
+        ? `다음 퀴즈 풀기${state.quizRemaining !== null ? ` (남은 ${state.quizRemaining}개)` : ''}`
+        : `광고 보고 퀴즈 ${state.quizzesPerAd}개 더 풀기`}</button>
       <button class="btn-ghost" id="result-wrong">오답노트 보기</button>
       <button class="btn-ghost" id="result-ranking">랭킹 보기</button>
       <button class="btn-ghost" id="result-share">친구에게 공유하기</button>
@@ -1813,8 +1753,8 @@ function bindScreenEvents(){
   if(hsBtn) hsBtn.addEventListener('click', shareWithFriend);
   const waBtn = screenEl.querySelector('#quiz-watch-ad');
   if(waBtn) waBtn.addEventListener('click', watchAdThenFetchQuestion);
-  const skBtn = screenEl.querySelector('#quiz-skip-ad');
-  if(skBtn) skBtn.addEventListener('click', skipAdAndSolve);
+  const ahBtn = screenEl.querySelector('#quiz-ad-home');
+  if(ahBtn) ahBtn.addEventListener('click', ()=> go('home'));
   const qrBtn = screenEl.querySelector('#quiz-retry');
   if(qrBtn) qrBtn.addEventListener('click', retryQuestion);
   screenEl.querySelectorAll('[data-wnote-toggle]').forEach(el=>{
@@ -1972,7 +1912,7 @@ async function init(){
   if(ok){
     saveCachedState(userKey, {
       nickname: state.nickname, totalCorrect: state.totalCorrect, categoryCorrect: state.categoryCorrect, streak: state.streak, points: state.points,
-      hasAdTicket: state.hasAdTicket, streakBonusDays: state.streakBonusDays,
+      streakBonusDays: state.streakBonusDays,
       daysToNextStreakBonus: state.daysToNextStreakBonus, referralCount: state.referralCount,
       badges: state.badges, // 다음 접속 때 홈의 배지 줄이 서버 응답 전에도 바로 보이게(레이아웃 흔들림 방지)
     });
@@ -1984,7 +1924,7 @@ async function init(){
   if(state.screen === 'loading' || state.screen === 'home'){
     go('home');
   }
-  // 첫 퀴즈는 광고 없이 풀 수 있지만 두 번째부터 광고가 필요하므로, 앱 진입 시 하나를 미리 로드해 둔다.
+  // 무료 퀴즈를 다 쓰면 광고가 필요하므로 앱 진입 시 하나를 미리 로드해 둔다(로드만 하고 보여주지는 않는다).
   preloadRewardedAd();
   // 일간·주간·전체를 모두 미리 받아둔다 — 어느 탭을 눌러도 기다리지 않게.
   for(const period of ['daily', 'weekly', 'all']) fetchRanking(period);

@@ -478,6 +478,12 @@ const STREAK_BONUS_DAYS = 10;
 const STREAK_BONUS_POINTS = 100;
 // 주간 우등생 시상: 매주 일요일 0시~토요일 23:59:59(KST) 성적 1~3등에게 지급. 인덱스 0=1등.
 const WEEKLY_AWARD_POINTS = [100, 50, 20];
+// 퀴즈 이용권(2026-10-18, requirements.md §3.25): 하루(KST) 5문제는 광고 없이, 보상형 광고 1회 시청마다 5문제 추가.
+// 남은 수 = 5 + 5 × 오늘 광고 시청 수 − 오늘 푼 문제 수. 별도 테이블 없이 기존 기록(ad_views, used_questions)으로 계산한다.
+const FREE_QUIZZES_PER_DAY = 5;
+const QUIZZES_PER_AD = 5;
+const quizRemainingFrom = (todayAds, todayAnswered) =>
+  Math.max(0, FREE_QUIZZES_PER_DAY + QUIZZES_PER_AD * todayAds - todayAnswered);
 
 // CashQuiz 종료(2026-11-06)에 따른 포인트 이관 — CashQuiz가 발급한 클레임 코드를 이 서버가
 // 서버-서버로 검증받아 적립한다(requirements.md §3.X).
@@ -712,6 +718,10 @@ async function computeUserStats(userKey) {
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus, badges,
     referralCount: n('ref_as_referrer'), todayTopicScores, todayOtherScores, todayTotalPoints, categoryScores,
+    // 오늘 남은 퀴즈 수(광고 없이 풀 수 있는 수)와 정책 값 — 앱이 화면 문구와 광고 안내에 쓴다
+    quizRemaining: quizRemainingFrom(todayAdCount,
+      Object.values(todayTopicScores).reduce((sum, t) => sum + t.correct + t.wrong, 0)),
+    freeQuizzesPerDay: FREE_QUIZZES_PER_DAY, quizzesPerAd: QUIZZES_PER_AD,
     daysToNextWeeklyAward: daysUntilNextWeeklyAwardKST(),
   };
 }
@@ -925,6 +935,21 @@ app.post('/api/questions/answer', async (req, res) => {
   }
 
   try {
+    // 이용권 방식 앱(quizMode: 'credits', 2026-10-18~)은 오늘 남은 퀴즈가 없으면 기록하지 않는다.
+    // 이전 버전 앱(문제풀이권 방식)은 이 값을 보내지 않으므로 기존처럼 기록한다(구버전 사용자 경험을 깨지 않기 위해).
+    if (body.quizMode === 'credits') {
+      const today = todayKST();
+      const [{ count: ads, error: adErr }, { count: answered, error: ansErr }] = await Promise.all([
+        supabase.from('ad_views').select('id', { count: 'exact', head: true }).eq('user_key', userKey).eq('viewed_date', today),
+        supabase.from('used_questions').select('question_id', { count: 'exact', head: true }).eq('user_key', userKey).eq('answered_date', today),
+      ]);
+      if (adErr) throw adErr;
+      if (ansErr) throw ansErr;
+      if (quizRemainingFrom(ads ?? 0, answered ?? 0) <= 0) {
+        res.status(403).json({ error: 'ad_required' });
+        return;
+      }
+    }
     // 문제 고유번호(questions.no, 2026-10-18)도 풀이 기록에 함께 남긴다 — 사용자가 푼 문제를 번호로도 확인할 수 있게.
     const { data: qrow, error: noErr } = await supabase.from('questions').select('no').eq('id', questionId).maybeSingle();
     if (noErr) throw noErr;
