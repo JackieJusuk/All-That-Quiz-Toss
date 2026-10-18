@@ -208,11 +208,21 @@ async function verifyEnglishAnswer(q) {
   }
 }
 
+// 독립 검증을 두 번 돌려 둘 다 원래 정답과 같아야 통과(2026-10-18 강화). 한 번만 풀게 하면 관대하게
+// 통과시키는 경우가 있어(표본 5% 애매 vs 단일 재검사 0.4% 적발), 두 번 모두 같은 답이 나와야 "정답이 분명"하다고 본다.
+// 반환: true(통과) / false(탈락) / null(두 호출 모두 실패 — 판단 불가)
+async function verifyEnglishTwice(q) {
+  const results = await Promise.all([verifyEnglishAnswer(q), verifyEnglishAnswer(q)]);
+  const answered = results.filter(r => r !== null);
+  if (!answered.length) return null;
+  return answered.every(r => r === q.correct);
+}
+
 async function verifyEnglishQuestions(questions) {
   const keep = await Promise.all(questions.map(async q => {
-    const verified = await verifyEnglishAnswer(q);
-    if (verified === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
-    return verified === q.correct;
+    const ok = await verifyEnglishTwice(q);
+    if (ok === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
+    return ok;
   }));
   return questions.filter((_, i) => keep[i]);
 }
@@ -337,31 +347,39 @@ async function insertDistinctQuestions(topicId, questions) {
 // 검증 기준(다의어·실제로 통하는 오답 확인)을 강화하기 전에 만들어진 영어 문제를 새 기준으로 한 번 더 푼다.
 // 정답과 다르거나 애매(-1)하면 출제에서 뺀다(active=false, 삭제 아님). 끝난 문제는 recheck_at을 남겨
 // 재시작·재배포 때 다시 검사하지 않는다(멱등). 검증 호출 자체가 실패한 문제는 이번 실행에서 건너뛰고 다음 시작 때 다시 시도한다.
-const RECHECK_CUTOFF = '2026-10-18T06:22:00Z'; // 강화된 검증으로 배포된 시각 — 이후 생성분은 이미 새 기준으로 검증됨
+// 2차(2026-10-18): 같은 문제를 독립적으로 두 번 풀게 해서 둘 다 정답과 같아야 유지(verifyEnglishTwice, 표시 컬럼 recheck2_at).
+// 2차 기준 시각 이후에 만든 문제는 생성 단계에서 이미 두 번 검증되므로 대상이 아니다.
+const RECHECK_ROUNDS = [
+  { column: 'recheck_at', cutoff: '2026-10-18T06:22:00Z', verify: async q => { const v = await verifyEnglishAnswer(q); return v === null ? null : v === q.correct; } },
+  { column: 'recheck2_at', cutoff: '2026-10-18T07:30:00Z', verify: verifyEnglishTwice },
+];
 async function recheckEnglishQuestions() {
+  for (const round of RECHECK_ROUNDS) await recheckEnglishRound(round);
+}
+async function recheckEnglishRound({ column, cutoff, verify }) {
   const skipped = new Set();
   let checked = 0, dropped = 0;
   for (;;) {
     let query = supabase.from('questions').select('id, topic, q, choices, correct')
-      .in('topic', CATEGORY_TOPICS.english).eq('active', true).is('recheck_at', null)
-      .lt('created_at', RECHECK_CUTOFF).order('created_at').limit(10);
+      .in('topic', CATEGORY_TOPICS.english).eq('active', true).is(column, null)
+      .lt('created_at', cutoff).order('created_at').limit(10);
     if (skipped.size) query = query.not('id', 'in', `(${[...skipped].join(',')})`);
     const { data: rows, error } = await query;
     if (error) throw error;
     if (!rows.length) break;
     await Promise.all(rows.map(async row => {
-      const verified = await verifyEnglishAnswer(row);
-      if (verified === null) { skipped.add(row.id); return; }
-      const ok = verified === row.correct;
+      const ok = await verify(row);
+      if (ok === null) { skipped.add(row.id); return; }
+      const stamp = { [column]: new Date().toISOString() };
       const { error: upErr } = await supabase.from('questions')
-        .update(ok ? { recheck_at: new Date().toISOString() } : { recheck_at: new Date().toISOString(), active: false })
+        .update(ok ? stamp : { ...stamp, active: false })
         .eq('id', row.id);
       if (upErr) { console.error('recheck update error', row.id, upErr); skipped.add(row.id); return; }
       checked++;
-      if (!ok) { dropped++; console.log(`recheck drop (${verified}≠${row.correct}): ${row.q.replace(/\n/g, ' / ').slice(0, 80)}`); }
+      if (!ok) { dropped++; console.log(`recheck drop [${column}]: ${row.q.replace(/\n/g, ' / ').slice(0, 80)}`); }
     }));
   }
-  console.log(`english recheck done: checked ${checked}, dropped ${dropped}, skipped ${skipped.size}`);
+  console.log(`english recheck done [${column}]: checked ${checked}, dropped ${dropped}, skipped ${skipped.size}`);
 }
 
 // ---- 사용자별 미리 채우기(2026-10-17) ----
