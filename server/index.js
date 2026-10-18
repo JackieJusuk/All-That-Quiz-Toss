@@ -304,6 +304,10 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
 // pickQuestionForUser가 실시간 생성(자가치유)으로 빠지며 응답이 느려진다. 여유를 넉넉히 둬서
 // 실시간 생성 자체가 거의 발생하지 않도록 한다.
 const POOL_TARGET_PER_TOPIC = 80; // 주제마다 최소 80문제(재테크는 CashQuiz에서 옮겨 온 290문제로 이미 넘음)
+// 영어는 인기가 많을 것으로 예상해 주제마다 130문제(2026-10-18, 80 → +50).
+const ENGLISH_POOL_TARGET = 130;
+const poolTarget = topicId => (topicCategory(topicId) === 'english' ? ENGLISH_POOL_TARGET : POOL_TARGET_PER_TOPIC);
+const FILL_MAX_ROUNDS = 10; // fill 모드에서 주제당 생성 호출 상한(중복으로 계속 걸러져도 무한히 부르지 않게)
 let topupInFlight = false;
 // 풀 채우기 호출 빈도 제한(2026-10-18 비용 점검): 목표(80)에 1~2개 모자란 주제가 중복 판정으로 계속 채워지지 않으면
 // 퀴즈 요청마다 AI를 다시 불러 비용이 새고 있었다(로그: "+0/1 eng_travel (was 79)"). 모자란 수가 TOPUP_MIN_GAP 미만이면
@@ -439,26 +443,31 @@ async function seedInvestQuestions() {
 // 서버가 뜨자마자(콜드 스타트 직후 첫 요청과 동시에) 시작하고, ensurePoolTopUp은 이게 끝날 때까지 기다린다.
 const investSeedReady = seedInvestQuestions().catch(e => console.error('invest seed error', e));
 
-async function ensurePoolTopUp() {
+// fill: 서버 시작 시처럼 목표까지 한 번에 채울 때(쿨다운 무시, 주제당 최대 FILL_MAX_ROUNDS회 생성).
+// 평소(요청마다 호출)에는 주제당 한 번에 최대 10개, 30분에 한 번만 채운다.
+async function ensurePoolTopUp({ fill = false } = {}) {
   if (topupInFlight) return;
   topupInFlight = true;
   try {
     await investSeedReady;
     for (const topicId of Object.keys(TOPIC_LABELS)) {
-      const { count, error } = await supabase
-        .from('questions')
-        .select('id', { count: 'exact', head: true })
-        .eq('topic', topicId)
-        .eq('active', true); // 비슷한 문제로 비활성화된 것은 세지 않는다
-      if (error) { console.error('topup count error', topicId, error); continue; }
-      const current = count ?? 0;
-      if (POOL_TARGET_PER_TOPIC - current >= TOPUP_MIN_GAP && Date.now() - (lastTopupAt[topicId] || 0) >= TOPUP_COOLDOWN_MS) {
+      const target = poolTarget(topicId);
+      for (let round = 0; round < (fill ? FILL_MAX_ROUNDS : 1); round++) {
+        const { count, error } = await supabase
+          .from('questions')
+          .select('id', { count: 'exact', head: true })
+          .eq('topic', topicId)
+          .eq('active', true); // 비슷한 문제로 비활성화된 것은 세지 않는다
+        if (error) { console.error('topup count error', topicId, error); break; }
+        const current = count ?? 0;
+        if (target - current < TOPUP_MIN_GAP) break;
+        if (!fill && Date.now() - (lastTopupAt[topicId] || 0) < TOPUP_COOLDOWN_MS) break;
         lastTopupAt[topicId] = Date.now();
-        const need = Math.min(10, POOL_TARGET_PER_TOPIC - current); // 한 번에 최대 10개씩 채운다
+        const need = Math.min(10, target - current); // 한 번에 최대 10개씩 채운다
         const avoid = await fetchAvoidQuestions(topicId);
         const generated = await generateQuizSet(topicId, need, null, avoid);
         const inserted = await insertDistinctQuestions(topicId, generated.questions);
-        console.log(`pool topup: +${inserted.length}/${generated.questions.length} ${topicId} (was ${current})`);
+        console.log(`pool topup${fill ? ' (fill)' : ''}: +${inserted.length}/${generated.questions.length} ${topicId} (was ${current}, target ${target})`);
       }
     }
   } catch (e) {
@@ -1347,7 +1356,7 @@ app.post('/api/migration/import', async (req, res) => {
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`quiz question API listening on http://localhost:${port}`);
-  ensurePoolTopUp().catch(e => console.error('startup topup error', e));
+  ensurePoolTopUp({ fill: true }).catch(e => console.error('startup topup error', e)); // 시작 시엔 목표까지 한 번에 채운다
   recheckEnglishQuestions().catch(e => console.error('english recheck error', e));
   // 재시작 사이에 토요일 23:59:59를 놓쳤을 수 있으므로 시작 시에도 한 번 확인한다.
   awardWeeklyTop3IfDue().catch(e => console.error('weekly award startup check error', e));
