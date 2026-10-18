@@ -301,6 +301,12 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
 // 실시간 생성 자체가 거의 발생하지 않도록 한다.
 const POOL_TARGET_PER_TOPIC = 80; // 주제마다 최소 80문제(재테크는 CashQuiz에서 옮겨 온 290문제로 이미 넘음)
 let topupInFlight = false;
+// 풀 채우기 호출 빈도 제한(2026-10-18 비용 점검): 목표(80)에 1~2개 모자란 주제가 중복 판정으로 계속 채워지지 않으면
+// 퀴즈 요청마다 AI를 다시 불러 비용이 새고 있었다(로그: "+0/1 eng_travel (was 79)"). 모자란 수가 TOPUP_MIN_GAP 미만이면
+// 채우지 않고, 한 주제를 채우려 시도한 뒤에는 TOPUP_COOLDOWN_MS 동안 다시 시도하지 않는다.
+const TOPUP_MIN_GAP = 5;
+const TOPUP_COOLDOWN_MS = 30 * 60 * 1000;
+const lastTopupAt = {}; // topicId -> 마지막 시도 시각(ms)
 
 // ---- 비슷한 문제 중복 방지(2026-10-17, requirements.md §3.21) ----
 // 문구만 조금 다른 같은 문제(예: "기준금리에 대한 설명으로 옳은/적절한 것은?")는 ID가 달라 "이미 푼 문제"
@@ -387,6 +393,8 @@ async function recheckEnglishRound({ column, cutoff, verify }) {
 // 생성으로 빠지면 응답이 느려 앱이 임시 문제로 대체하던 문제가 있었다. 안 푼 문제가 PREFILL_THRESHOLD개
 // 밑으로 내려가면 그 주제·난이도로 미리 몇 문제를 만들어 둔다(전체 풀에 들어가므로 다른 사용자도 쓴다).
 const PREFILL_THRESHOLD = 10;
+const PREFILL_COOLDOWN_MS = 10 * 60 * 1000;
+const lastPrefillAt = {};
 const PREFILL_COUNT = 5;
 const prefillInFlight = new Set(); // `${topic}:${difficulty}` — 같은 주제·난이도를 동시에 여러 번 만들지 않는다
 
@@ -394,6 +402,9 @@ function maybePrefill(topicId, difficulty, remaining) {
   if (remaining >= PREFILL_THRESHOLD) return;
   const key = `${topicId}:${difficulty}`;
   if (prefillInFlight.has(key) || prefillInFlight.size >= 3) return;
+  // 같은 주제·난이도는 10분에 한 번만(비용 점검 2026-10-18): 많이 푸는 사용자가 문제마다 생성을 다시 부르지 않게
+  if (Date.now() - (lastPrefillAt[key] || 0) < PREFILL_COOLDOWN_MS) return;
+  lastPrefillAt[key] = Date.now();
   prefillInFlight.add(key);
   (async () => {
     const avoid = await fetchAvoidQuestions(topicId);
@@ -437,7 +448,8 @@ async function ensurePoolTopUp() {
         .eq('active', true); // 비슷한 문제로 비활성화된 것은 세지 않는다
       if (error) { console.error('topup count error', topicId, error); continue; }
       const current = count ?? 0;
-      if (current < POOL_TARGET_PER_TOPIC) {
+      if (POOL_TARGET_PER_TOPIC - current >= TOPUP_MIN_GAP && Date.now() - (lastTopupAt[topicId] || 0) >= TOPUP_COOLDOWN_MS) {
+        lastTopupAt[topicId] = Date.now();
         const need = Math.min(10, POOL_TARGET_PER_TOPIC - current); // 한 번에 최대 10개씩 채운다
         const avoid = await fetchAvoidQuestions(topicId);
         const generated = await generateQuizSet(topicId, need, null, avoid);
