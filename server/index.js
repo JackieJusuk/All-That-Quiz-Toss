@@ -150,7 +150,10 @@ function normalizeQuizSet(raw, count) {
     if (q.choices.length < 4 || q.correct > q.choices.length - 1) return null;
     if (q.correct > 3) return null;
     const choices = q.choices.length > 4 ? q.choices.slice(0, 4) : q.choices;
-    return { q: q.q, choices, correct: q.correct, explain: q.explain, difficulty: q.difficulty };
+    // AI는 정답을 첫 번째 보기에 두는 경향이 강하다(2026-10-18 확인: 영어 30문제 중 25개가 1번, 경제도 4번 정답은 3%).
+    // 보기 순서를 섞고 정답 인덱스를 다시 맞춘다 — "항상 1번" 같은 패턴으로 찍어 맞히는 걸 막는다.
+    const order = pickRandom([0, 1, 2, 3], 4);
+    return { q: q.q, choices: order.map(i => choices[i]), correct: order.indexOf(q.correct), explain: q.explain, difficulty: q.difficulty };
   });
   if (questions.length !== count || questions.some(q => q === null)) return null;
   return { questions };
@@ -188,7 +191,7 @@ async function verifyEnglishAnswer(q) {
   const verifySchema = z.object({
     correct: z.number().int().min(-1).describe('정답 보기 인덱스(0부터). 정답이 둘 이상이거나 애매하면 -1'),
   });
-  const prompt = `아래 영어회화 퀴즈를 직접 풀어서 정답 인덱스를 구하세요. 원어민 기준으로 정답이 하나로 분명하지 않으면(맞는 보기가 둘 이상이거나 애매하면) -1을 답하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
+  const prompt = `아래 영어회화 퀴즈를 직접 풀어서 정답 인덱스를 구하세요. 보기 표현 자체가 자연스러운지뿐 아니라, 질문의 상황과 대화 앞뒤 문장(예: "공부를 충분히 못 했다"는 말)과 뜻이 맞는지도 반드시 확인하세요. 원어민 기준으로 정답이 하나로 분명하지 않으면(맞는 보기가 없거나 둘 이상이거나 애매하면) -1을 답하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
   try {
     const response = await client.messages.parse({
       model: 'claude-sonnet-5',
