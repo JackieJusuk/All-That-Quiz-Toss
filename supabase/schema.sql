@@ -21,6 +21,7 @@ alter table questions add column if not exists active boolean not null default t
 create index if not exists questions_topic_active_idx on questions (topic, difficulty) where active;
 -- 영어 문제 일괄 재검사(2026-10-18)를 마친 시각 — 서버 recheckEnglishQuestions가 재시작 때 다시 검사하지 않게 하는 표시
 alter table questions add column if not exists recheck_at timestamptz;
+alter table questions add column if not exists recheck2_at timestamptz; -- 2차 재검사(독립 검증 2회 일치) 완료 표시
 create extension if not exists pg_trgm with schema extensions;
 
 create table if not exists used_questions (
