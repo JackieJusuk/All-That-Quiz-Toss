@@ -680,6 +680,7 @@ body{
   border-radius:6px;
   font-weight:600;
 }
+.wnote-no{margin-top:0.35rem; font-size:0.7rem; color:var(--ink-soft); font-variant-numeric:tabular-nums;} /* 문제 고유번호(2026-10-18) */
 .wnote-q{flex:1; font-size:0.9rem; font-weight:600; white-space:pre-line;}
 .wnote-chev{flex:none; color:var(--ink-soft); transition:transform 0.15s ease;}
 .wnote-item.open .wnote-chev{transform:rotate(180deg);}
