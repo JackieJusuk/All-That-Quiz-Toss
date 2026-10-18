@@ -30,7 +30,18 @@ function nextDayKST() {
 }
 
 // ---- 문제 생성 (기존 로직 그대로) ----
-const TOPIC_LABELS = { basic: '시장 원리', money: '금융·금리', life: '세금·연금', invest: '재테크' };
+const TOPIC_LABELS = {
+  basic: '시장 원리', money: '금융·금리', life: '세금·연금', invest: '재테크',
+  // 영어회화(2026-10-18 추가, requirements.md §3.22): 같은 앱·같은 랭킹/포인트에 합산하되 점수는 분야별로도 따로 보여준다.
+  eng_daily: '일상 대화', eng_travel: '여행·식당', eng_work: '직장·이메일', eng_konglish: '콩글리시 바로잡기',
+};
+// 분야(카테고리)별 주제. 분야별 점수(categoryScores, 랭킹의 quizScores)와 문제 생성 프롬프트를 나누는 기준이다.
+// DB 함수(aggregates.sql)는 주제 이름이 eng_로 시작하면 영어로 분류하므로, 영어 주제를 추가할 때는 eng_ 접두어를 지킨다.
+const CATEGORY_TOPICS = {
+  economy: ['basic', 'money', 'life', 'invest'],
+  english: ['eng_daily', 'eng_travel', 'eng_work', 'eng_konglish'],
+};
+const topicCategory = topicId => (topicId.startsWith('eng_') ? 'english' : 'economy');
 
 const TOPIC_CONCEPTS = {
   basic: [
@@ -56,6 +67,40 @@ const TOPIC_CONCEPTS = {
     '펀드 보수와 수수료', '적립식 투자', '분산투자', '전세와 월세', '전입신고와 확정일자',
     '계약갱신청구권', 'LTV와 DSR', '주택청약통장', '재건축과 재개발', '취득세',
   ],
+  eng_daily: [
+    '인사와 안부 묻기', '감사와 사과에 답하기', '부탁하고 거절하기', '맞장구와 리액션', '약속 잡기와 변경',
+    '날씨·주말 계획 스몰토크', '칭찬하고 칭찬에 답하기', '되묻기와 다시 말해 달라고 하기', '전화 통화 표현',
+    '자주 쓰는 구동사(phrasal verb)', '일상 관용 표현',
+  ],
+  eng_travel: [
+    '공항 체크인과 보안검색', '입국심사 답변', '호텔 체크인·요청', '길 묻고 답하기', '대중교통·택시 이용',
+    '식당 예약과 주문', '음식 취향·알레르기 말하기', '계산서와 팁', '쇼핑·환불·교환', '분실과 도움 요청',
+  ],
+  eng_work: [
+    '자기소개와 업무 소개', '회의 시작·의견 말하기', '정중하게 반대하기', '일정 조율', '업무 요청과 마감 표현',
+    '이메일 첫 문장과 맺음말', '첨부·확인 요청 표현', '전화·화상회의 표현', '면접 기본 표현', '자주 쓰는 비즈니스 약어',
+  ],
+  eng_konglish: [
+    '전자기기 콩글리시(핸드폰, 노트북 등)', '자동차·교통 콩글리시(핸들, 오토바이 등)', '생활용품 콩글리시',
+    '음식·카페 콩글리시', '직장·학교 콩글리시(파이팅, 아르바이트 등)', '쇼핑·패션 콩글리시(아이쇼핑, 원피스 등)',
+    '한국식으로 잘못 쓰는 영어 문장', '뜻이 다르게 쓰이는 외래어',
+  ],
+};
+
+// 분야별 생성 프롬프트. 영어 문제는 "정답이 하나로 분명한가"가 가장 중요하다 — "더 자연스러운 표현"처럼
+// 원어민 사이에서도 갈릴 수 있는 문제는 만들지 않게 하고, 백그라운드 생성 때 독립 검증(verifyEnglishQuestions)으로 한 번 더 거른다.
+const CATEGORY_PROMPTS = {
+  economy: {
+    system: '당신은 경제 상식을 쌓고 싶은 일반인을 위한 경제 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. ' +
+      '요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다. 숫자가 들어간 계산 문제(이자, 물가상승률, 세금, 환율 환산 등)는 특히 실수가 잦으니, reasoning에 실제 숫자를 대입한 계산식을 쓰고 보기와 대조해 검산한 뒤에만 정답을 확정하세요.',
+    task: '한국어 4지선다 퀴즈 문제를',
+  },
+  english: {
+    system: '당신은 영어회화를 공부하는 한국 성인을 위한 영어회화 퀴즈를 만드는 콘텐츠 작가입니다. 미국·영국 원어민이 실제로 쓰는 자연스러운 표현만 사용합니다. ' +
+      '정답은 반드시 하나로 분명해야 합니다 — 오답 보기는 문법이 틀렸거나, 뜻이 다르거나, 그 상황에 명백히 맞지 않는 표현이어야 하고, 원어민 사이에서 맞다/틀리다가 갈릴 수 있는 미묘한 보기는 만들지 않습니다. ' +
+      '질문과 해설은 한국어로, 영어 표현은 영어로 씁니다. 요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다.',
+    task: '4지선다 영어회화 퀴즈 문제를(질문은 한국어, 보기는 영어 또는 상황에 맞게 한국어)',
+  },
 };
 
 const QUESTION_STYLES = [
@@ -64,6 +109,13 @@ const QUESTION_STYLES = [
   '실생활 사례에 적용해보는 문제',
   '흔한 오해를 바로잡는 문제',
   '두 개념을 비교하는 문제',
+];
+const ENGLISH_QUESTION_STYLES = [
+  '짧은 상황(한국어 설명 + 상대방의 영어 한 문장)을 주고 가장 알맞은 영어 대답을 고르는 문제',
+  '영어 대화문의 빈칸에 들어갈 알맞은 표현을 고르는 문제',
+  '한국어 문장을 영어로 말할 때 알맞은 표현을 고르는 문제',
+  '영어 표현(구동사·관용구)의 뜻을 한국어 보기에서 고르는 문제',
+  '한국인이 자주 틀리는 표현(콩글리시·직역)을 원어민 표현으로 바로잡는 문제',
 ];
 
 function pickRandom(list, n) {
@@ -130,6 +182,37 @@ async function verifyCalculationAnswer(q) {
   }
 }
 
+// 영어 문제는 원래 정답을 보여주지 않고 다시 풀게 해서, 정답이 하나로 분명한지 독립적으로 확인한다.
+// 정답이 둘 이상이거나 애매하면 -1을 내게 하고, 원래 정답과 다르거나 -1이면 그 문제는 버린다.
+async function verifyEnglishAnswer(q) {
+  const verifySchema = z.object({
+    correct: z.number().int().min(-1).describe('정답 보기 인덱스(0부터). 정답이 둘 이상이거나 애매하면 -1'),
+  });
+  const prompt = `아래 영어회화 퀴즈를 직접 풀어서 정답 인덱스를 구하세요. 원어민 기준으로 정답이 하나로 분명하지 않으면(맞는 보기가 둘 이상이거나 애매하면) -1을 답하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
+  try {
+    const response = await client.messages.parse({
+      model: 'claude-sonnet-5',
+      max_tokens: 4000,
+      output_config: { effort: 'medium', format: zodOutputFormat(verifySchema) },
+      system: '당신은 영어회화 퀴즈를 감수하는 깐깐한 원어민 수준의 영어 교사입니다. 원래 제시된 정답은 참고하지 말고, 스스로 풀어서 정답 인덱스를 구하세요.',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return response.parsed_output ? response.parsed_output.correct : null;
+  } catch (e) {
+    console.error('english verification call failed:', e);
+    return null;
+  }
+}
+
+async function verifyEnglishQuestions(questions) {
+  const keep = await Promise.all(questions.map(async q => {
+    const verified = await verifyEnglishAnswer(q);
+    if (verified === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
+    return verified === q.correct;
+  }));
+  return questions.filter((_, i) => keep[i]);
+}
+
 // 계산형 문제만 골라 독립적으로 재검산하고, 원래 정답과 다르면 걸러낸다.
 async function verifyCalculationQuestions(questions) {
   const keep = await Promise.all(questions.map(async q => {
@@ -146,7 +229,10 @@ async function verifyCalculationQuestions(questions) {
 async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { verify = true } = {}) {
   const label = TOPIC_LABELS[topicId];
   const concepts = pickRandom(TOPIC_CONCEPTS[topicId], Math.min(5, TOPIC_CONCEPTS[topicId].length));
-  const style = QUESTION_STYLES[Math.floor(Math.random() * QUESTION_STYLES.length)];
+  const category = topicCategory(topicId);
+  const styles = category === 'english' ? ENGLISH_QUESTION_STYLES : QUESTION_STYLES;
+  const style = styles[Math.floor(Math.random() * styles.length)];
+  const prompts = CATEGORY_PROMPTS[category];
   // difficulty를 넘기면 모든 문제를 그 난이도로, null이면(백그라운드 풀 채우기) 골고루 섞는다.
   const diffInstruction = (count === 1 || difficulty)
     ? `난이도는 ${DIFF_KO[difficulty] || DIFF_KO.medium} 수준으로 만들고, difficulty 필드는 "${difficulty || 'medium'}"으로 표기하세요.`
@@ -155,7 +241,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
     ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
     : '';
 
-  const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n한국어 4지선다 퀴즈 문제를 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요.${avoidBlock}`;
+  const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n${prompts.task} 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요.${avoidBlock}`;
   const schema = buildSchema(count);
 
   let lastErr;
@@ -165,15 +251,20 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
         model: 'claude-sonnet-5',
         max_tokens: 16000,
         output_config: { effort: 'medium', format: zodOutputFormat(schema) },
-        system:
-          '당신은 경제 상식을 쌓고 싶은 일반인을 위한 경제 퀴즈를 만드는 콘텐츠 작가입니다. 사실관계가 정확하고 검증 가능한 내용만 사용하며, 오해를 유발할 수 있는 문제나 선택지는 만들지 않습니다. ' +
-          '요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다. 숫자가 들어간 계산 문제(이자, 물가상승률, 세금, 환율 환산 등)는 특히 실수가 잦으니, reasoning에 실제 숫자를 대입한 계산식을 쓰고 보기와 대조해 검산한 뒤에만 정답을 확정하세요.',
+        system: prompts.system,
         messages: [{ role: 'user', content: userPrompt }],
       });
       if (response.parsed_output) {
         const normalized = normalizeQuizSet(response.parsed_output, count);
         if (normalized) {
           if (!verify) return normalized;
+          if (category === 'english') {
+            // 영어는 모든 문제를 검증하므로 한두 개가 걸러지는 일이 흔하다 — 남은 문제만 돌려준다(전부 걸러지면 다시 생성).
+            const kept = await verifyEnglishQuestions(normalized.questions);
+            if (kept.length) return { questions: kept };
+            lastErr = new Error('english verification rejected all');
+            continue;
+          }
           const verified = await verifyCalculationQuestions(normalized.questions);
           if (verified.length === count) return { questions: verified };
           lastErr = new Error('calculation verification failed');
@@ -440,7 +531,7 @@ const BADGES = [
   { key: 'correct_200', target: 200, metric: m => m.totalCorrect },
   { key: 'streak_7', target: 7, metric: m => m.longestStreak },
   { key: 'streak_30', target: 30, metric: m => m.longestStreak },
-  { key: 'all_topics', target: Object.keys(TOPIC_LABELS).length, metric: m => m.topicsCleared },
+  { key: 'all_topics', target: CATEGORY_TOPICS.economy.length, metric: m => m.topicsCleared }, // 경제 4개 주제(영어 추가 전 기준 유지)
   { key: 'invest_30', target: 30, metric: m => m.investCorrect },
   { key: 'hard_10', target: 10, metric: m => m.hardCorrect },
   { key: 'overcome_10', target: 10, metric: m => m.overcomeCount },
@@ -524,10 +615,22 @@ async function computeUserStats(userKey) {
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
 
   const topicCorrect = agg.topic_correct || {};
+  const topicWrong = agg.topic_wrong || {};
+  // 분야별 퀴즈 점수(2026-10-18): 포인트·랭킹은 합산하되, 경제/영어 각각 퀴즈로 얻은 점수(정답 10·오답 2)를 따로 보여준다.
+  // 출석·광고·초대·보너스처럼 분야와 무관한 포인트는 어느 분야에도 넣지 않는다.
+  const categoryScores = {};
+  for (const [cat, topics] of Object.entries(CATEGORY_TOPICS)) {
+    const correct = topics.reduce((sum, t) => sum + Number(topicCorrect[t] || 0), 0);
+    const wrong = topics.reduce((sum, t) => sum + Number(topicWrong[t] || 0), 0);
+    categoryScores[cat] = {
+      correct, wrong, points: correct * POINTS_PER_EVENT + wrong * POINTS_WRONG_EVENT,
+      todayPoints: topics.reduce((sum, t) => sum + todayTopicScores[t].points, 0),
+    };
+  }
   const badges = computeBadges({
     totalCorrect,
     longestStreak: longestStreakDays(datesAsc),
-    topicsCleared: Object.keys(TOPIC_LABELS).filter(t => Number(topicCorrect[t] || 0) > 0).length,
+    topicsCleared: CATEGORY_TOPICS.economy.filter(t => Number(topicCorrect[t] || 0) > 0).length,
     investCorrect: Number(topicCorrect.invest || 0),
     hardCorrect: n('hard_correct'),
     overcomeCount,
@@ -538,7 +641,7 @@ async function computeUserStats(userKey) {
 
   return {
     totalCorrect, streak, points, streakBonusDays: STREAK_BONUS_DAYS, daysToNextStreakBonus, badges,
-    referralCount: n('ref_as_referrer'), todayTopicScores, todayOtherScores, todayTotalPoints,
+    referralCount: n('ref_as_referrer'), todayTopicScores, todayOtherScores, todayTotalPoints, categoryScores,
     daysToNextWeeklyAward: daysUntilNextWeeklyAwardKST(),
   };
 }
@@ -1041,12 +1144,18 @@ app.get('/api/ranking', async (req, res) => {
     const keys = Object.keys(scores);
     const nicknameMap = {};
     const referredByMap = {};
+    const quizScoresMap = {};
     if (keys.length) {
-      const { data: profiles, error: profErr } = await supabase
-        .from('profiles')
-        .select('user_key, nickname, referred_by')
-        .in('user_key', keys);
+      // 같은 기간의 분야별 퀴즈 점수(경제/영어)를 닉네임 조회와 동시에 가져온다(2026-10-18).
+      const [{ data: profiles, error: profErr }, { data: catRows, error: catErr }] = await Promise.all([
+        supabase.from('profiles').select('user_key, nickname, referred_by').in('user_key', keys),
+        supabase.rpc('category_quiz_points', {
+          p_user_keys: keys, p_from: period === 'all' ? null : fromDate, p_to: period === 'all' ? null : toDate,
+        }),
+      ]);
       if (profErr) throw profErr;
+      if (catErr) console.error('category_quiz_points failed:', catErr); // 분야별 점수가 없어도 랭킹 자체는 보여준다
+      for (const c of catRows || []) quizScoresMap[c.user_key] = { economy: Number(c.economy), english: Number(c.english) };
       for (const p of profiles) {
         nicknameMap[p.user_key] = p.nickname;
         referredByMap[p.user_key] = p.referred_by;
@@ -1066,6 +1175,7 @@ app.get('/api/ranking', async (req, res) => {
         friend: referredByMap[key] === userKey,
         label: nicknameMap[key],
         score: scores[key],
+        quizScores: quizScoresMap[key] || { economy: 0, english: 0 },
       }))
       .sort((a, b) => b.score - a.score);
 

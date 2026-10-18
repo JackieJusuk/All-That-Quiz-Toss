@@ -94,6 +94,9 @@ as $$
     'topic_correct', (select coalesce(jsonb_object_agg(topic, c), '{}'::jsonb)
                       from (select topic, count(*) as c from used_questions
                             where user_key = p_user_key and correct group by topic) tc),
+    'topic_wrong', (select coalesce(jsonb_object_agg(topic, c), '{}'::jsonb) -- 분야별 점수용(2026-10-18)
+                    from (select topic, count(*) as c from used_questions
+                          where user_key = p_user_key and not correct group by topic) tw),
     'hard_correct', (select count(*) from used_questions uq join questions q on q.id = uq.question_id
                      where uq.user_key = p_user_key and uq.correct and q.difficulty = 'hard'),
     'quiz_dates', (select coalesce(jsonb_agg(d order by d), '[]'::jsonb)
@@ -163,6 +166,21 @@ $$;
 --   update questions set active = false where id = any(dropped);
 -- end $$;
 
+-- 랭킹에 함께 보여줄 사용자별 분야별 퀴즈 점수(2026-10-18, requirements.md §3.22). 정답 10·오답 2점.
+-- 주제 이름이 eng_로 시작하면 영어, 나머지는 경제. p_from/p_to가 null이면 전체 기간.
+create or replace function category_quiz_points(p_user_keys text[], p_from date, p_to date)
+returns table (user_key text, economy bigint, english bigint)
+language sql stable
+as $$
+  select uq.user_key,
+         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic not like 'eng\_%'), 0)::bigint,
+         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic like 'eng\_%'), 0)::bigint
+  from used_questions uq
+  where uq.user_key = any(p_user_keys)
+    and (p_from is null or uq.answered_date >= p_from) and (p_to is null or uq.answered_date <= p_to)
+  group by uq.user_key;
+$$;
+
 -- 문제 하나의 전체 풀이 수와 정답 수(2026-10-12, 퀴즈 화면의 "이 문제 정답률" 표시용).
 create or replace function question_stats(p_question_id uuid)
 returns table (total bigint, correct bigint)
@@ -179,6 +197,7 @@ revoke all on function user_stats(text, date) from public, anon, authenticated;
 revoke all on function unused_questions(text, text, text, int) from public, anon, authenticated;
 revoke all on function question_stats(uuid) from public, anon, authenticated;
 revoke all on function question_core(text) from public, anon, authenticated;
+revoke all on function category_quiz_points(text[], date, date) from public, anon, authenticated;
 revoke all on function similar_question(text, text, real) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
 grant execute on function leaderboard(date, date, boolean, int) to service_role;
@@ -186,6 +205,7 @@ grant execute on function user_stats(text, date) to service_role;
 grant execute on function unused_questions(text, text, text, int) to service_role;
 grant execute on function question_stats(uuid) to service_role;
 grant execute on function question_core(text) to service_role;
+grant execute on function category_quiz_points(text[], date, date) to service_role;
 grant execute on function similar_question(text, text, real) to service_role;
 
 -- 함수 안에서 테이블 이름이 항상 public 스키마를 가리키게 고정(Supabase 보안 점검 권고: function_search_path_mutable)
@@ -195,6 +215,7 @@ alter function user_stats(text, date) set search_path = public;
 alter function unused_questions(text, text, text, int) set search_path = public;
 alter function question_stats(uuid) set search_path = public;
 alter function question_core(text) set search_path = public;
+alter function category_quiz_points(text[], date, date) set search_path = public;
 alter function similar_question(text, text, real) set search_path = public, extensions;
 
 -- 집계 속도용 인덱스(사용자별·날짜별 조회)
