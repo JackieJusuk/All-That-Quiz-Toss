@@ -314,6 +314,7 @@ async function insertDistinctQuestions(topicId, questions) {
   for (const g of questions) {
     const { data: dup, error: simErr } = await supabase.rpc('similar_question', {
       p_topic: topicId, p_q: g.q, p_threshold: SIMILAR_THRESHOLD,
+      p_answer: g.choices[g.correct], // 영어: 정답 표현이 같은 문제도 중복으로 본다(§3.22)
     });
     if (simErr) { console.error('similar check error', topicId, simErr); continue; }
     if (dup && dup.length) {
