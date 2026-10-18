@@ -863,6 +863,7 @@ app.post('/api/questions/peek', async (req, res) => {
     const question = await pickQuestionForUser(topicId, difficulty, userKey);
     res.json({
       id: question.id,
+      no: question.no, // 문제 고유번호(2026-10-18)
       q: question.q,
       choices: question.choices,
       correct: question.correct,
@@ -898,6 +899,7 @@ app.post('/api/questions', async (req, res) => {
     const question = await pickQuestionForUser(topicId, difficulty, userKey);
     res.json({
       id: question.id,
+      no: question.no, // 문제 고유번호(2026-10-18)
       q: question.q,
       choices: question.choices,
       correct: question.correct,
@@ -923,8 +925,12 @@ app.post('/api/questions/answer', async (req, res) => {
   }
 
   try {
+    // 문제 고유번호(questions.no, 2026-10-18)도 풀이 기록에 함께 남긴다 — 사용자가 푼 문제를 번호로도 확인할 수 있게.
+    const { data: qrow, error: noErr } = await supabase.from('questions').select('no').eq('id', questionId).maybeSingle();
+    if (noErr) throw noErr;
     const { error: insErr } = await supabase.from('used_questions').insert({
-      user_key: userKey, question_id: questionId, topic: topicId, correct, answered_date: todayKST(),
+      user_key: userKey, question_id: questionId, question_no: qrow ? qrow.no : null,
+      topic: topicId, correct, answered_date: todayKST(),
     });
     if (insErr) throw insErr;
 

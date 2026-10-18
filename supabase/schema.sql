@@ -18,6 +18,17 @@ create index if not exists questions_topic_difficulty_idx on questions (topic, d
 -- 비슷한 문제 중복 방지(2026-10-17): 문구만 다른 같은 문제는 지우지 않고 active=false로 출제에서만 뺀다
 -- (푼 기록·오답노트가 참조하므로 삭제하지 않는다. 되돌리려면 active=true). 유사도 계산용 pg_trgm 확장.
 alter table questions add column if not exists active boolean not null default true;
+-- 문제 고유번호(2026-10-18): 경제·영어 모든 문제에 만든 순서대로 1, 2, 3... 번호를 붙인다(기존 문제는 created_at 순으로 채움).
+-- 풀이 기록(used_questions.question_no)에도 같은 번호를 남긴다. 기존 기록은 아래 update로 채우고, 새 기록은 서버가 넣는다.
+create sequence if not exists questions_no_seq;
+alter table questions add column if not exists no bigint;
+update questions q set no = n.rn from (select id, row_number() over (order by created_at, id) rn from questions) n
+  where q.id = n.id and q.no is null;
+select setval('questions_no_seq', (select coalesce(max(no), 0) from questions) + 1, false);
+alter table questions alter column no set default nextval('questions_no_seq');
+alter table questions alter column no set not null;
+alter sequence questions_no_seq owned by questions.no;
+create unique index if not exists questions_no_idx on questions (no);
 create index if not exists questions_topic_active_idx on questions (topic, difficulty) where active;
 -- 영어 문제 일괄 재검사(2026-10-18)를 마친 시각 — 서버 recheckEnglishQuestions가 재시작 때 다시 검사하지 않게 하는 표시
 alter table questions add column if not exists recheck_at timestamptz;
@@ -34,6 +45,9 @@ create table if not exists used_questions (
   primary key (user_key, question_id)  -- 같은 사용자가 같은 문제를 두 번 기록하지 못하게 막는다(§13 원칙 7)
 );
 create index if not exists used_questions_date_idx on used_questions (answered_date);
+-- 푼 문제의 고유번호(2026-10-18, questions.no). 기존 기록 채우기:
+alter table used_questions add column if not exists question_no bigint;
+update used_questions uq set question_no = q.no from questions q where q.id = uq.question_id and uq.question_no is null;
 
 create table if not exists profiles (
   user_key text primary key,           -- upsert onConflict: 'user_key'
