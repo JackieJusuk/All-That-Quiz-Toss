@@ -175,7 +175,8 @@ async function verifyCalculationAnswer(q) {
     const response = await client.messages.parse({
       model: 'claude-sonnet-5',
       max_tokens: 4000,
-      output_config: { effort: 'medium', format: zodOutputFormat(verifySchema) },
+      // 검증은 짧은 판단이라 생각을 적게 하게 한다(비용 점검 2026-10-18 — 이 모델은 생각 토큰도 출력 요금으로 청구됨)
+      output_config: { effort: 'low', format: zodOutputFormat(verifySchema) },
       system: '당신은 경제 상식 퀴즈의 정답을 검증하는 깐깐한 감수자입니다. 원래 제시된 정답은 참고하지 말고, 스스로 처음부터 계산해서 정답 인덱스를 구하세요.',
       messages: [{ role: 'user', content: prompt }],
     });
@@ -197,7 +198,8 @@ async function verifyEnglishAnswer(q) {
     const response = await client.messages.parse({
       model: 'claude-sonnet-5',
       max_tokens: 4000,
-      output_config: { effort: 'medium', format: zodOutputFormat(verifySchema) },
+      // 검증은 짧은 판단이라 생각을 적게 하게 한다(비용 점검 2026-10-18 — 이 모델은 생각 토큰도 출력 요금으로 청구됨)
+      output_config: { effort: 'low', format: zodOutputFormat(verifySchema) },
       system: '당신은 영어회화 퀴즈를 감수하는 깐깐한 원어민 수준의 영어 교사입니다. 원래 제시된 정답은 참고하지 말고, 스스로 풀어서 정답 인덱스를 구하세요.',
       messages: [{ role: 'user', content: prompt }],
     });
@@ -218,11 +220,13 @@ async function verifyEnglishTwice(q) {
   return answered.every(r => r === q.correct);
 }
 
+// 새로 만드는 영어 문제는 1회 검증(비용 점검 2026-10-18: 2회 검증은 애매한 문제를 더 걸러내지 못해 1회로 되돌림).
+// verifyEnglishTwice는 기존 문제 2차 재검사(RECHECK_ROUNDS)에만 남아 있다.
 async function verifyEnglishQuestions(questions) {
   const keep = await Promise.all(questions.map(async q => {
-    const ok = await verifyEnglishTwice(q);
-    if (ok === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
-    return ok;
+    const verified = await verifyEnglishAnswer(q);
+    if (verified === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
+    return verified === q.correct;
   }));
   return questions.filter((_, i) => keep[i]);
 }
