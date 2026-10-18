@@ -96,6 +96,11 @@ const ICONS = {
   gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
   book: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5C10.5 4.2 8 3.5 4.5 3.5v14c3.5 0 6 .7 7.5 2 1.5-1.3 4-2 7.5-2v-14c-3.5 0-6 .7-7.5 2Z"/><path d="M12 5.5v14"/></svg>',
   mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>',
+  // 영어회화 주제 아이콘(2026-10-18)
+  engDaily: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M19 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3.5-3"/></svg>',
+  engTravel: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 4 11l1.5-1.5 7 1 4.5-4.5a1.8 1.8 0 0 1 2.5 2.5L15 13l1 7-1.5 1.5-2.5-6.5L9 18v2.5L7.5 22l-1-3.5L3 17.5 4.5 16H7Z"/></svg>',
+  engWork: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M3 12.5h18"/></svg>',
+  engKonglish: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18 7 6l4 12M4.4 14h5.2"/><path d="M14 8h7M17.5 6v2c0 4-2 7-4.5 8M15.5 11.5c1 2 3 3.5 5.5 4"/></svg>',
   invest: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   medal: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="6"/><path d="M8.5 9.8 6 3h4l2 5 2-5h4l-2.5 6.8"/><path d="m12 12.6.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="currentColor" stroke="none"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
@@ -109,7 +114,7 @@ function waitingHTML(title, sub){
 
 // 서버(AI+DB) 연결이 끊겼을 때만 쓰는 최소한의 비상용 문제은행.
 const TOPICS = [
-  { id:'basic', name:'시장 원리', desc:'수요·공급, 기회비용, GDP', color:'#3d5afe', bg:'#e8ecff', icon:'basic',
+  { id:'basic', category:'economy', name:'시장 원리', desc:'수요·공급, 기회비용, GDP', color:'#3d5afe', bg:'#e8ecff', icon:'basic',
     questions:[
       { q:"어떤 선택을 할 때 포기한 대안 중 가장 가치가 큰 것을 무엇이라고 할까요?",
         choices:['매몰비용','기회비용','고정비용','거래비용'],
@@ -127,7 +132,7 @@ const TOPICS = [
         choices:['기회비용','변동비용','매몰비용','한계비용'],
         correct:2, explain:'매몰비용은 이미 지출해 회수할 수 없는 비용이라, 합리적인 선택을 할 때는 고려하지 않는 게 좋아요.', difficulty:'medium' },
     ]},
-  { id:'money', name:'금융·금리', desc:'금리, 복리, 환율 기초', color:'#c9701a', bg:'#faeadb', icon:'money',
+  { id:'money', category:'economy', name:'금융·금리', desc:'금리, 복리, 환율 기초', color:'#c9701a', bg:'#faeadb', icon:'money',
     questions:[
       { q:"원금 100만 원을 연 10% 복리로 2년간 맡기면 만기 금액(세전)은 얼마일까요?",
         choices:['120만 원','121만 원','110만 원','125만 원'],
@@ -145,7 +150,7 @@ const TOPICS = [
         choices:['대출 금리가 내려간다','예금 금리가 올라간다','시중에 돈이 더 많이 풀린다','물가 상승 압력이 커진다'],
         correct:1, explain:'기준금리가 오르면 은행의 예금·대출 금리가 함께 오르는 경향이 있어 돈을 빌리기보다 저축할 유인이 커져요.', difficulty:'easy' },
     ]},
-  { id:'life', name:'세금·연금', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
+  { id:'life', category:'economy', name:'세금·연금', desc:'세금, 연금, 보험 기초', color:'#1f8f5c', bg:'#e2f3ea', icon:'life',
     questions:[
       { q:"직장인이 1년 동안 낸 세금을 다음 해 초에 다시 정산해 더 내거나 돌려받는 제도는?",
         choices:['종합부동산세','연말정산','부가가치세 환급','양도소득세 신고'],
@@ -163,7 +168,7 @@ const TOPICS = [
         choices:['근로자가 전액 부담','회사가 전액 부담','근로자와 회사가 절반씩 부담','정부가 전액 부담'],
         correct:2, explain:'직장가입자의 국민연금 보험료는 근로자와 사업주가 절반씩 나눠 내요.', difficulty:'easy' },
     ]},
-  { id:'invest', name:'재테크', desc:'주식, 펀드, 부동산', color:'#8e3fb8', bg:'#f2e6f8', icon:'invest',
+  { id:'invest', category:'economy', name:'재테크', desc:'주식, 펀드, 부동산', color:'#8e3fb8', bg:'#f2e6f8', icon:'invest',
     questions:[
       { q:"여러 종목이나 자산에 나눠 투자해 위험을 줄이는 방법을 무엇이라고 할까요?",
         choices:['분산투자','집중투자','레버리지 투자','공매도'],
@@ -181,7 +186,88 @@ const TOPICS = [
         choices:['확정일자','인감증명서','등기권리증','재직증명서'],
         correct:0, explain:'전입신고와 확정일자를 갖추면 집이 경매에 넘어가도 순서에 따라 보증금을 우선 돌려받을 수 있어요.', difficulty:'easy' },
     ]},
+  // ---- 영어회화(2026-10-18, requirements.md §3.22). 서버 주제 id는 eng_ 접두어(분야 구분 기준) ----
+  { id:'eng_daily', category:'english', name:'일상 대화', desc:'인사, 부탁, 맞장구, 약속', color:'#0f8b8d', bg:'#dcf2f2', icon:'engDaily',
+    questions:[
+      { q:"친구가 'Thanks for your help!'라고 했을 때 가장 자연스러운 대답은?",
+        choices:["You're welcome.","I'm welcome.","Yes, thanks.","Help is mine."],
+        correct:0, explain:"감사 인사에는 'You're welcome.'(천만에요)이라고 답해요.", difficulty:'easy' },
+      { q:"'look forward to'의 뜻으로 알맞은 것은?",
+        choices:['뒤돌아보다','기대하다','찾아보다','무시하다'],
+        correct:1, explain:"'look forward to'는 앞으로 있을 일을 '기대하다'라는 뜻이에요. 예: I look forward to seeing you.", difficulty:'easy' },
+      { q:"상대방 말을 못 알아들었을 때 정중하게 다시 말해 달라고 하는 표현은?",
+        choices:['What?','Say again me.','Could you say that again?','Repeat you.'],
+        correct:2, explain:"'Could you say that again?'은 다시 말해 달라고 정중하게 부탁하는 표현이에요.", difficulty:'easy' },
+      { q:"'run into someone'의 뜻으로 알맞은 것은?",
+        choices:['누군가와 달리기를 하다','누군가를 우연히 만나다','누군가를 쫓아가다','누군가와 다투다'],
+        correct:1, explain:"'run into someone'은 길이나 가게에서 아는 사람을 '우연히 만나다'라는 뜻이에요.", difficulty:'medium' },
+      { q:"약속을 취소하며 '갑자기 일이 생겼어'라고 할 때 알맞은 표현은?",
+        choices:['Something came up.','Something went up.','Something came down.','Something got on.'],
+        correct:0, explain:"'Something came up.'은 갑자기 일이 생겨 약속을 지키기 어려울 때 자주 쓰는 표현이에요.", difficulty:'medium' },
+    ]},
+  { id:'eng_travel', category:'english', name:'여행·식당', desc:'공항, 호텔, 주문, 길 묻기', color:'#2b6fd6', bg:'#e2edfb', icon:'engTravel',
+    questions:[
+      { q:"식당에서 '두 명 자리 있나요?'라고 물을 때 알맞은 표현은?",
+        choices:['Do you have a table for two?','Do you have two chairs table?','Is two people seat?','Two table, please give.'],
+        correct:0, explain:"'Do you have a table for two?'는 식당에서 인원수를 말하며 자리를 묻는 기본 표현이에요.", difficulty:'easy' },
+      { q:"'non-stop flight'의 뜻으로 알맞은 것은?",
+        choices:['경유 없이 바로 가는 항공편','자주 지연되는 항공편','밤새 운항하는 항공편','좌석이 남은 항공편'],
+        correct:0, explain:"'non-stop flight'는 중간 경유 없이 목적지까지 바로 가는 직항편이에요.", difficulty:'easy' },
+      { q:"옷 가게에서 '이거 입어 봐도 돼요?'라고 할 때 알맞은 표현은?",
+        choices:['Can I wear on this?','Can I try this on?','Can I put this try?','Can I test this clothes?'],
+        correct:1, explain:"옷이나 신발을 사기 전에 입어 보는 것은 'try on'이라고 해요.", difficulty:'easy' },
+      { q:"호텔에서 체크아웃 시간을 물을 때 알맞은 표현은?",
+        choices:['When is check-out?','What time is check-out?','How check-out time?','Check-out is what?'],
+        correct:1, explain:"시각을 물을 때는 'What time is ~?'를 써요. 'What time is check-out?'이 가장 자연스러워요.", difficulty:'medium' },
+      { q:"택시 기사에게 '여기서 세워 주세요'라고 할 때 알맞은 표현은?",
+        choices:['You can drop me off here.','You can drop me out here.','Please fall me here.','Stop me in here.'],
+        correct:0, explain:"'drop someone off'는 차로 데려다주고 내려 주는 것을 말해요. 'You can drop me off here.'라고 하면 돼요.", difficulty:'medium' },
+    ]},
+  { id:'eng_work', category:'english', name:'직장·이메일', desc:'회의, 일정, 이메일 표현', color:'#5b5fc7', bg:'#e9e9fa', icon:'engWork',
+    questions:[
+      { q:"이메일에서 '참고로 알려드립니다'라는 뜻으로 쓰는 약어는?",
+        choices:['ASAP','FYI','RSVP','ETA'],
+        correct:1, explain:"FYI는 For Your Information의 약자로 '참고로'라는 뜻이에요.", difficulty:'easy' },
+      { q:"'첨부 파일을 확인해 주세요'를 이메일로 알맞게 표현한 것은?",
+        choices:['Please check the attach.','Please check the attachment.','Please check the attaching.','Please check attached the file.'],
+        correct:1, explain:"'첨부 파일'은 명사 attachment예요. 'Please check the attachment.'가 자연스러워요.", difficulty:'easy' },
+      { q:"회의에서 정중하게 다른 의견을 말할 때 알맞은 표현은?",
+        choices:["You're wrong.","That's a stupid idea.","I see your point, but I see it a bit differently.","No, no, no."],
+        correct:2, explain:"상대 의견을 인정한 뒤 'but'으로 내 생각을 말하면 정중하게 반대할 수 있어요.", difficulty:'medium' },
+      { q:"'ASAP'의 뜻으로 알맞은 것은?",
+        choices:['가능한 한 빨리','참고로','회신 바람','도착 예정 시간'],
+        correct:0, explain:"ASAP은 As Soon As Possible의 약자로 '가능한 한 빨리'라는 뜻이에요.", difficulty:'easy' },
+      { q:"회의 일정을 바꾸자고 할 때 '회의를 다음 주로 미룰 수 있을까요?'에 알맞은 표현은?",
+        choices:['Can we push the meeting to next week?','Can we pull the meeting next week?','Can we delay meeting at next week?','Can we move on the meeting next week?'],
+        correct:0, explain:"일정을 뒤로 미룰 때는 'push (back) the meeting to ~'라고 해요.", difficulty:'medium' },
+    ]},
+  { id:'eng_konglish', category:'english', name:'콩글리시 바로잡기', desc:'한국식 영어를 원어민 표현으로', color:'#cf5a36', bg:'#fbe6df', icon:'engKonglish',
+    questions:[
+      { q:"'핸드폰'을 원어민이 쓰는 영어로 하면?",
+        choices:['hand phone','cell phone','hand mobile','call phone'],
+        correct:1, explain:"휴대전화는 미국에서 'cell phone', 영국에서는 'mobile phone'이라고 해요. 'hand phone'은 콩글리시예요.", difficulty:'easy' },
+      { q:"'아이쇼핑'을 원어민이 쓰는 영어로 하면?",
+        choices:['eye shopping','look shopping','window shopping','see shopping'],
+        correct:2, explain:"사지 않고 구경만 하는 것은 'window shopping'이라고 해요.", difficulty:'easy' },
+      { q:"시험에서 '커닝하다'를 원어민이 쓰는 영어로 하면?",
+        choices:['cunning','cheating','copying paper','cunning paper'],
+        correct:1, explain:"시험 부정행위는 'cheat'이에요. 'cunning'은 '교활한'이라는 뜻이에요.", difficulty:'easy' },
+      { q:"자동차 '핸들'을 원어민이 쓰는 영어로 하면?",
+        choices:['handle','steering wheel','car handle','driving bar'],
+        correct:1, explain:"자동차 핸들은 'steering wheel'이에요. 'handle'은 문 손잡이 같은 것을 말해요.", difficulty:'medium' },
+      { q:"'노트북(컴퓨터)'을 원어민이 쓰는 영어로 하면?",
+        choices:['notebook','laptop','note computer','lap book'],
+        correct:1, explain:"휴대용 컴퓨터는 보통 'laptop'이라고 해요. 'notebook'은 주로 공책을 뜻해요.", difficulty:'easy' },
+    ]},
 ];
+
+// 분야(2026-10-18). 홈 상단 전환 탭, 분야별 등급, 분야별 점수의 기준. 서버 CATEGORY_TOPICS와 같은 구성.
+const CATEGORIES = [
+  { id:'economy', name:'경제', short:'경제' },
+  { id:'english', name:'영어회화', short:'영어' }, // short: 좁은 표(오늘의 항목별 점수)에서 줄바꿈 방지
+];
+const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map(c => [c.id, c.name]));
+const CATEGORY_KEY = 'allthatquiz_category_v1';
 
 const DIFF_LABEL = { easy:'쉬움', medium:'보통', hard:'어려움' };
 
@@ -207,6 +293,19 @@ function getLevelInfo(totalCorrect){
 // 비상용 문제는 이번 접속 동안 한 번씩만 낸다(2026-10-17). 예전에는 주제당 2문제 중 무작위라 서버가
 // 느릴 때 같은 문제가 계속 반복돼 보였다. 다 쓰면 null을 돌려주고, 화면은 "다시 시도"를 보여준다.
 const shownFallback = new Set();
+// 분야별 누적 정답 수로 등급을 따로 매긴다 — 경제 고급 사용자가 영어도 바로 "어려움"을 받지 않게(2026-10-18).
+function categoryLevel(category){
+  return getLevelInfo(state.categoryCorrect[category] ?? 0);
+}
+
+// 서버 통계의 분야별 정답 수를 반영한다. 옛 서버 응답(categoryScores 없음)이면 전부 경제로 본다.
+function applyCategoryCorrect(stats){
+  const cs = stats.categoryScores;
+  state.categoryCorrect = cs
+    ? { economy: cs.economy?.correct ?? 0, english: cs.english?.correct ?? 0 }
+    : { economy: stats.totalCorrect ?? 0, english: 0 };
+}
+
 function pickFallbackQuestion(topic, difficulty){
   const unseen = topic.questions.filter(q => !shownFallback.has(q.q));
   if(!unseen.length) return null;
@@ -233,6 +332,8 @@ let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
+  category:(()=>{ try{ return localStorage.getItem(CATEGORY_KEY) === 'english' ? 'english' : 'economy'; }catch(e){ return 'economy'; } })(),
+  categoryCorrect:{ economy:0, english:0 }, // 분야별 누적 정답 수(분야별 등급용)
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
   daysToNextWeeklyAward:0, // 다음 주간 우등생 시상(토요일 23:59:59 KST)까지 남은 일수. 오늘이 토요일이면 0.
   todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
@@ -293,6 +394,7 @@ async function fetchStatus(){
     const data = await res.json();
     updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
+    applyCategoryCorrect(data);
     state.streak = data.streak;
     state.points = data.points;
     state.hasAdTicket = data.hasAdTicket ?? false;
@@ -318,6 +420,7 @@ async function fetchInit(){
     state.nickname = data.nickname;
     updateBadges(data.badges, false);
     state.totalCorrect = data.totalCorrect;
+    applyCategoryCorrect(data);
     state.streak = data.streak;
     state.points = data.points;
     state.hasAdTicket = data.hasAdTicket ?? false;
@@ -411,6 +514,7 @@ async function watchAdThenFetchQuestion(){
       const data = await res.json();
       state.points = data.points;
       state.totalCorrect = data.totalCorrect;
+      applyCategoryCorrect(data);
       state.streak = data.streak;
       state.hasAdTicket = data.hasAdTicket ?? true;
       state.streakBonusDays = data.streakBonusDays ?? 10;
@@ -624,6 +728,7 @@ function badgeSheetHTML(){
 function applyStats(stats, { announce = true } = {}){
   updateBadges(stats.badges, announce);
   state.totalCorrect = stats.totalCorrect;
+  applyCategoryCorrect(stats);
   state.streak = stats.streak;
   state.points = stats.points;
   state.streakBonusDays = stats.streakBonusDays ?? 10;
@@ -642,6 +747,7 @@ async function recordAnswer(topic, question, correct){
     // 포인트 = 정답 시 10포인트, 오답 시 2포인트.
     const earned = correct ? 10 : 2;
     state.totalCorrect += correct ? 1 : 0;
+    if(correct) state.categoryCorrect = { ...state.categoryCorrect, [topic.category]: (state.categoryCorrect[topic.category] ?? 0) + 1 };
     state.points += earned;
     state.streak += 1;
     state.hasAdTicket = false;
@@ -858,7 +964,7 @@ async function startTopic(topic){
   state.adError = null;
   state.prefetched = null;
   state.leveledUp = false;
-  state.levelBefore = getLevelInfo(state.totalCorrect).level;
+  state.levelBefore = categoryLevel(topic.category).level;
   state.loadingQuestions = true;
   go('quiz');
 
@@ -967,10 +1073,10 @@ async function pickChoice(idx){
   track('quiz_answer', { topic: state.topic.id, difficulty: q.difficulty, correct: String(correct), combo: state.combo });
   render();
   await recordAnswer(state.topic, q, correct);
-  const afterLevel = getLevelInfo(state.totalCorrect).level;
+  const afterLevel = categoryLevel(state.topic.category).level;
   state.leveledUp = afterLevel.key !== state.levelBefore.key;
   if(state.leveledUp) haptic('confetti');
-  state.levelAfterName = afterLevel.name;
+  state.levelAfterName = `${CATEGORY_NAME[state.topic.category]} ${afterLevel.name}`;
   state.recording = false;
   render();
 }
@@ -1015,9 +1121,11 @@ function homeHTML(){
     <p class="greet-sub">퀴즈만 풀거나, 광고를 보고 포인트를 더 받을 수 있어요 · 풀이 횟수 제한 없음</p>
     ${topChips}
     ${levelCardHTML()}
-    <p class="section-label">주제 선택</p>
+    <div class="seg seg-compact" role="tablist" aria-label="분야 선택">
+      ${CATEGORIES.map(c => `<button role="tab" aria-selected="${state.category===c.id}" class="${state.category===c.id?'active':''}" data-category="${c.id}">${c.name}</button>`).join('')}
+    </div>
     <div class="topics">
-      ${TOPICS.map(t=>`
+      ${TOPICS.filter(t => t.category === state.category).map(t=>`
         <button class="topic-card" data-topic="${t.id}">
           <div class="topic-ic" style="background:${t.bg};color:${t.color}">${ICONS[t.icon]}</div>
           <div class="topic-body">
@@ -1281,13 +1389,13 @@ function promotionHTML(){
 }
 
 function levelCardHTML(){
-  const info = getLevelInfo(state.totalCorrect);
+  const info = categoryLevel(state.category); // 홈에서 고른 분야의 등급
   const pct = Math.round(info.progress*100);
   const sub = info.next ? `${info.next.name}까지 ${info.remain}퀴즈` : '최고 등급 달성';
   return `
   <div class="level-card">
     <div class="level-card-top">
-      <span class="level-badge">${info.level.name}</span>
+      <span class="level-badge">${CATEGORY_NAME[state.category]} ${info.level.name}</span>
       <span class="level-sub">${sub}</span>
     </div>
     <div class="level-track"><div class="level-fill" style="width:${pct}%"></div></div>
@@ -1380,11 +1488,15 @@ function todayScoresHTML(){
     <div class="today-topic-scores">
       <p class="section-label">오늘의 항목별 점수</p>
       <div class="today-topic-list">
-        ${TOPICS.map(t => {
-          const s = state.todayTopicScores[t.id] || { correct:0, wrong:0, points:0 };
+        ${CATEGORIES.map(c => {
+          // 주제가 8개로 늘어 주제별 행 대신 분야별(경제/영어회화) 합계로 보여준다(원칙 16, 2026-10-18).
+          const s = TOPICS.filter(t => t.category === c.id).reduce((acc, t) => {
+            const v = state.todayTopicScores[t.id] || {};
+            return { correct: acc.correct + (v.correct || 0), wrong: acc.wrong + (v.wrong || 0), points: acc.points + (v.points || 0) };
+          }, { correct:0, wrong:0, points:0 });
           return `
           <div class="today-topic-row">
-            <span class="today-topic-name" style="color:${t.color}">${t.name}</span>
+            <span class="today-topic-name today-cat-${c.id}">${c.short} 퀴즈</span>
             <span class="today-topic-detail">정답 ${s.correct} · 오답 ${s.wrong}</span>
             <span class="today-topic-points">${s.points}점</span>
           </div>`;
@@ -1539,6 +1651,8 @@ function rankingHTML(){
     </div>`;
   }
   const rows = state.rankingRows;
+  // 분야별 퀴즈 점수(경제/영어)는 영어를 푼 사람이 한 명이라도 있을 때만 보여준다 — 다들 0이면 줄만 차지한다.
+  const showCat = rows.some(r => r.quizScores && r.quizScores.english > 0);
   return `<div class="scroll">
     ${rankSegHTML()}
     ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 퀴즈를 풀어 랭킹에 참여해보세요</span></div>` :
@@ -1546,7 +1660,7 @@ function rankingHTML(){
       <div class="rank-row ${r.me?'me':''}" ${r.me?'data-myrank="1"':''}>
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
-        <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}</div>
+        <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}${showCat && r.quizScores ? `<span class="rank-cat">경제 ${r.quizScores.economy.toLocaleString()} · 영어 ${r.quizScores.english.toLocaleString()}</span>` : ''}</div>
         <div class="rank-score">${r.score.toLocaleString()}포인트</div>
         ${r.me?`<div class="rank-chev">${ICONS.chev}</div>`:''}
       </div>
@@ -1754,6 +1868,16 @@ function bindScreenEvents(){
   if(myStatsBackdrop) myStatsBackdrop.addEventListener('click', e=>{
     if(e.target === myStatsBackdrop) closeMyStatsDetail();
   });
+  screenEl.querySelectorAll('[data-category]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      if(state.category === el.dataset.category) return;
+      state.category = el.dataset.category;
+      try{ localStorage.setItem(CATEGORY_KEY, state.category); }catch(e){ /* 무시 — 다음 접속 때 경제로 시작할 뿐 */ }
+      track('home_category', { category: state.category });
+      haptic('tickWeak');
+      render();
+    });
+  });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
     el.addEventListener('click', ()=> showRanking(el.dataset.period));
   });
@@ -1846,7 +1970,7 @@ async function init(){
   }
   if(ok){
     saveCachedState(userKey, {
-      nickname: state.nickname, totalCorrect: state.totalCorrect, streak: state.streak, points: state.points,
+      nickname: state.nickname, totalCorrect: state.totalCorrect, categoryCorrect: state.categoryCorrect, streak: state.streak, points: state.points,
       hasAdTicket: state.hasAdTicket, streakBonusDays: state.streakBonusDays,
       daysToNextStreakBonus: state.daysToNextStreakBonus, referralCount: state.referralCount,
       badges: state.badges, // 다음 접속 때 홈의 배지 줄이 서버 응답 전에도 바로 보이게(레이아웃 흔들림 방지)
