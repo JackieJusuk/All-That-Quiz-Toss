@@ -141,13 +141,36 @@ create or replace function question_core(p_q text) returns text language sql imm
     '[^가-힣A-Za-z0-9%,.]+', ' ', 'g'));
 $$;
 
--- 같은 주제의 활성 문제 중 p_q와 가장 비슷한 1개(유사도 p_threshold 이상일 때만). 서버가 새 문제를 넣기 전에 호출.
-create or replace function similar_question(p_topic text, p_q text, p_threshold real default 0.55)
+-- 영어 질문에서 영어 부분만 뽑은 것(소문자). 영어 문제 중복 판별용(2026-10-18).
+create or replace function question_core_en(p_q text) returns text language sql immutable as $$
+  select trim(lower(regexp_replace(p_q, '[^A-Za-z'' ]+', ' ', 'g')));
+$$;
+
+-- 같은 주제의 활성 문제 중 p_q와 비슷한 1개(p_threshold 이상일 때만). 서버가 새 문제를 넣기 전에 호출.
+-- 경제: 상투구를 지운 핵심 문장끼리 pg_trgm 유사도.
+-- 영어(eng_ 주제, 2026-10-18): "다음 영어 표현의 뜻으로 알맞은 것은?"처럼 한국어 지시문이 유형마다 똑같아서 경제 방식으로는
+--   서로 다른 문제가 모두 비슷하게 나온다. 대신 ① 정답 표현이 같거나(대소문자·문장부호 무시) ② 질문의 영어 부분끼리
+--   유사도 0.6 이상이거나 ③ 영어가 없는 질문끼리 한국어 핵심 문장 유사도 0.8 이상이면 중복(1.0)으로 본다.
+create or replace function similar_question(p_topic text, p_q text, p_threshold real, p_answer text)
 returns table (id uuid, q text, sim real) language sql stable as $$
-  select qq.id, qq.q, extensions.similarity(question_core(qq.q), question_core(p_q)) as sim
-  from questions qq where qq.topic = p_topic and qq.active
-    and extensions.similarity(question_core(qq.q), question_core(p_q)) >= p_threshold
-  order by sim desc limit 1;
+  select s.id, s.q, s.sim from (
+    select qq.id, qq.q,
+      case when p_topic like 'eng\_%' then
+        greatest(
+          case when p_answer is not null
+                and regexp_replace(lower(qq.choices->>qq.correct), '[^a-z0-9가-힣]', '', 'g') = regexp_replace(lower(p_answer), '[^a-z0-9가-힣]', '', 'g')
+               then 1.0 else 0 end,
+          case when length(question_core_en(p_q)) >= 3
+                and extensions.similarity(question_core_en(qq.q), question_core_en(p_q)) >= 0.6 then 1.0 else 0 end,
+          case when length(question_core_en(p_q)) < 3 and length(question_core_en(qq.q)) < 3
+                and extensions.similarity(question_core(qq.q), question_core(p_q)) >= 0.8 then 1.0 else 0 end
+        )::real
+      else extensions.similarity(question_core(qq.q), question_core(p_q)) end as sim
+    from questions qq
+    where qq.topic = p_topic and qq.active
+  ) s
+  where s.sim >= p_threshold
+  order by s.sim desc limit 1;
 $$;
 
 -- 이미 쌓인 비슷한 문제 정리(2026-10-17에 1회 실행, 74개 비활성화): 주제별로 오래된 문제부터 남기고,
@@ -197,16 +220,18 @@ revoke all on function user_stats(text, date) from public, anon, authenticated;
 revoke all on function unused_questions(text, text, text, int) from public, anon, authenticated;
 revoke all on function question_stats(uuid) from public, anon, authenticated;
 revoke all on function question_core(text) from public, anon, authenticated;
+revoke all on function question_core_en(text) from public, anon, authenticated;
 revoke all on function category_quiz_points(text[], date, date) from public, anon, authenticated;
-revoke all on function similar_question(text, text, real) from public, anon, authenticated;
+revoke all on function similar_question(text, text, real, text) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
 grant execute on function leaderboard(date, date, boolean, int) to service_role;
 grant execute on function user_stats(text, date) to service_role;
 grant execute on function unused_questions(text, text, text, int) to service_role;
 grant execute on function question_stats(uuid) to service_role;
 grant execute on function question_core(text) to service_role;
+grant execute on function question_core_en(text) to service_role;
 grant execute on function category_quiz_points(text[], date, date) to service_role;
-grant execute on function similar_question(text, text, real) to service_role;
+grant execute on function similar_question(text, text, real, text) to service_role;
 
 -- 함수 안에서 테이블 이름이 항상 public 스키마를 가리키게 고정(Supabase 보안 점검 권고: function_search_path_mutable)
 alter function streak_bonus_dates() set search_path = public;
@@ -215,8 +240,9 @@ alter function user_stats(text, date) set search_path = public;
 alter function unused_questions(text, text, text, int) set search_path = public;
 alter function question_stats(uuid) set search_path = public;
 alter function question_core(text) set search_path = public;
+alter function question_core_en(text) set search_path = public;
 alter function category_quiz_points(text[], date, date) set search_path = public;
-alter function similar_question(text, text, real) set search_path = public, extensions;
+alter function similar_question(text, text, real, text) set search_path = public, extensions;
 
 -- 집계 속도용 인덱스(사용자별·날짜별 조회)
 create index if not exists used_questions_user_date_idx on used_questions (user_key, answered_date);
