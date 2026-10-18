@@ -968,7 +968,7 @@ app.get('/api/wrongnote', async (req, res) => {
     const [{ data, error }, { data: overcome, error: ovErr }] = await Promise.all([
       supabase
         .from('used_questions')
-        .select('question_id, topic, answered_at, questions(q, choices, correct, explain, difficulty)')
+        .select('question_id, topic, answered_at, questions(no, q, choices, correct, explain, difficulty)')
         .eq('user_key', userKey)
         .eq('correct', false)
         .order('answered_at', { ascending: false }),

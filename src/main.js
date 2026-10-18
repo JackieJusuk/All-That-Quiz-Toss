@@ -1443,7 +1443,7 @@ function quizHTML(){
   return `
   <div class="quiz-head">
     <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
-    <div class="qcount">퀴즈</div>
+    <div class="qcount">퀴즈${q.no ? ` · No. ${q.no}` : ''}</div>
   </div>
   <div class="scroll">
     <div class="quiz-topic-row">
@@ -1604,7 +1604,8 @@ function wrongnoteHTML(){
           ${revealed ? `
             ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! +1포인트 · 다음에 열면 오답노트에서 빠져요</div>` : ''}
             <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
-            <div class="wnote-explain">${w.q.explain}</div>`
+            <div class="wnote-explain">${w.q.explain}</div>
+            ${w.q.no ? `<div class="wnote-no">No. ${w.q.no}</div>` : ''}`
           : `<button class="wnote-reveal" data-wnote-reveal="${i}">정답만 보기</button>`}
         </div>
       </div>`;
