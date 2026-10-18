@@ -460,6 +460,7 @@ body{
 .diff-badge.diff-hard{color:var(--gold); background:var(--gold-soft);}
 
 .qtext{
+  white-space:pre-line; /* 영어 대화문(A:/B:) 줄바꿈 유지, 2026-10-18 */
   font-size:1.15rem;
   font-weight:700;
   line-height:1.45;
@@ -679,7 +680,7 @@ body{
   border-radius:6px;
   font-weight:600;
 }
-.wnote-q{flex:1; font-size:0.9rem; font-weight:600;}
+.wnote-q{flex:1; font-size:0.9rem; font-weight:600; white-space:pre-line;}
 .wnote-chev{flex:none; color:var(--ink-soft); transition:transform 0.15s ease;}
 .wnote-item.open .wnote-chev{transform:rotate(180deg);}
 .wnote-body{
@@ -777,6 +778,12 @@ body{
   cursor:pointer;
 }
 .seg button.active{background:var(--surface); color:var(--accent); box-shadow:0 1px 2px rgba(0,0,0,0.06);}
+/* 홈의 분야 전환(경제/영어회화) — "주제 선택" 라벨 자리에 들어가므로 랭킹 탭보다 낮게(원칙 16, 2026-10-18) */
+.seg.seg-compact{margin-bottom:clamp(0.4rem, 1.25vh, 0.65rem); padding:0.2rem;}
+.seg.seg-compact button{padding:clamp(0.32rem, 1vh, 0.45rem); font-size:0.84rem;}
+.rank-cat{display:block; font-size:0.7rem; font-weight:500; color:var(--ink-soft); margin-top:0.1rem;}
+.today-cat-economy{color:#3d5afe;}
+.today-cat-english{color:#0f8b8d;}
 
 .rank-row{
   display:flex;
