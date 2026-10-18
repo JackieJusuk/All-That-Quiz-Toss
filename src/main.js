@@ -436,6 +436,9 @@ async function fetchInit(){
     state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
     state.referralCount = data.referralCount ?? 0;
     state.daysToNextWeeklyAward = data.daysToNextWeeklyAward ?? 0;
+    state.todayTopicScores = data.todayTopicScores ?? {};
+    state.todayOtherScores = data.todayOtherScores ?? {}; // 오늘 광고 시청 수(퀴즈 안내 문구)도 여기서 온다
+    state.todayTotalPoints = data.todayTotalPoints ?? 0;
     return true;
   }catch(e){
     console.warn('초기 데이터를 불러오지 못했습니다.', e);
@@ -524,6 +527,8 @@ async function watchAdThenFetchQuestion(){
       state.totalCorrect = data.totalCorrect;
       applyCategoryCorrect(data);
       applyQuizCredits(data);
+      state.todayOtherScores = data.todayOtherScores ?? state.todayOtherScores;
+      state.todayTotalPoints = data.todayTotalPoints ?? state.todayTotalPoints;
       state.streak = data.streak;
       state.streakBonusDays = data.streakBonusDays ?? 10;
       state.daysToNextStreakBonus = data.daysToNextStreakBonus ?? 10;
@@ -542,6 +547,13 @@ async function watchAdThenFetchQuestion(){
     return;
   }
   render();
+}
+
+const FREE_QUIZZES_PER_DAY = 5; // 서버 FREE_QUIZZES_PER_DAY와 같은 값(문구용)
+
+// 오늘 광고를 한 번이라도 봤는지 — 남은 퀴즈가 없을 때 "무료 퀴즈를 다 풀었어요"와 "받은 퀴즈를 다 풀었어요"를 구분한다.
+function watchedAdToday(){
+  return (state.todayOtherScores.ad?.count ?? 0) > 0;
 }
 
 function hasQuizCredit(){
@@ -1053,10 +1065,10 @@ function homeHTML(){
   <div class="scroll">
     <button class="greet greet-edit" id="nickname-edit" aria-label="닉네임 바꾸기">${state.nickname}님, 오늘의 퀴즈를 풀어봐요 <span class="greet-edit-hint">${ICONS.pencil}</span></button>
     <p class="greet-sub">${state.quizRemaining === null
-      ? `매일 퀴즈 5개 무료 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`
+      ? `매일 퀴즈 ${FREE_QUIZZES_PER_DAY}개 무료 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`
       : state.quizRemaining > 0
         ? `오늘 남은 퀴즈 ${state.quizRemaining}개 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`
-        : `오늘 무료 퀴즈 완료 · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`}</p>
+        : `${watchedAdToday() ? '받은 퀴즈 완료' : '오늘 무료 퀴즈 완료'} · 광고를 보면 ${state.quizzesPerAd}개 더 풀고 +10포인트`}</p>
     ${topChips}
     ${levelCardHTML()}
     <div class="seg seg-compact" role="tablist" aria-label="분야 선택">
@@ -1348,7 +1360,7 @@ function quizHTML(){
       <button class="iconbtn" id="quiz-close">${ICONS.close}</button>
     </div>
     <div class="empty">
-      <b>오늘 무료 퀴즈를 다 풀었어요</b>
+      <b>${watchedAdToday() ? '받은 퀴즈를 다 풀었어요' : `오늘 무료 퀴즈 ${FREE_QUIZZES_PER_DAY}개를 다 풀었어요`}</b>
       <span>광고를 보면 퀴즈 ${state.quizzesPerAd}개를 더 풀 수 있고, +10포인트도 바로 받아요. 정답은 +10포인트, 오답도 +2포인트예요.</span>
       ${state.adError ? `<span class="ad-error">${state.adError}</span>` : ''}
     </div>
