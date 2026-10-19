@@ -526,7 +526,7 @@ body{
 .explain-meta .report-row{margin-left:auto;}
 .explain-meta .report-row:has(.report-note), .explain-meta .report-ok{flex-basis:100%;} /* 검토 중·결과 문구는 한 줄 전체 */
 .report-row{display:flex; justify-content:flex-end; align-items:center; gap:0.5rem; margin-top:0.4rem; font-size:0.74rem; color:var(--ink-soft); text-align:right;}
-.report-note{flex:1;}
+.report-note{flex:1; text-align:left;} /* 검토 결과는 여러 줄이 될 수 있어 왼쪽 정렬 */
 .report-btn{border:none; background:transparent; color:var(--ink-soft); font-size:0.74rem; text-decoration:underline; padding:0.2rem 0; cursor:pointer; flex:none;}
 .report-ok{color:#1f8f5c; font-weight:600; justify-content:flex-start; text-align:left;}
 @media (prefers-color-scheme: dark){ .combo-badge{background:#3a2416; color:#ff9a5c;} }

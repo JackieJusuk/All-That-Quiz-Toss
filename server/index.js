@@ -1043,13 +1043,16 @@ app.get('/api/wrongnote', async (req, res) => {
 const REPORT_BONUS_POINTS = 20;
 const REPORT_DAILY_LIMIT = 10;
 
+// 보기는 앱 화면과 같은 A~D로 부른다 — 0부터 센 번호("정답 1", "2번")를 쓰면 사용자에게 엉뚱한 보기를 가리키는 것처럼 보였다(2026-10-19).
+const L = i => String.fromCharCode(65 + i);
+
 async function reviewQuestionReport(q, selected, reason) {
   const reviewSchema = z.object({
     verdict: z.enum(['wrong_answer', 'ambiguous', 'bad_explanation', 'ok'])
       .describe('wrong_answer: 표시된 정답이 틀림 / ambiguous: 정답으로 볼 수 있는 보기가 둘 이상이거나 문제가 애매함 / bad_explanation: 정답은 맞지만 해설 내용이 틀림 / ok: 문제에 이상 없음'),
-    note: z.string().describe('사용자에게 보여줄 판정 이유, 존댓말 1~2문장'),
+    note: z.string().describe('사용자에게 보여줄 판정 이유, 존댓말 1~2문장. 보기를 가리킬 때는 반드시 A·B·C·D와 보기 문구로 쓰고 숫자 번호는 쓰지 않는다'),
   });
-  const prompt = `퀴즈 앱 사용자가 아래 문제의 정답이 이상하다고 신고했습니다. 문제를 처음부터 직접 풀어 보고, 표시된 정답·보기·해설에 실제로 오류가 있는지 판정하세요. 사용자의 의견이 맞을 수도 틀릴 수도 있으니 신고 내용에 끌려가지 말고 사실과 원어민 용법·현행 제도 기준으로 판단하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}\n표시된 정답: ${q.correct} (${q.choices[q.correct]})\n해설: ${q.explain}${Number.isInteger(selected) && q.choices[selected] !== undefined ? `\n사용자가 고른 답: ${selected} (${q.choices[selected]})` : ''}${reason ? `\n사용자 의견: ${reason}` : ''}`;
+  const prompt = `퀴즈 앱 사용자가 아래 문제의 정답이 이상하다고 신고했습니다. 문제를 처음부터 직접 풀어 보고, 표시된 정답·보기·해설에 실제로 오류가 있는지 판정하세요. 사용자의 의견이 맞을 수도 틀릴 수도 있으니 신고 내용에 끌려가지 말고 사실과 원어민 용법·현행 제도 기준으로 판단하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${L(i)}. ${c}`).join('\n')}\n표시된 정답: ${L(q.correct)} (${q.choices[q.correct]})\n해설: ${q.explain}${Number.isInteger(selected) && q.choices[selected] !== undefined ? `\n사용자가 고른 답: ${L(selected)} (${q.choices[selected]})` : ''}${reason ? `\n사용자 의견: ${reason}` : ''}`;
   const response = await client.messages.parse({
     model: 'claude-sonnet-5',
     max_tokens: 8000,
@@ -1079,7 +1082,10 @@ app.post('/api/questions/report', async (req, res) => {
     if (qErr) throw qErr; if (aErr) throw aErr; if (pErr) throw pErr; if (cErr) throw cErr;
     if (!q) { res.status(404).json({ error: 'not_found' }); return; }
     if (!answered.length) { res.status(403).json({ error: 'not_answered' }); return; } // 직접 푼 문제만 신고할 수 있다
-    if (prev) { res.json({ status: prev.status, note: prev.review_note, bonus: prev.bonus_points, already: true }); return; }
+    if (prev) { // 다시 누른 경우 저장된 판정을 그대로 보여준다(내부용 "[ok]" 같은 유형 표시는 뺀다)
+      res.json({ status: prev.status, note: (prev.review_note || '').replace(/^\[\w+\]\s*/, ''), bonus: prev.bonus_points, already: true });
+      return;
+    }
     if (!q.active) {
       res.json({ status: 'closed', note: '이미 출제에서 빠진 문제예요. 신고해 주셔서 고마워요.', bonus: 0 });
       return;
