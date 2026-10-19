@@ -259,7 +259,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
     ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
     : '';
 
-  const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n${prompts.task} 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요.${avoidBlock}`;
+  const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n${prompts.task} 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요. 보기 순서는 저장할 때 무작위로 섞이므로, 해설에서 "두 번째 보기"·"2번"·"B"처럼 보기 위치를 가리키지 말고 정답 내용(문구·숫자)으로 설명하세요.${avoidBlock}`;
   const schema = buildSchema(count);
 
   let lastErr;
