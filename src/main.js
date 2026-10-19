@@ -349,6 +349,7 @@ let state = {
   // 오늘 남은 퀴즈 수(2026-10-18, §3.25): 하루 5문제 무료 + 광고 1회당 5문제. 서버 통계(quizRemaining)가 기준이고,
   // 아직 서버 응답 전(null)이면 막지 않는다(서버가 답안 기록 시 다시 확인).
   quizRemaining:null, quizzesPerAd:5,
+  reports:{}, // 오답 신고 상태 { [questionId]: { status:'reviewing'|'accepted'|'rejected'|'closed'|'error', note, bonus } } (2026-10-19)
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   rankingCache:{}, // 기간별로 마지막에 받은 랭킹 — 다시 열 때 즉시 보여주고 뒤에서 최신값으로 갱신한다
   wrongnoteLoaded:false,
@@ -958,7 +959,7 @@ async function openWrongnote(){
   if(state.screen === 'wrongnote') render();
 }
 
-async function startTopic(topic){
+async function startTopic(topic, { keepPrefetch = false } = {}){
   state.topic = topic;
   state.answered = false;
   state.selected = null;
@@ -966,7 +967,7 @@ async function startTopic(topic){
   state.questionError = false;
   state.needsAd = false;
   state.adError = null;
-  state.prefetched = null;
+  if(!keepPrefetch) state.prefetched = null;
   state.leveledUp = false;
   state.levelBefore = categoryLevel(topic.category).level;
   state.loadingQuestions = true;
@@ -1021,16 +1022,86 @@ async function pickChoice(idx){
   await recordAnswer(state.topic, q, correct);
   const afterLevel = categoryLevel(state.topic.category).level;
   state.leveledUp = afterLevel.key !== state.levelBefore.key;
-  if(state.leveledUp) haptic('confetti');
   state.levelAfterName = `${CATEGORY_NAME[state.topic.category]} ${afterLevel.name}`;
+  if(state.leveledUp){
+    // 이제 결과 화면을 거치지 않고 바로 다음 퀴즈로 넘어가므로, 승급은 퀴즈 화면에서 알림으로 알린다(2026-10-19)
+    haptic('confetti');
+    showToast(`${ICONS.flame} ${state.levelAfterName} 등급으로 승급했어요!`);
+  }
   state.recording = false;
   render();
+  if(correct) maybeRequestReview();
+  // 해설을 읽는 동안 다음 문제를 미리 받아 둔다 — "다음 퀴즈"를 누르면 기다림 없이 바로 나온다.
+  // (방금 푼 문제는 이미 기록돼 있어 다시 뽑히지 않는다. 난이도가 바뀌었으면 쓰지 않고 새로 받는다.)
+  if(hasQuizCredit()){
+    const topic = state.topic;
+    const difficulty = categoryLevel(topic.category).level.difficulty;
+    peekQuestion(topic, difficulty, BACKGROUND_TIMEOUT_MS).then(nq => {
+      if(nq && state.topic === topic && state.question === q) state.prefetched = { topicId: topic.id, difficulty, question: nq };
+    });
+  }else{
+    preloadRewardedAd(); // 남은 퀴즈가 없으면 다음엔 광고가 필요하다
+  }
+}
+
+// 해설 아래 "다음 퀴즈" — 결과 화면을 거치지 않고 같은 주제의 다음 문제로 바로 넘어간다.
+// 남은 퀴즈가 없으면 startTopic이 광고 안내 화면을 보여준다(하루 5문제 무료 + 광고 1회당 5문제, §3.25).
+function nextQuiz(){
+  startTopic(state.topic, { keepPrefetch: true });
+}
+
+// 오답 신고 — 서버가 그 자리에서 AI로 다시 검토하고, 오류가 맞으면 문제를 빼고 +20포인트를 준다(§3.27).
+async function reportQuestion(q, selected){
+  if(!q || !q.id) return;
+  const cur = state.reports[q.id];
+  if(cur && cur.status !== 'error') return; // 이미 신고했거나 검토 중
+  state.reports = { ...state.reports, [q.id]: { status:'reviewing' } };
+  track('question_report', { no: String(q.no ?? '') });
+  render();
+  let result;
+  try{
+    const res = await fetch(`${API_BASE}/api/questions/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey, questionId: q.id, selected: Number.isInteger(selected) ? selected : undefined }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if(res.status === 429) result = { status:'error', note:'오늘은 신고를 10번까지 할 수 있어요.' };
+    else if(!res.ok) throw new Error(`status ${res.status}`);
+    else{
+      const data = await res.json();
+      if(typeof data.points === 'number') applyStats(data);
+      result = { status: data.status, note: data.note, bonus: data.bonus || 0 };
+      if(data.status === 'accepted' && !data.already){
+        haptic('success');
+        showToast(`${ICONS.coin} 신고가 맞았어요! +${data.bonus}포인트`);
+      }
+    }
+  }catch(e){
+    console.warn('오답 신고에 실패했습니다.', e);
+    result = { status:'error', note:'신고를 보내지 못했어요. 잠시 후 다시 눌러 주세요.' };
+  }
+  state.reports = { ...state.reports, [q.id]: result };
+  render();
+}
+
+// 해설 아래에 붙는 신고 버튼/결과 한 줄. 서버에 없는 비상용 문제(id 없음)는 신고할 수 없다.
+function reportHTML(q, attr){
+  if(!q || !q.id) return '';
+  const r = state.reports[q.id];
+  if(!r || r.status === 'error'){
+    return `<span class="report-row">${r ? `<span class="report-note">${r.note}</span>` : ''}<button class="report-btn" ${attr}>오답 신고하기</button></span>`;
+  }
+  if(r.status === 'reviewing'){
+    return `<span class="report-row"><span class="report-note"><span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span> 신고한 내용을 검토하고 있어요…</span></span>`;
+  }
+  if(r.status === 'accepted') return `<span class="report-row report-ok">신고가 맞았어요! +${r.bonus}포인트 · 이 문제는 출제에서 뺐어요. ${r.note || ''}</span>`;
+  return `<span class="report-row"><span class="report-note">검토 결과: ${r.note || '정답에 이상이 없어요.'}</span></span>`;
 }
 
 function finishQuiz(){
   if(!hasQuizCredit()) preloadRewardedAd(); // 남은 퀴즈가 없으면 "광고 보고 더 풀기"를 누를 테니 미리 로드해 둔다.
   go('result');
-  if(state.question && state.selected === state.question.correct) maybeRequestReview();
 }
 
 function renderTabbar(){
@@ -1413,11 +1484,12 @@ function quizHTML(){
         </button>`;
       }).join('')}
     </div>
-    ${state.answered? `<div class="explain">${state.selected===q.correct && state.combo>=2 ? `<span class="combo-badge">${ICONS.flame} ${state.combo}연속 정답!</span>` : ''}<b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}${questionStatsHTML()}</div>` : ''}
+    ${state.answered? `<div class="explain">${state.selected===q.correct && state.combo>=2 ? `<span class="combo-badge">${ICONS.flame} ${state.combo}연속 정답!</span>` : ''}<b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}<span class="explain-meta">${questionStatsHTML()}${state.recording ? '' : reportHTML(q, 'id="quiz-report"')}</span></div>` : ''}
   </div>
   ${state.answered && !state.recording ? `
-  <div class="quiz-foot">
-    <button class="btn-primary" id="quiz-finish">결과 보기</button>
+  <div class="quiz-foot quiz-foot-row">
+    <button class="btn-ghost" id="quiz-finish">결과 보기</button>
+    <button class="btn-primary" id="quiz-next">${hasQuizCredit() ? '다음 퀴즈' : `광고 보고 ${state.quizzesPerAd}개 더 풀기`}</button>
   </div>` : ''}`;
 }
 
@@ -1469,6 +1541,8 @@ function todayScoresHTML(){
           ...((state.todayOtherScores.migration?.count) ? [['migration', '포인트 이관', () => '적립 완료']] : []),
           // 오답노트에서 다시 풀어 맞힌 문제 1개당 1점(2026-10-13).
           ['overcome', '오답 극복', v => `${v.count}개`],
+          // 인정된 오답 신고 보너스(+20점, 2026-10-19) — 받은 날에만 보여준다(값이 0인 날까지 줄을 차지하지 않게, 원칙 16)
+          ...((state.todayOtherScores.report?.count) ? [['report', '오답 신고', v => `${v.count}건 인정`]] : []),
         ].map(([key, name, detailText]) => {
           const v = state.todayOtherScores[key] || { count:0, points:0 };
           return `
@@ -1557,7 +1631,8 @@ function wrongnoteHTML(){
             ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! +1포인트 · 다음에 열면 오답노트에서 빠져요</div>` : ''}
             <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
             <div class="wnote-explain">${w.q.explain}</div>
-            ${w.q.no ? `<div class="wnote-no">No. ${w.q.no}</div>` : ''}`
+            ${w.q.no ? `<div class="wnote-no">No. ${w.q.no}</div>` : ''}
+            ${reportHTML({ ...w.q, id: w.id }, `data-wnote-report="${i}"`)}`
           : `<button class="wnote-reveal" data-wnote-reveal="${i}">정답만 보기</button>`}
         </div>
       </div>`;
@@ -1749,10 +1824,20 @@ function bindScreenEvents(){
   });
   const closeBtn = screenEl.querySelector('#quiz-close');
   if(closeBtn) closeBtn.addEventListener('click', ()=> go('home'));
+  const nextBtn = screenEl.querySelector('#quiz-next');
+  if(nextBtn) nextBtn.addEventListener('click', nextQuiz);
+  const reportBtn = screenEl.querySelector('#quiz-report');
+  if(reportBtn) reportBtn.addEventListener('click', ()=> reportQuestion(state.question, state.selected));
+  screenEl.querySelectorAll('[data-wnote-report]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const w = state.wrongNoteItems[Number(el.dataset.wnoteReport)];
+      if(w) reportQuestion({ ...w.q, id: w.id }, state.wnoteRetry[Number(el.dataset.wnoteReport)]?.selected);
+    });
+  });
   const finishBtn = screenEl.querySelector('#quiz-finish');
   if(finishBtn) finishBtn.addEventListener('click', finishQuiz);
   const rnBtn = screenEl.querySelector('#result-next');
-  if(rnBtn) rnBtn.addEventListener('click', ()=> startTopic(state.topic));
+  if(rnBtn) rnBtn.addEventListener('click', nextQuiz);
   const rwBtn = screenEl.querySelector('#result-wrong');
   if(rwBtn) rwBtn.addEventListener('click', openWrongnote);
   const rrBtn = screenEl.querySelector('#result-ranking');

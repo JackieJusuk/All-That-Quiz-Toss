@@ -136,3 +136,26 @@ create table if not exists wrong_overcomes (
   primary key (user_key, question_id)
 );
 alter table wrong_overcomes enable row level security;
+
+-- 오답 신고(2026-10-19, requirements.md §3.27). 사용자가 "오답 신고하기"를 누르면 서버가 그 자리에서 AI로 다시 검토해
+-- status를 accepted(오류 맞음: 문제 출제 제외 + bonus_points 20점) / rejected(이상 없음)로 바꾼다.
+-- 같은 사람이 같은 문제를 두 번 신고할 수 없다. 보너스는 reviewed_date 기준으로 포인트·랭킹에 합산된다(aggregates.sql).
+create table if not exists question_reports (
+  id bigint generated always as identity primary key,
+  user_key text not null,
+  question_id uuid not null references questions (id),
+  question_no bigint,
+  selected integer,                    -- 신고자가 고른 보기
+  reason text,
+  status text not null default 'pending', -- pending | accepted | rejected
+  review_note text,                    -- AI 판정 유형과 이유
+  bonus_points integer not null default 0,
+  created_at timestamptz not null default now(),
+  created_date date not null,          -- KST, 하루 신고 횟수 제한용
+  reviewed_at timestamptz,
+  reviewed_date date,                  -- KST, 보너스가 잡히는 날
+  unique (user_key, question_id)
+);
+alter table question_reports enable row level security;
+create index if not exists question_reports_user_idx on question_reports (user_key);
+create index if not exists question_reports_question_idx on question_reports (question_id);

@@ -66,6 +66,10 @@ as $$
     union all
     select wo.user_key, 1 from wrong_overcomes wo -- 오답 극복 1개당 1점(2026-10-13)
       where (p_from is null or wo.overcome_date >= p_from) and (p_to is null or wo.overcome_date <= p_to)
+    union all
+    select qr.user_key, qr.bonus_points from question_reports qr -- 인정된 오답 신고 보너스(2026-10-19)
+      where qr.status = 'accepted'
+        and (p_from is null or qr.reviewed_date >= p_from) and (p_to is null or qr.reviewed_date <= p_to)
   )
   select ev.user_key, sum(ev.pts)::bigint as score
   from ev
@@ -90,6 +94,10 @@ as $$
     'weekly_award_points', (select coalesce(sum(points), 0) from weekly_awards where user_key = p_user_key),
     'migration_points', (select coalesce(sum(points), 0) from migration_credits where user_key = p_user_key),
     'overcome_count', (select count(*) from wrong_overcomes where user_key = p_user_key),
+    -- 인정된 오답 신고 보너스(2026-10-19)
+    'report_points', (select coalesce(sum(bonus_points), 0) from question_reports where user_key = p_user_key and status = 'accepted'),
+    'today_report_count', (select count(*) from question_reports where user_key = p_user_key and status = 'accepted' and reviewed_date = p_today),
+    'today_report_points', (select coalesce(sum(bonus_points), 0) from question_reports where user_key = p_user_key and status = 'accepted' and reviewed_date = p_today),
     -- 배지용(2026-10-13): 주제별 누적 정답 수, 어려움 난이도 누적 정답 수
     'topic_correct', (select coalesce(jsonb_object_agg(topic, c), '{}'::jsonb)
                       from (select topic, count(*) as c from used_questions

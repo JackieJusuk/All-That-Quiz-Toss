@@ -668,7 +668,8 @@ async function computeUserStats(userKey) {
     + streakBonusCount * STREAK_BONUS_POINTS
     + weeklyAwardPoints
     + migrationPoints
-    + overcomeCount * POINTS_OVERCOME;
+    + overcomeCount * POINTS_OVERCOME
+    + n('report_points'); // 인정된 오답 신고 보너스(2026-10-19, §3.27)
 
   // 오늘 푼 퀴즈만 주제별로 묶어 결과 화면의 "오늘의 주제별 점수"에 쓴다.
   const todayTopics = agg.today_topics || {};
@@ -695,6 +696,7 @@ async function computeUserStats(userKey) {
     weeklyAward: { count: n('today_weekly_award_count'), points: n('today_weekly_award_points') },
     migration: { count: n('today_migration_count'), points: n('today_migration_points') },
     overcome: { count: n('today_overcome_count'), points: n('today_overcome_count') * POINTS_OVERCOME },
+    report: { count: n('today_report_count'), points: n('today_report_points') },
   };
   const todayTotalPoints = Object.values(todayTopicScores).reduce((sum, t) => sum + t.points, 0)
     + Object.values(todayOtherScores).reduce((sum, o) => sum + o.points, 0);
@@ -1008,12 +1010,20 @@ app.get('/api/wrongnote', async (req, res) => {
         .order('answered_at', { ascending: false }),
       supabase.from('wrong_overcomes').select('question_id').eq('user_key', userKey),
     ]);
+    // 신고가 인정된(오류가 확인된) 문제는 오답노트에서 뺀다 — 틀린 문제를 다시 풀게 하지 않기 위해(2026-10-19)
+    let bad = new Set();
+    if (!error && data.length) {
+      const { data: badRows, error: badErr } = await supabase.from('question_reports')
+        .select('question_id').eq('status', 'accepted').in('question_id', data.map(r => r.question_id));
+      if (badErr) throw badErr;
+      bad = new Set(badRows.map(r => r.question_id));
+    }
     if (error) throw error;
     if (ovErr) throw ovErr;
     const done = new Set(overcome.map(r => r.question_id));
     res.json({
       items: data
-        .filter(r => !done.has(r.question_id))
+        .filter(r => !done.has(r.question_id) && !bad.has(r.question_id))
         .map(r => ({ id: r.question_id, topic: TOPIC_LABELS[r.topic] || r.topic, q: r.questions })),
       overcomeCount: done.size,
     });
@@ -1026,6 +1036,81 @@ app.get('/api/wrongnote', async (req, res) => {
 // 오답 극복: 오답노트에서 다시 풀어 맞혔을 때 기록한다. 실제로 틀렸던 문제인지 확인한다. 극복 1개당 +1포인트
 // (2026-10-13 사용자 결정, 하루 개수 제한 없음). 같은 문제는 (user_key, question_id) 기본키로 한 번만 기록되므로
 // 같은 문제를 반복해 포인트를 쌓을 수는 없다. 응답에 갱신된 통계를 담아 앱이 포인트를 바로 반영하게 한다.
+// ---- 오답 신고(2026-10-19, requirements.md §3.27) ----
+// 사용자가 "정답이 이상해요"라고 신고하면 그 자리에서 AI가 다시 검토한다. 정답이 틀렸거나, 정답이 둘 이상이거나,
+// 해설이 틀린 문제로 판정되면 신고를 인정해 문제를 출제에서 빼고(active=false) 신고자에게 20포인트를 준다.
+// 같은 사람이 같은 문제를 두 번 신고할 수 없고(테이블 유니크), AI 비용을 막기 위해 하루 10건까지만 받는다.
+const REPORT_BONUS_POINTS = 20;
+const REPORT_DAILY_LIMIT = 10;
+
+async function reviewQuestionReport(q, selected, reason) {
+  const reviewSchema = z.object({
+    verdict: z.enum(['wrong_answer', 'ambiguous', 'bad_explanation', 'ok'])
+      .describe('wrong_answer: 표시된 정답이 틀림 / ambiguous: 정답으로 볼 수 있는 보기가 둘 이상이거나 문제가 애매함 / bad_explanation: 정답은 맞지만 해설 내용이 틀림 / ok: 문제에 이상 없음'),
+    note: z.string().describe('사용자에게 보여줄 판정 이유, 존댓말 1~2문장'),
+  });
+  const prompt = `퀴즈 앱 사용자가 아래 문제의 정답이 이상하다고 신고했습니다. 문제를 처음부터 직접 풀어 보고, 표시된 정답·보기·해설에 실제로 오류가 있는지 판정하세요. 사용자의 의견이 맞을 수도 틀릴 수도 있으니 신고 내용에 끌려가지 말고 사실과 원어민 용법·현행 제도 기준으로 판단하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}\n표시된 정답: ${q.correct} (${q.choices[q.correct]})\n해설: ${q.explain}${Number.isInteger(selected) && q.choices[selected] !== undefined ? `\n사용자가 고른 답: ${selected} (${q.choices[selected]})` : ''}${reason ? `\n사용자 의견: ${reason}` : ''}`;
+  const response = await client.messages.parse({
+    model: 'claude-sonnet-5',
+    max_tokens: 8000,
+    output_config: { effort: 'high', format: zodOutputFormat(reviewSchema) }, // 드물게 호출되고 보너스가 걸려 있어 정확도 우선
+    system: '당신은 경제 상식·영어회화 퀴즈의 오류 신고를 심사하는 공정한 검수자입니다. 정답이 하나로 분명하고 해설이 사실과 맞으면 ok, 그렇지 않으면 해당 오류 유형을 고릅니다.',
+    messages: [{ role: 'user', content: prompt }],
+  });
+  if (!response.parsed_output) throw new Error('report review: no parsed_output');
+  return response.parsed_output;
+}
+
+app.post('/api/questions/report', async (req, res) => {
+  const body = req.body || {};
+  const userKey = String(body.userKey || 'guest');
+  const questionId = String(body.questionId || '');
+  const selected = Number.isInteger(body.selected) ? body.selected : null;
+  const reason = typeof body.reason === 'string' ? body.reason.slice(0, 300) : null;
+  if (!questionId) { res.status(400).json({ error: 'invalid_request' }); return; }
+  try {
+    const today = todayKST();
+    const [{ data: q, error: qErr }, { data: answered, error: aErr }, { data: prev, error: pErr }, { count: todayCount, error: cErr }] = await Promise.all([
+      supabase.from('questions').select('id, no, q, choices, correct, explain, active').eq('id', questionId).maybeSingle(),
+      supabase.from('used_questions').select('question_id').eq('user_key', userKey).eq('question_id', questionId).limit(1),
+      supabase.from('question_reports').select('status, review_note, bonus_points').eq('user_key', userKey).eq('question_id', questionId).maybeSingle(),
+      supabase.from('question_reports').select('id', { count: 'exact', head: true }).eq('user_key', userKey).eq('created_date', today),
+    ]);
+    if (qErr) throw qErr; if (aErr) throw aErr; if (pErr) throw pErr; if (cErr) throw cErr;
+    if (!q) { res.status(404).json({ error: 'not_found' }); return; }
+    if (!answered.length) { res.status(403).json({ error: 'not_answered' }); return; } // 직접 푼 문제만 신고할 수 있다
+    if (prev) { res.json({ status: prev.status, note: prev.review_note, bonus: prev.bonus_points, already: true }); return; }
+    if (!q.active) {
+      res.json({ status: 'closed', note: '이미 출제에서 빠진 문제예요. 신고해 주셔서 고마워요.', bonus: 0 });
+      return;
+    }
+    if ((todayCount ?? 0) >= REPORT_DAILY_LIMIT) { res.status(429).json({ error: 'daily_limit' }); return; }
+
+    const { data: row, error: insErr } = await supabase.from('question_reports')
+      .insert({ user_key: userKey, question_id: questionId, question_no: q.no, selected, reason, created_date: today })
+      .select('id').single();
+    if (insErr) throw insErr;
+
+    const review = await reviewQuestionReport(q, selected, reason);
+    const accepted = review.verdict !== 'ok';
+    const { error: upErr } = await supabase.from('question_reports').update({
+      status: accepted ? 'accepted' : 'rejected', review_note: `[${review.verdict}] ${review.note}`,
+      bonus_points: accepted ? REPORT_BONUS_POINTS : 0, reviewed_at: new Date().toISOString(), reviewed_date: today,
+    }).eq('id', row.id);
+    if (upErr) throw upErr;
+    if (accepted) {
+      const { error: deErr } = await supabase.from('questions').update({ active: false }).eq('id', questionId);
+      if (deErr) console.error('report deactivate error', deErr);
+    }
+    console.log(`question report No.${q.no} by ${userKey.slice(0, 6)}: ${review.verdict}`);
+    const stats = await computeUserStats(userKey);
+    res.json({ status: accepted ? 'accepted' : 'rejected', note: review.note, bonus: accepted ? REPORT_BONUS_POINTS : 0, ...stats });
+  } catch (err) {
+    console.error('question report failed:', err);
+    res.status(502).json({ error: 'report_failed' });
+  }
+});
+
 app.post('/api/wrongnote/overcome', async (req, res) => {
   const body = req.body || {};
   const userKey = String(body.userKey || 'guest');
