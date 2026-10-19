@@ -520,6 +520,15 @@ body{
 .explain .combo-badge + b{display:block;}
 .qstats{display:block; margin-top:0.45rem; font-size:0.78rem; color:var(--ink-soft);}
 .qstats b{color:var(--accent);}
+/* 오답 신고(2026-10-19): 해설 맨 아래 한 줄 — 높이를 거의 늘리지 않도록 작은 글씨 링크로 둔다(원칙 16) */
+.explain-meta{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; column-gap:0.5rem;}
+.explain-meta .qstats{display:inline;}
+.explain-meta .report-row{margin-left:auto;}
+.explain-meta .report-row:has(.report-note), .explain-meta .report-ok{flex-basis:100%;} /* 검토 중·결과 문구는 한 줄 전체 */
+.report-row{display:flex; justify-content:flex-end; align-items:center; gap:0.5rem; margin-top:0.4rem; font-size:0.74rem; color:var(--ink-soft); text-align:right;}
+.report-note{flex:1;}
+.report-btn{border:none; background:transparent; color:var(--ink-soft); font-size:0.74rem; text-decoration:underline; padding:0.2rem 0; cursor:pointer; flex:none;}
+.report-ok{color:#1f8f5c; font-weight:600; justify-content:flex-start; text-align:left;}
 @media (prefers-color-scheme: dark){ .combo-badge{background:#3a2416; color:#ff9a5c;} }
 
 /* 승급·연속 정답 축하 꽃가루 — 화면을 덮지만 클릭은 통과시킨다 */
@@ -538,6 +547,10 @@ body{
   flex:none;
   padding:0.7rem 1.15rem 1rem;
 }
+/* 답을 고른 뒤 하단: [결과 보기][다음 퀴즈]를 한 줄에 — 버튼을 세로로 두 개 쌓으면 작은 화면에서 넘친다(2026-10-19) */
+.quiz-foot-row{display:flex; gap:0.6rem;}
+.quiz-foot-row .btn-ghost{flex:1; margin:0; width:auto;}
+.quiz-foot-row .btn-primary{flex:2; width:auto;}
 .btn-primary{
   width:100%;
   border:none;
