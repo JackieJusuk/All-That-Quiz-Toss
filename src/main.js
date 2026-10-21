@@ -101,6 +101,7 @@ const ICONS = {
   engTravel: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 4 11l1.5-1.5 7 1 4.5-4.5a1.8 1.8 0 0 1 2.5 2.5L15 13l1 7-1.5 1.5-2.5-6.5L9 18v2.5L7.5 22l-1-3.5L3 17.5 4.5 16H7Z"/></svg>',
   engWork: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M3 12.5h18"/></svg>',
   engKonglish: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18 7 6l4 12M4.4 14h5.2"/><path d="M14 8h7M17.5 6v2c0 4-2 7-4.5 8M15.5 11.5c1 2 3 3.5 5.5 4"/></svg>',
+  speaker: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
   invest: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   medal: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="6"/><path d="M8.5 9.8 6 3h4l2 5 2-5h4l-2.5 6.8"/><path d="m12 12.6.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="currentColor" stroke="none"/></svg>',
   trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4.5a2 2 0 0 0 0 4H7M17 5h2.5a2 2 0 0 1 0 4H17"/><path d="M12 14v3"/><path d="M8.5 20.5c0-2.2 1.2-3.3 3.5-3.8 2.3.5 3.5 1.6 3.5 3.8"/><path d="M8.5 20.5h7"/></svg>'
@@ -349,6 +350,8 @@ let state = {
   // 오늘 남은 퀴즈 수(2026-10-18, §3.25): 하루 5문제 무료 + 광고 1회당 5문제. 서버 통계(quizRemaining)가 기준이고,
   // 아직 서버 응답 전(null)이면 막지 않는다(서버가 답안 기록 시 다시 확인).
   quizRemaining:null, quizzesPerAd:5,
+  ttsEnabled:false, // 서버에 원어민 발음(TTS)이 켜져 있는지(§3.29) — 꺼져 있으면 듣기 버튼을 숨긴다
+  audio:null, // 지금 재생 중/준비 중인 발음 { id, status:'loading'|'playing' }
   reports:{}, // 오답 신고 상태 { [questionId]: { status:'reviewing'|'accepted'|'rejected'|'closed'|'error', note, bonus } } (2026-10-19)
   rankPeriod:'daily', rankingRows:[], rankingLoading:false,
   rankingCache:{}, // 기간별로 마지막에 받은 랭킹 — 다시 열 때 즉시 보여주고 뒤에서 최신값으로 갱신한다
@@ -405,6 +408,7 @@ async function fetchStatus(){
     state.totalCorrect = data.totalCorrect;
     applyCategoryCorrect(data);
     applyQuizCredits(data);
+    if(typeof data.ttsEnabled === 'boolean') state.ttsEnabled = data.ttsEnabled;
     state.streak = data.streak;
     state.points = data.points;
     state.streakBonusDays = data.streakBonusDays ?? 10;
@@ -431,6 +435,7 @@ async function fetchInit(){
     state.totalCorrect = data.totalCorrect;
     applyCategoryCorrect(data);
     applyQuizCredits(data);
+    if(typeof data.ttsEnabled === 'boolean') state.ttsEnabled = data.ttsEnabled;
     state.streak = data.streak;
     state.points = data.points;
     state.streakBonusDays = data.streakBonusDays ?? 10;
@@ -861,6 +866,7 @@ function go(screen, extra){
   state.promoDetail = null;
   state.myStatsDetailOpen = false;
   state.badgeSheetOpen = false;
+  if(screen !== state.screen) stopAudio(); // 다른 화면으로 가면 발음 재생을 멈춘다
   state.screen = screen;
   try{ Analytics.screen({ log_name: `${screen}_screen` })?.catch?.(() => {}); }catch(e){ /* 분석 실패는 무시 */ }
   if(screen!=='quiz' && screen!=='result'){
@@ -1047,6 +1053,7 @@ async function pickChoice(idx){
 // 해설 아래 "다음 퀴즈" — 결과 화면을 거치지 않고 같은 주제의 다음 문제로 바로 넘어간다.
 // 남은 퀴즈가 없으면 startTopic이 광고 안내 화면을 보여준다(하루 5문제 무료 + 광고 1회당 5문제, §3.25).
 function nextQuiz(){
+  stopAudio();
   startTopic(state.topic, { keepPrefetch: true });
 }
 
@@ -1083,6 +1090,55 @@ async function reportQuestion(q, selected){
   }
   state.reports = { ...state.reports, [q.id]: result };
   render();
+}
+
+// ---- 영어 원어민 발음 듣기(2026-10-21, §3.29) ----
+// 영어 문제만, 정답·오답 모두 들을 수 있다(정답을 빈칸에 넣은 완성 영어를 읽어 준다). 음성은 서버가 문제당 한 번 만들어
+// 저장해 두고(audioUrl), 아직 없으면 처음 누른 사람 때 만들어진다(몇 초 대기).
+let audioPlayer = null;
+function canPlayAudio(q, category){
+  return category === 'english' && !!q && !!q.id && (!!q.audioUrl || state.ttsEnabled);
+}
+function stopAudio(){
+  if(audioPlayer){ audioPlayer.pause(); audioPlayer = null; }
+  state.audio = null;
+}
+async function playQuestionAudio(q){
+  if(state.audio && state.audio.id === q.id){ stopAudio(); render(); return; } // 다시 누르면 멈춤
+  stopAudio();
+  state.audio = { id: q.id, status: 'loading' };
+  render();
+  try{
+    let url = q.audioUrl;
+    if(!url){
+      const res = await fetch(`${API_BASE}/api/questions/audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: q.id }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if(!res.ok) throw new Error(`status ${res.status}`);
+      url = (await res.json()).url;
+      q.audioUrl = url; // 같은 화면에서 다시 들을 때는 바로 재생
+    }
+    if(!state.audio || state.audio.id !== q.id) return; // 기다리는 사이 다른 걸 눌렀으면 무시
+    const player = new Audio(url);
+    audioPlayer = player;
+    player.onended = () => { if(audioPlayer === player){ audioPlayer = null; state.audio = null; render(); } };
+    await player.play();
+    state.audio = { id: q.id, status: 'playing' };
+    track('audio_play', { no: String(q.no ?? '') });
+  }catch(e){
+    console.warn('발음을 재생하지 못했습니다.', e);
+    stopAudio();
+    showToast('발음을 불러오지 못했어요. 잠시 후 다시 눌러 주세요.');
+  }
+  render();
+}
+function audioBtnHTML(q, attr){
+  const st = state.audio && state.audio.id === q.id ? state.audio.status : null;
+  const label = st === 'loading' ? '불러오는 중…' : st === 'playing' ? '멈추기' : '발음 듣기';
+  return `<button class="audio-btn${st ? ' active' : ''}" ${attr} aria-label="원어민 발음 ${label}">${st === 'loading' ? `<span class="hourglass hourglass-inline" aria-hidden="true">${ICONS.hourglass}</span>` : ICONS.speaker} ${label}</button>`;
 }
 
 // 해설 아래에 붙는 신고 버튼/결과 한 줄. 서버에 없는 비상용 문제(id 없음)는 신고할 수 없다.
@@ -1484,7 +1540,7 @@ function quizHTML(){
         </button>`;
       }).join('')}
     </div>
-    ${state.answered? `<div class="explain">${state.selected===q.correct && state.combo>=2 ? `<span class="combo-badge">${ICONS.flame} ${state.combo}연속 정답!</span>` : ''}<b>${state.selected===q.correct?'정답이에요.':'아쉬워요.'}</b> ${q.explain}<span class="explain-meta">${questionStatsHTML()}${state.recording ? '' : reportHTML(q, 'id="quiz-report"')}</span></div>` : ''}
+    ${state.answered? `<div class="explain">${state.selected===q.correct && state.combo>=2 ? `<span class="combo-badge">${ICONS.flame} ${state.combo}연속 정답!</span>` : ''}${!state.recording && canPlayAudio(q, state.topic.category) ? audioBtnHTML(q, 'id="quiz-audio"') : ''}<b>${state.selected===q.correct?'정답이에요.':`아쉬워요. 정답은 ${String.fromCharCode(65+q.correct)}예요.`}</b> ${q.explain}<span class="explain-meta">${questionStatsHTML()}${state.recording ? '' : reportHTML(q, 'id="quiz-report"')}</span></div>` : ''}
   </div>
   ${state.answered && !state.recording ? `
   <div class="quiz-foot quiz-foot-row">
@@ -1629,7 +1685,7 @@ function wrongnoteHTML(){
           </div>
           ${revealed ? `
             ${passed ? `<div class="wnote-pass">${ICONS.flame} 극복했어요! +1포인트 · 다음에 열면 오답노트에서 빠져요</div>` : ''}
-            <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}</div>
+            <div class="wnote-answer">정답 · ${w.q.choices[w.q.correct]}${canPlayAudio({ ...w.q, id: w.id, audioUrl: w.q.audio_url }, TOPICS.find(t => t.name === w.topic)?.category) ? audioBtnHTML({ id: w.id }, `data-wnote-audio="${i}"`) : ''}</div>
             <div class="wnote-explain">${w.q.explain}</div>
             ${w.q.no ? `<div class="wnote-no">No. ${w.q.no}</div>` : ''}
             ${reportHTML({ ...w.q, id: w.id }, `data-wnote-report="${i}"`)}`
@@ -1824,6 +1880,16 @@ function bindScreenEvents(){
   });
   const closeBtn = screenEl.querySelector('#quiz-close');
   if(closeBtn) closeBtn.addEventListener('click', ()=> go('home'));
+  const audioBtn = screenEl.querySelector('#quiz-audio');
+  if(audioBtn) audioBtn.addEventListener('click', ()=> playQuestionAudio(state.question));
+  screenEl.querySelectorAll('[data-wnote-audio]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const w = state.wrongNoteItems[Number(el.dataset.wnoteAudio)];
+      if(!w) return;
+      if(!w.audioQ) w.audioQ = { id: w.id, no: w.q.no, audioUrl: w.q.audio_url || null }; // 같은 객체를 써야 받아 둔 주소가 유지된다
+      playQuestionAudio(w.audioQ);
+    });
+  });
   const nextBtn = screenEl.querySelector('#quiz-next');
   if(nextBtn) nextBtn.addEventListener('click', nextQuiz);
   const reportBtn = screenEl.querySelector('#quiz-report');

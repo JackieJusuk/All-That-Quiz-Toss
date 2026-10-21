@@ -159,3 +159,11 @@ create table if not exists question_reports (
 alter table question_reports enable row level security;
 create index if not exists question_reports_user_idx on question_reports (user_key);
 create index if not exists question_reports_question_idx on question_reports (question_id);
+
+-- 영어 원어민 발음 듣기(2026-10-21, requirements.md §3.29). 문제마다 읽을 영어(speech_lines: [{speaker:'A'|'B'|'N', text}])와
+-- Google Cloud TTS로 만든 MP3 주소(audio_url)를 저장한다. MP3 파일은 공개 Storage 버킷 question-audio에 q{번호}.mp3로 둔다.
+alter table questions add column if not exists speech_lines jsonb;
+alter table questions add column if not exists audio_url text;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('question-audio', 'question-audio', true, 2097152, array['audio/mpeg'])
+on conflict (id) do nothing;
