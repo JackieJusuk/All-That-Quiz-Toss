@@ -1442,6 +1442,7 @@ app.get('/api/awards', async (req, res) => {
 });
 
 // 랭킹 (일간/주간/전체 실제 집계, 닉네임 표시)
+const RANKING_TOP_N = 10;
 app.get('/api/ranking', async (req, res) => {
   const period = ['weekly', 'all'].includes(req.query.period) ? req.query.period : 'daily';
   const userKey = String(req.query.userKey || 'guest');
@@ -1505,7 +1506,10 @@ app.get('/api/ranking', async (req, res) => {
         score: scores[key],
         quizScores: quizScoresMap[key] || { economy: 0, english: 0 },
       }))
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score)
+      // 화면에는 일간/주간/전체 모두 상위 10명만 보여준다(2026-10-21). DB에서는 20명을 받아 두어
+      // 프로필 없는 테스트 키를 걸러낸 뒤에도 10명이 채워지게 한다.
+      .slice(0, RANKING_TOP_N);
 
     res.json({ rows });
   } catch (err) {

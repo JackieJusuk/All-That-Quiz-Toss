@@ -1727,6 +1727,7 @@ function rankSegHTML(){
   </div>`;
 }
 
+const RANKING_TOP_N = 10; // 랭킹은 기간마다 상위 10명만 표시(2026-10-21)
 function rankingHTML(){
   if(state.rankingLoading){
     return `<div class="scroll">
@@ -1734,7 +1735,7 @@ function rankingHTML(){
       ${waitingHTML('불러오는 중이에요', '잠시만 기다려 주세요')}
     </div>`;
   }
-  const rows = state.rankingRows;
+  const rows = state.rankingRows.slice(0, RANKING_TOP_N); // 지난 버전이 저장해 둔 20명 캐시도 10명만
   // 분야별 퀴즈 점수(경제/영어)는 영어를 푼 사람이 한 명이라도 있을 때만 보여준다 — 다들 0이면 줄만 차지한다.
   const showCat = rows.some(r => r.quizScores && r.quizScores.english > 0);
   return `<div class="scroll">
