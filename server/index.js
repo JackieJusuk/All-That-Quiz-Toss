@@ -474,6 +474,7 @@ async function ensurePoolTopUp({ fill = false } = {}) {
     console.error('pool topup failed', e);
   } finally {
     topupInFlight = false;
+    generateMissingAudio().catch(e => console.error('audio backfill error', e)); // 새로 채운 영어 문제의 음성도 미리 만든다
   }
 }
 
@@ -776,7 +777,7 @@ app.get('/api/status', async (req, res) => {
       hasUnconsumedAdTicket(userKey),
     ]);
     const stats = await computeUserStats(userKey); // 방금 기록한 출석을 집계해야 하므로 위 작업 이후에 실행
-    res.json({ hasAdTicket, ...stats });
+    res.json({ hasAdTicket, ttsEnabled: TTS_ENABLED, ...stats });
   } catch (err) {
     console.error('status failed:', err);
     res.status(502).json({ error: 'status_failed' });
@@ -835,7 +836,7 @@ app.get('/api/init', async (req, res) => {
     ]);
     if (profErr) throw profErr;
     const stats = await computeUserStats(userKey); // 방금 기록한 출석을 집계해야 하므로 위 작업 이후에 실행
-    res.json({ nickname: profile ? profile.nickname : null, hasAdTicket, ...stats });
+    res.json({ nickname: profile ? profile.nickname : null, hasAdTicket, ttsEnabled: TTS_ENABLED, ...stats });
   } catch (err) {
     console.error('init failed:', err);
     res.status(502).json({ error: 'init_failed' });
@@ -890,6 +891,7 @@ app.post('/api/questions/peek', async (req, res) => {
       correct: question.correct,
       explain: question.explain,
       difficulty: question.difficulty,
+      audioUrl: question.audio_url || null, // 영어 원어민 발음 MP3(§3.29, 아직 안 만들었으면 null)
     });
   } catch (err) {
     console.error('question peek failed:', err);
@@ -926,6 +928,7 @@ app.post('/api/questions', async (req, res) => {
       correct: question.correct,
       explain: question.explain,
       difficulty: question.difficulty,
+      audioUrl: question.audio_url || null, // 영어 원어민 발음 MP3(§3.29, 아직 안 만들었으면 null)
     });
   } catch (err) {
     console.error('question fetch failed:', err);
@@ -1004,7 +1007,7 @@ app.get('/api/wrongnote', async (req, res) => {
     const [{ data, error }, { data: overcome, error: ovErr }] = await Promise.all([
       supabase
         .from('used_questions')
-        .select('question_id, topic, answered_at, questions(no, q, choices, correct, explain, difficulty)')
+        .select('question_id, topic, answered_at, questions(no, q, choices, correct, explain, difficulty, audio_url)')
         .eq('user_key', userKey)
         .eq('correct', false)
         .order('answered_at', { ascending: false }),
@@ -1116,6 +1119,130 @@ app.post('/api/questions/report', async (req, res) => {
     res.status(502).json({ error: 'report_failed' });
   }
 });
+
+// ---- 영어 원어민 발음 듣기(2026-10-21, requirements.md §3.29) ----
+// 영어 문제마다 "정답을 빈칸에 넣은 완성 영어"를 AI로 한 번 뽑아(speech_lines) Google Cloud TTS로 MP3를 만들고,
+// Supabase Storage(question-audio, 공개 버킷)에 저장해 모든 사용자가 재사용한다. 생성 비용은 문제당 한 번뿐이다.
+// GOOGLE_TTS_API_KEY가 없으면 기능 전체가 꺼진 상태(앱에는 버튼이 안 보임)로 동작한다.
+const GOOGLE_TTS_API_KEY = process.env.GOOGLE_TTS_API_KEY;
+const TTS_ENABLED = Boolean(GOOGLE_TTS_API_KEY);
+// 대화 A·B는 다른 목소리로, 단독 문장(N)은 A 목소리로 읽는다. 환경변수로 바꿀 수 있다.
+const TTS_VOICES = {
+  A: process.env.TTS_VOICE_A || 'en-US-Neural2-F',
+  B: process.env.TTS_VOICE_B || 'en-US-Neural2-D',
+};
+const AUDIO_BUCKET = 'question-audio';
+const TTS_ENDPOINT = process.env.GOOGLE_TTS_ENDPOINT || 'https://texttospeech.googleapis.com/v1/text:synthesize'; // 테스트용으로만 바꾼다
+
+const escapeSsml = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// 문제에서 소리 내어 읽을 영어 줄을 뽑는다. 빈칸은 정답으로 채우고, 한국어는 넣지 않는다.
+async function buildSpeechLines(q) {
+  const schema = z.object({
+    lines: z.array(z.object({
+      speaker: z.enum(['A', 'B', 'N']).describe('대화의 A/B 화자, 대화가 아니면 N'),
+      text: z.string().describe('소리 내어 읽을 영어 문장(한국어 없이)'),
+    })).min(1).max(4),
+  });
+  const L = i => String.fromCharCode(65 + i);
+  const prompt = `아래 영어회화 퀴즈에서, 정답을 맞힌 뒤 원어민 발음으로 들려줄 영어 문장만 뽑아 주세요.\n` +
+    `- 대화문이면 빈칸(____)을 정답으로 채운 완성 대화를 A/B 화자별로 나눕니다(질문에 나온 영어 대사도 포함).\n` +
+    `- 표현의 뜻을 묻는 문제면 그 영어 표현(과 예문이 있으면 예문)을 N으로 읽습니다.\n` +
+    `- 한국어 문장을 영어로 옮기는 문제면 정답 영어 문장을 N으로 읽습니다.\n` +
+    `- 한국어·기호·보기 번호는 넣지 말고, 자연스러운 영어 문장만 씁니다.\n\n` +
+    `질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${L(i)}. ${c}`).join('\n')}\n정답: ${L(q.correct)}. ${q.choices[q.correct]}`;
+  const response = await client.messages.parse({
+    model: 'claude-sonnet-5',
+    max_tokens: 2000,
+    output_config: { effort: 'low', format: zodOutputFormat(schema) },
+    messages: [{ role: 'user', content: prompt }],
+  });
+  if (!response.parsed_output) throw new Error('speech lines: no parsed_output');
+  return response.parsed_output.lines.filter(l => /[A-Za-z]/.test(l.text));
+}
+
+async function synthesizeLine(text, voice) {
+  const res = await fetch(`${TTS_ENDPOINT}?key=${GOOGLE_TTS_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: { ssml: `<speak>${escapeSsml(text)}<break time="450ms"/></speak>` },
+      voice: { languageCode: 'en-US', name: voice },
+      audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 }, // 학습용이라 아주 조금 천천히
+    }),
+  });
+  if (!res.ok) throw new Error(`google tts ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json();
+  return Buffer.from(data.audioContent, 'base64');
+}
+
+const audioInFlight = new Map(); // questionId -> Promise<url> (같은 문제를 동시에 두 번 만들지 않게)
+
+// 문제의 MP3 주소를 돌려준다. 없으면 만들어 저장한다(영어 문제만).
+function ensureQuestionAudio(q) {
+  if (q.audio_url) return Promise.resolve(q.audio_url);
+  if (audioInFlight.has(q.id)) return audioInFlight.get(q.id);
+  const job = (async () => {
+    const lines = q.speech_lines && q.speech_lines.length ? q.speech_lines : await buildSpeechLines(q);
+    // 줄마다 따로 합성해 이어 붙인다(MP3 프레임은 그대로 이어 붙여도 재생된다). A/B는 다른 목소리.
+    const parts = [];
+    for (const l of lines) parts.push(await synthesizeLine(l.text, l.speaker === 'B' ? TTS_VOICES.B : TTS_VOICES.A));
+    const path = `q${q.no}.mp3`;
+    const { error: upErr } = await supabase.storage.from(AUDIO_BUCKET)
+      .upload(path, Buffer.concat(parts), { contentType: 'audio/mpeg', upsert: true });
+    if (upErr) throw upErr;
+    const url = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path).data.publicUrl;
+    const { error: dbErr } = await supabase.from('questions').update({ speech_lines: lines, audio_url: url }).eq('id', q.id);
+    if (dbErr) throw dbErr;
+    return url;
+  })().finally(() => audioInFlight.delete(q.id));
+  audioInFlight.set(q.id, job);
+  return job;
+}
+
+// 앱이 "발음 듣기"를 눌렀을 때 — 이미 만든 MP3면 바로, 아니면 그 자리에서 만들어 준다(첫 사람만 몇 초 기다림).
+app.post('/api/questions/audio', async (req, res) => {
+  const questionId = String((req.body || {}).questionId || '');
+  if (!questionId) { res.status(400).json({ error: 'invalid_request' }); return; }
+  if (!TTS_ENABLED) { res.status(503).json({ error: 'tts_unavailable' }); return; }
+  try {
+    const { data: q, error } = await supabase.from('questions')
+      .select('id, no, topic, q, choices, correct, speech_lines, audio_url').eq('id', questionId).maybeSingle();
+    if (error) throw error;
+    if (!q || topicCategory(q.topic) !== 'english') { res.status(404).json({ error: 'not_found' }); return; }
+    res.json({ url: await ensureQuestionAudio(q) });
+  } catch (err) {
+    console.error('question audio failed:', err);
+    res.status(502).json({ error: 'audio_failed' });
+  }
+});
+
+// 서버 시작 시 아직 음성이 없는 영어 문제를 차례로 만들어 둔다(키가 있을 때만, 한 번에 2개씩).
+let audioBackfillRunning = false;
+async function generateMissingAudio() {
+  if (!TTS_ENABLED || audioBackfillRunning) return;
+  audioBackfillRunning = true;
+  try { await backfillAudio(); } finally { audioBackfillRunning = false; }
+}
+async function backfillAudio() {
+  let made = 0, failed = 0;
+  const skip = new Set();
+  for (;;) {
+    let query = supabase.from('questions').select('id, no, topic, q, choices, correct, speech_lines, audio_url')
+      .in('topic', CATEGORY_TOPICS.english).eq('active', true).is('audio_url', null).order('no').limit(20);
+    if (skip.size) query = query.not('id', 'in', `(${[...skip].join(',')})`);
+    const { data: rows, error } = await query;
+    if (error) throw error;
+    if (!rows.length) break;
+    for (let i = 0; i < rows.length; i += 2) {
+      await Promise.all(rows.slice(i, i + 2).map(q => ensureQuestionAudio(q)
+        .then(() => { made++; })
+        .catch(e => { failed++; skip.add(q.id); console.error('audio generate error', q.no, e.message); })));
+    }
+    if (failed >= 10 && made === 0) { console.error('audio backfill stopped: too many failures'); break; } // 키·권한 문제면 계속 부르지 않는다
+  }
+  console.log(`audio backfill done: made ${made}, failed ${failed}`);
+}
 
 app.post('/api/wrongnote/overcome', async (req, res) => {
   const body = req.body || {};
@@ -1449,6 +1576,7 @@ app.listen(port, () => {
   console.log(`quiz question API listening on http://localhost:${port}`);
   ensurePoolTopUp({ fill: true }).catch(e => console.error('startup topup error', e)); // 시작 시엔 목표까지 한 번에 채운다
   recheckEnglishQuestions().catch(e => console.error('english recheck error', e));
+  generateMissingAudio().catch(e => console.error('audio backfill error', e)); // 키가 있을 때만 동작
   // 재시작 사이에 토요일 23:59:59를 놓쳤을 수 있으므로 시작 시에도 한 번 확인한다.
   awardWeeklyTop3IfDue().catch(e => console.error('weekly award startup check error', e));
 });

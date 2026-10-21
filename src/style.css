@@ -521,6 +521,11 @@ body{
 .qstats{display:block; margin-top:0.45rem; font-size:0.78rem; color:var(--ink-soft);}
 .qstats b{color:var(--accent);}
 /* 오답 신고(2026-10-19): 해설 맨 아래 한 줄 — 높이를 거의 늘리지 않도록 작은 글씨 링크로 둔다(원칙 16) */
+/* 원어민 발음 듣기(2026-10-21): 해설 오른쪽 위에 띄워 글이 옆으로 흐르게 — 줄을 늘리지 않는다(원칙 16) */
+.audio-btn{float:right; display:inline-flex; align-items:center; gap:0.25rem; margin:0 0 0.25rem 0.5rem; padding:0.25rem 0.6rem; border-radius:999px; border:1.5px solid var(--accent); background:transparent; color:var(--accent); font-size:0.76rem; font-weight:700; cursor:pointer; white-space:nowrap;}
+.audio-btn.active{background:var(--accent); color:#fff;}
+.audio-btn .hourglass-inline{width:0.9rem; height:0.9rem;}
+.wnote-answer .audio-btn{float:none; margin:0 0 0 0.5rem; vertical-align:middle;}
 .explain-meta{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; column-gap:0.5rem;}
 .explain-meta .qstats{display:inline;}
 .explain-meta .report-row{margin-left:auto;}
