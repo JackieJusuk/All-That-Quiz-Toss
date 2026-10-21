@@ -1161,12 +1161,14 @@ async function buildSpeechLines(q) {
   return response.parsed_output.lines.filter(l => /[A-Za-z]/.test(l.text));
 }
 
-async function synthesizeLine(text, voice) {
+async function synthesizeLine(text, voice, lead = false) {
   const res = await fetch(`${TTS_ENDPOINT}?key=${GOOGLE_TTS_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      input: { ssml: `<speak>${escapeSsml(text)}<break time="450ms"/></speak>` },
+      // 파일 첫 줄 앞에는 짧은 무음을 둔다 — 폰 스피커·블루투스가 재생 시작 순간을 놓쳐 첫 단어가
+      // 잘리는 일이 있어서(No. 1120 "Let's"가 안 들림, 2026-10-21).
+      input: { ssml: `<speak>${lead ? '<break time="400ms"/>' : ''}${escapeSsml(text)}<break time="450ms"/></speak>` },
       voice: { languageCode: 'en-US', name: voice },
       audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 }, // 학습용이라 아주 조금 천천히
     }),
@@ -1186,12 +1188,13 @@ function ensureQuestionAudio(q) {
     const lines = q.speech_lines && q.speech_lines.length ? q.speech_lines : await buildSpeechLines(q);
     // 줄마다 따로 합성해 이어 붙인다(MP3 프레임은 그대로 이어 붙여도 재생된다). A/B는 다른 목소리.
     const parts = [];
-    for (const l of lines) parts.push(await synthesizeLine(l.text, l.speaker === 'B' ? TTS_VOICES.B : TTS_VOICES.A));
+    for (const [i, l] of lines.entries()) parts.push(await synthesizeLine(l.text, l.speaker === 'B' ? TTS_VOICES.B : TTS_VOICES.A, i === 0));
     const path = `q${q.no}.mp3`;
     const { error: upErr } = await supabase.storage.from(AUDIO_BUCKET)
       .upload(path, Buffer.concat(parts), { contentType: 'audio/mpeg', upsert: true });
     if (upErr) throw upErr;
-    const url = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path).data.publicUrl;
+    // 같은 경로에 다시 만들 때 폰·CDN에 남은 예전 파일이 재생되지 않게 주소에 버전을 붙인다.
+    const url = `${supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
     const { error: dbErr } = await supabase.from('questions').update({ speech_lines: lines, audio_url: url }).eq('id', q.id);
     if (dbErr) throw dbErr;
     return url;
