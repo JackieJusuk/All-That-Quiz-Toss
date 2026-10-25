@@ -154,6 +154,11 @@ create or replace function question_core_en(p_q text) returns text language sql 
   select trim(lower(regexp_replace(p_q, '[^A-Za-z'' ]+', ' ', 'g')));
 $$;
 
+-- 정답 표현을 소문자 단어열로(문장부호는 공백 하나로). 영어 정답 포함 비교용(2026-10-25).
+create or replace function answer_words(p_a text) returns text language sql immutable as $$
+  select trim(regexp_replace(lower(coalesce(p_a, '')), '[^a-z0-9가-힣]+', ' ', 'g'));
+$$;
+
 -- 같은 주제의 활성 문제 중 p_q와 비슷한 1개(p_threshold 이상일 때만). 서버가 새 문제를 넣기 전에 호출.
 -- 경제: 상투구를 지운 핵심 문장끼리 pg_trgm 유사도.
 -- 영어(eng_ 주제, 2026-10-18): "다음 영어 표현의 뜻으로 알맞은 것은?"처럼 한국어 지시문이 유형마다 똑같아서 경제 방식으로는
@@ -167,6 +172,13 @@ returns table (id uuid, q text, sim real) language sql stable as $$
         greatest(
           case when p_answer is not null
                 and regexp_replace(lower(qq.choices->>qq.correct), '[^a-z0-9가-힣]', '', 'g') = regexp_replace(lower(p_answer), '[^a-z0-9가-힣]', '', 'g')
+               then 1.0 else 0 end,
+          -- 한쪽 정답이 다른 쪽 정답을 단어 단위로 포함해도 같은 표현을 묻는 문제로 본다(2026-10-25, §3.30).
+          -- 예: "No harm done." vs "No harm done, don't worry about it" — 완전 일치만 보던 ①을 빠져나가 반복 출제됐다.
+          case when p_answer is not null
+                and length(answer_words(p_answer)) >= 4 and length(answer_words(qq.choices->>qq.correct)) >= 4
+                and (position(' ' || answer_words(p_answer) || ' ' in ' ' || answer_words(qq.choices->>qq.correct) || ' ') > 0
+                  or position(' ' || answer_words(qq.choices->>qq.correct) || ' ' in ' ' || answer_words(p_answer) || ' ') > 0)
                then 1.0 else 0 end,
           case when length(question_core_en(p_q)) >= 3
                 and extensions.similarity(question_core_en(qq.q), question_core_en(p_q)) >= 0.6 then 1.0 else 0 end,
@@ -229,6 +241,7 @@ revoke all on function unused_questions(text, text, text, int) from public, anon
 revoke all on function question_stats(uuid) from public, anon, authenticated;
 revoke all on function question_core(text) from public, anon, authenticated;
 revoke all on function question_core_en(text) from public, anon, authenticated;
+revoke all on function answer_words(text) from public, anon, authenticated;
 revoke all on function category_quiz_points(text[], date, date) from public, anon, authenticated;
 revoke all on function similar_question(text, text, real, text) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
@@ -238,6 +251,7 @@ grant execute on function unused_questions(text, text, text, int) to service_rol
 grant execute on function question_stats(uuid) to service_role;
 grant execute on function question_core(text) to service_role;
 grant execute on function question_core_en(text) to service_role;
+grant execute on function answer_words(text) to service_role;
 grant execute on function category_quiz_points(text[], date, date) to service_role;
 grant execute on function similar_question(text, text, real, text) to service_role;
 
@@ -249,6 +263,7 @@ alter function unused_questions(text, text, text, int) set search_path = public;
 alter function question_stats(uuid) set search_path = public;
 alter function question_core(text) set search_path = public;
 alter function question_core_en(text) set search_path = public;
+alter function answer_words(text) set search_path = public;
 alter function category_quiz_points(text[], date, date) set search_path = public;
 alter function similar_question(text, text, real, text) set search_path = public, extensions;
 

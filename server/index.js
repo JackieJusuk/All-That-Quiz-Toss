@@ -256,7 +256,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
     ? `난이도는 ${DIFF_KO[difficulty] || DIFF_KO.medium} 수준으로 만들고, difficulty 필드는 "${difficulty || 'medium'}"으로 표기하세요.`
     : '난이도는 easy/medium/hard를 골고루 섞어주세요.';
   const avoidBlock = avoidQuestions && avoidQuestions.length
-    ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
+    ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요${topicCategory(topicId) === 'english' ? '(정답이 표시된 문제는 상황만 바꿔 같은 정답 표현을 다시 묻지도 마세요)' : ''}:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
     : '';
 
   const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n${prompts.task} 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요. 보기 순서는 저장할 때 무작위로 섞이므로, 해설에서 "두 번째 보기"·"2번"·"B"처럼 보기 위치를 가리키지 말고 정답 내용(문구·숫자)으로 설명하세요.${avoidBlock}`;
@@ -324,12 +324,14 @@ const SIMILAR_THRESHOLD = 0.55;
 const AVOID_SAMPLE_SIZE = 60; // 프롬프트에 넣을 기존 문제 수(토큰 비용과 효과의 균형)
 
 // AI 프롬프트에 "이미 있는 문제" 목록으로 넣을 기존 문제 문장(활성 문제 중 무작위).
+// 영어는 상황만 바꾼 같은 정답("No harm done" 등)이 반복돼 보였으므로 정답 표현도 함께 보여준다(2026-10-25, §3.30).
 async function fetchAvoidQuestions(topicId) {
   const { data, error } = await supabase
-    .from('questions').select('q').eq('topic', topicId).eq('active', true)
+    .from('questions').select('q, choices, correct').eq('topic', topicId).eq('active', true)
     .order('created_at', { ascending: false }).limit(400);
   if (error) { console.error('avoid fetch error', topicId, error); return []; }
-  return pickRandom(data.map(r => r.q), AVOID_SAMPLE_SIZE);
+  const english = topicCategory(topicId) === 'english';
+  return pickRandom(data.map(r => (english ? `${r.q} (정답: ${r.choices[r.correct]})` : r.q)), AVOID_SAMPLE_SIZE);
 }
 
 // 생성된 문제를 하나씩 넣되, 이미 있는 활성 문제와 비슷하면 건너뛴다. 한 개씩 넣으므로 같은 묶음 안의
