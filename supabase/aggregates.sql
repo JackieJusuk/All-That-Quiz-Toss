@@ -164,11 +164,33 @@ $$;
 -- 영어(eng_ 주제, 2026-10-18): "다음 영어 표현의 뜻으로 알맞은 것은?"처럼 한국어 지시문이 유형마다 똑같아서 경제 방식으로는
 --   서로 다른 문제가 모두 비슷하게 나온다. 대신 ① 정답 표현이 같거나(대소문자·문장부호 무시) ② 질문의 영어 부분끼리
 --   유사도 0.6 이상이거나 ③ 영어가 없는 질문끼리 한국어 핵심 문장 유사도 0.8 이상이면 중복(1.0)으로 본다.
+-- 일본어(jp_ 주제, 2026-10-31): 영어와 같은 이유로 한국어 지시문은 비교에서 뺀다. ① 정답이 같거나(공백·문장부호·괄호 속 한글 발음 무시)
+--   ② 한쪽 정답이 다른 쪽 정답을 포함(4자 이상)하거나 ③ 질문의 일본어 부분 유사도 0.6 이상이면 중복(1.0).
+create or replace function question_core_ja(p_q text) returns text language sql immutable as $$
+  select trim(regexp_replace(regexp_replace(coalesce(p_q, ''), '\([^)]*\)', ' ', 'g'), '[^ぁ-んァ-ヶー一-龥]+', ' ', 'g'));
+$$;
+-- 일본어 정답을 비교용으로: 괄호(한글 발음) 제거 후 가나·한자만 남긴다.
+create or replace function answer_ja(p_a text) returns text language sql immutable as $$
+  select regexp_replace(regexp_replace(coalesce(p_a, ''), '\([^)]*\)', '', 'g'), '[^ぁ-んァ-ヶー一-龥]', '', 'g');
+$$;
+
 create or replace function similar_question(p_topic text, p_q text, p_threshold real, p_answer text)
 returns table (id uuid, q text, sim real) language sql stable as $$
   select s.id, s.q, s.sim from (
     select qq.id, qq.q,
-      case when p_topic like 'eng\_%' then
+      case when p_topic like 'jp\_%' then
+        greatest(
+          case when length(answer_ja(p_answer)) >= 2
+                and answer_ja(qq.choices->>qq.correct) = answer_ja(p_answer)
+               then 1.0 else 0 end,
+          case when length(answer_ja(p_answer)) >= 4 and length(answer_ja(qq.choices->>qq.correct)) >= 4
+                and (position(answer_ja(p_answer) in answer_ja(qq.choices->>qq.correct)) > 0
+                  or position(answer_ja(qq.choices->>qq.correct) in answer_ja(p_answer)) > 0)
+               then 1.0 else 0 end,
+          case when length(question_core_ja(p_q)) >= 3
+                and extensions.similarity(question_core_ja(qq.q), question_core_ja(p_q)) >= 0.6 then 1.0 else 0 end
+        )::real
+      when p_topic like 'eng\_%' then
         greatest(
           case when p_answer is not null
                 and regexp_replace(lower(qq.choices->>qq.correct), '[^a-z0-9가-힣]', '', 'g') = regexp_replace(lower(p_answer), '[^a-z0-9가-힣]', '', 'g')
@@ -211,13 +233,16 @@ $$;
 
 -- 랭킹에 함께 보여줄 사용자별 분야별 퀴즈 점수(2026-10-18, requirements.md §3.22). 정답 10·오답 2점.
 -- 주제 이름이 eng_로 시작하면 영어, 나머지는 경제. p_from/p_to가 null이면 전체 기간.
+-- 일본어회화(2026-10-31): jp_로 시작하는 주제는 japanese 열로 센다(반환 열이 늘어 함수를 지우고 다시 만든다).
+drop function if exists category_quiz_points(text[], date, date);
 create or replace function category_quiz_points(p_user_keys text[], p_from date, p_to date)
-returns table (user_key text, economy bigint, english bigint)
+returns table (user_key text, economy bigint, english bigint, japanese bigint)
 language sql stable
 as $$
   select uq.user_key,
-         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic not like 'eng\_%'), 0)::bigint,
-         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic like 'eng\_%'), 0)::bigint
+         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic not like 'eng\_%' and uq.topic not like 'jp\_%'), 0)::bigint,
+         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic like 'eng\_%'), 0)::bigint,
+         coalesce(sum(case when uq.correct then 10 else 2 end) filter (where uq.topic like 'jp\_%'), 0)::bigint
   from used_questions uq
   where uq.user_key = any(p_user_keys)
     and (p_from is null or uq.answered_date >= p_from) and (p_to is null or uq.answered_date <= p_to)
@@ -242,6 +267,8 @@ revoke all on function question_stats(uuid) from public, anon, authenticated;
 revoke all on function question_core(text) from public, anon, authenticated;
 revoke all on function question_core_en(text) from public, anon, authenticated;
 revoke all on function answer_words(text) from public, anon, authenticated;
+revoke all on function question_core_ja(text) from public, anon, authenticated;
+revoke all on function answer_ja(text) from public, anon, authenticated;
 revoke all on function category_quiz_points(text[], date, date) from public, anon, authenticated;
 revoke all on function similar_question(text, text, real, text) from public, anon, authenticated;
 grant execute on function streak_bonus_dates() to service_role;
@@ -252,6 +279,8 @@ grant execute on function question_stats(uuid) to service_role;
 grant execute on function question_core(text) to service_role;
 grant execute on function question_core_en(text) to service_role;
 grant execute on function answer_words(text) to service_role;
+grant execute on function question_core_ja(text) to service_role;
+grant execute on function answer_ja(text) to service_role;
 grant execute on function category_quiz_points(text[], date, date) to service_role;
 grant execute on function similar_question(text, text, real, text) to service_role;
 
@@ -264,6 +293,8 @@ alter function question_stats(uuid) set search_path = public;
 alter function question_core(text) set search_path = public;
 alter function question_core_en(text) set search_path = public;
 alter function answer_words(text) set search_path = public;
+alter function question_core_ja(text) set search_path = public;
+alter function answer_ja(text) set search_path = public;
 alter function category_quiz_points(text[], date, date) set search_path = public;
 alter function similar_question(text, text, real, text) set search_path = public, extensions;
 

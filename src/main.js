@@ -1,4 +1,5 @@
 import { getAnonymousKey, Share, loadFullScreenAd, showFullScreenAd, graniteEvent, Screen, SafeArea, getClipboardText, Analytics, Device, requestReview } from '@apps-in-toss/web-framework';
+import { JP_TOPICS, JP_BASIC } from './japanese.js';
 
 // 콘솔에서 "리워드" 유형으로 등록한 광고 그룹 ID. 개발 단계에서는 토스가 제공하는 테스트 ID를 쓴다.
 // 실제 배포 시에는 콘솔에서 발급받은 값을 VITE_AD_GROUP_ID로 넣어 교체한다.
@@ -101,6 +102,11 @@ const ICONS = {
   engTravel: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 4 11l1.5-1.5 7 1 4.5-4.5a1.8 1.8 0 0 1 2.5 2.5L15 13l1 7-1.5 1.5-2.5-6.5L9 18v2.5L7.5 22l-1-3.5L3 17.5 4.5 16H7Z"/></svg>',
   engWork: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M3 12.5h18"/></svg>',
   engKonglish: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18 7 6l4 12M4.4 14h5.2"/><path d="M14 8h7M17.5 6v2c0 4-2 7-4.5 8M15.5 11.5c1 2 3 3.5 5.5 4"/></svg>',
+  // 일본어회화 주제 아이콘(2026-10-31)
+  jpDaily: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.3 2.1 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>',
+  jpTravel: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16a8 8 0 0 1-16 0Z"/><path d="M9 7c0-1.2 1-1.6 1-2.8M13 7c0-1.2 1-1.6 1-2.8"/><path d="M8 21h8"/></svg>',
+  jpWork: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 6 9l-3 9 9 3 9-3-3-9-6-6Z"/><path d="M12 3v8M8.5 14.5 12 11l3.5 3.5"/></svg>',
+  jpSimilar: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/><path d="M6 10h2M16 10h2M6 14h2M16 14h2"/></svg>',
   speaker: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
   invest: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   medal: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="6"/><path d="M8.5 9.8 6 3h4l2 5 2-5h4l-2.5 6.8"/><path d="m12 12.6.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="currentColor" stroke="none"/></svg>',
@@ -260,13 +266,17 @@ const TOPICS = [
         choices:['notebook','laptop','note computer','lap book'],
         correct:1, explain:"휴대용 컴퓨터는 보통 'laptop'이라고 해요. 'notebook'은 주로 공책을 뜻해요.", difficulty:'easy' },
     ]},
+  // ---- 일본어회화(2026-10-31). 서버 주제 id는 jp_ 접두어. 비상용 문제는 src/japanese.js ----
+  ...JP_TOPICS,
 ];
 
 // 분야(2026-10-18). 홈 상단 전환 탭, 분야별 등급, 분야별 점수의 기준. 서버 CATEGORY_TOPICS와 같은 구성.
 const CATEGORIES = [
   { id:'economy', name:'경제', short:'경제' },
   { id:'english', name:'영어회화', short:'영어' }, // short: 좁은 표(오늘의 항목별 점수)에서 줄바꿈 방지
+  { id:'japanese', name:'일본어회화', short:'일본어' },
 ];
+const LANGUAGE_CATEGORY_IDS = ['english', 'japanese']; // 정답을 원어민 음성으로 들려주는 분야
 const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map(c => [c.id, c.name]));
 const CATEGORY_KEY = 'allthatquiz_category_v1';
 
@@ -309,8 +319,8 @@ function applyQuizCredits(stats){
 function applyCategoryCorrect(stats){
   const cs = stats.categoryScores;
   state.categoryCorrect = cs
-    ? { economy: cs.economy?.correct ?? 0, english: cs.english?.correct ?? 0 }
-    : { economy: stats.totalCorrect ?? 0, english: 0 };
+    ? { economy: cs.economy?.correct ?? 0, english: cs.english?.correct ?? 0, japanese: cs.japanese?.correct ?? 0 }
+    : { economy: stats.totalCorrect ?? 0, english: 0, japanese: 0 };
 }
 
 function pickFallbackQuestion(topic, difficulty){
@@ -339,8 +349,9 @@ let pendingRef = null;
 let state = {
   screen:'home', tab:'home',
   topic:null, question:null, answered:false, selected:false, recording:false,
-  category:(()=>{ try{ return localStorage.getItem(CATEGORY_KEY) === 'english' ? 'english' : 'economy'; }catch(e){ return 'economy'; } })(),
-  categoryCorrect:{ economy:0, english:0 }, // 분야별 누적 정답 수(분야별 등급용)
+  category:(()=>{ try{ const c = localStorage.getItem(CATEGORY_KEY); return CATEGORIES.some(x => x.id === c) ? c : 'economy'; }catch(e){ return 'economy'; } })(),
+  categoryCorrect:{ economy:0, english:0, japanese:0 }, // 분야별 누적 정답 수(분야별 등급용)
+  jpTab:'hira', // 일본어 기초 화면의 선택된 탭: hira | dakuon | kata | rules | greet
   points:0, streak:0, totalCorrect:0, streakBonusDays:10, daysToNextStreakBonus:10, referralCount:0,
   daysToNextWeeklyAward:0, // 다음 주간 우등생 시상(토요일 23:59:59 KST)까지 남은 일수. 오늘이 토요일이면 0.
   todayTopicScores:{}, // 오늘 주제별 점수: { [topicId]: { correct, wrong, points } }
@@ -1097,7 +1108,7 @@ async function reportQuestion(q, selected){
 // 저장해 두고(audioUrl), 아직 없으면 처음 누른 사람 때 만들어진다(몇 초 대기).
 let audioPlayer = null;
 function canPlayAudio(q, category){
-  return category === 'english' && !!q && !!q.id && (!!q.audioUrl || state.ttsEnabled);
+  return LANGUAGE_CATEGORY_IDS.includes(category) && !!q && !!q.id && (!!q.audioUrl || state.ttsEnabled);
 }
 function stopAudio(){
   if(audioPlayer){ audioPlayer.pause(); audioPlayer = null; }
@@ -1212,9 +1223,68 @@ function homeHTML(){
           <div class="topic-chev">${ICONS.chev}</div>
         </button>
       `).join('')}
+      ${state.category === 'japanese' ? `
+        <button class="jp-basic-entry" id="jp-basic-open">
+          <span class="jp-basic-ic" aria-hidden="true">あ</span>
+          <span class="jp-basic-text"><b>일본어 기초</b><span>히라가나·발음 배우기 (퀴즈 아님)</span></span>
+          <span class="topic-chev">${ICONS.chev}</span>
+        </button>` : ''}
     </div>
   </div>
   ${badgeSheetHTML()}`;
+}
+
+// ---- 일본어 기초(2026-10-31, 퀴즈 아님) ----
+// 히라가나·탁음·가타카나 표, 발음 규칙, 기초 인사말. 글자를 누르면 기기의 일본어 음성(speechSynthesis)으로 읽어 준다 —
+// 기기가 지원하지 않으면 안내 문구와 소리 없이 표만 보인다. 탭마다 한 화면에 들어가도록 만든다(원칙 16).
+const JP_TABS = [['hira','히라가나'],['dakuon','탁음·요음'],['kata','가타카나'],['rules','발음 규칙'],['greet','인사말']];
+const canSpeakJa = () => typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
+function speakJa(text){
+  if(!canSpeakJa() || !text) return;
+  try{
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.rate = 0.8; // 학습용이라 천천히
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }catch(e){ /* 음성 재생 실패는 무시 — 표는 그대로 보인다 */ }
+}
+
+function kanaCellsHTML(rows, { alt = false } = {}){
+  return rows.map(r => r.map((c, i) => c
+    ? `<button class="jp-cell${alt && i >= 3 ? ' alt' : ''}" data-say="${c.k}" aria-label="${c.k} ${c.ko}"><b>${c.k}</b><span>${c.ko} ${c.ro}</span></button>`
+    : `<span class="jp-cell empty"></span>`).join('')).join('');
+}
+
+function jpBasicBodyHTML(){
+  const tab = state.jpTab;
+  if(tab === 'hira') return `<div class="jp-grid">${kanaCellsHTML(JP_BASIC.hiragana)}</div>`;
+  if(tab === 'kata') return `<div class="jp-grid">${kanaCellsHTML(JP_BASIC.katakana)}</div>
+    <p class="jp-note">가타카나는 외래어·외국 이름·의성어를 적을 때 써요. 읽기는 히라가나와 같아요.</p>`;
+  if(tab === 'dakuon') return `
+    <p class="jp-sub">탁음·반탁음 <i>오른쪽 위에 점 두 개(゛)·동그라미(゜)</i></p>
+    <div class="jp-grid">${kanaCellsHTML(JP_BASIC.dakuon)}</div>
+    <p class="jp-sub">요음 <i>い단 글자 + 작은 ゃ・ゅ・ょ</i></p>
+    <div class="jp-grid jp-grid-6">${kanaCellsHTML(JP_BASIC.yoon, { alt: true })}</div>`;
+  if(tab === 'rules') return `<div class="jp-rules">${JP_BASIC.rules.map(r => `
+    <div class="jp-rule">
+      <b>${r.title}</b>
+      <p>${r.desc}</p>
+      <div class="jp-ex">${r.examples.map(([ja, ko, mean]) => `<button class="jp-ex-item" data-say="${ja}"><span class="jp-ex-ja">${ja}</span><span class="jp-ex-ko">${ko}${mean ? ` · ${mean}` : ''}</span></button>`).join('')}</div>
+    </div>`).join('')}</div>`;
+  return `<div class="jp-greets">${JP_BASIC.greetings.map(([ja, ko, mean]) => `
+    <button class="jp-greet" data-say="${ja}"><span class="jp-greet-ja">${ja}</span><span class="jp-greet-ko">${ko}</span><span class="jp-greet-mean">${mean}</span></button>`).join('')}</div>`;
+}
+
+function jpBasicHTML(){
+  return `
+  <div class="scroll jp-basic">
+    <h2 class="jp-title">일본어 기초 <span>${canSpeakJa() ? '글자를 누르면 소리가 나요' : '한글 읽기와 함께 익혀요'}</span></h2>
+    <div class="seg seg-compact jp-tabs" role="tablist" aria-label="일본어 기초 목차">
+      ${JP_TABS.map(([id, name]) => `<button role="tab" aria-selected="${state.jpTab===id}" class="${state.jpTab===id?'active':''}" data-jptab="${id}">${name}</button>`).join('')}
+    </div>
+    ${jpBasicBodyHTML()}
+  </div>`;
 }
 
 function streakPromoHTML(){
@@ -1572,6 +1642,7 @@ function todayScoresHTML(){
             const v = state.todayTopicScores[t.id] || {};
             return { correct: acc.correct + (v.correct || 0), wrong: acc.wrong + (v.wrong || 0), points: acc.points + (v.points || 0) };
           }, { correct:0, wrong:0, points:0 });
+          if(c.id === 'japanese' && s.correct + s.wrong === 0) return ''; // 일본어를 풀지 않은 날에는 줄을 늘리지 않는다(원칙 16)
           return `
           <div class="today-topic-row">
             <span class="today-topic-name today-cat-${c.id}">${c.short} 퀴즈</span>
@@ -1737,7 +1808,10 @@ function rankingHTML(){
   }
   const rows = state.rankingRows.slice(0, RANKING_TOP_N); // 지난 버전이 저장해 둔 20명 캐시도 10명만
   // 분야별 퀴즈 점수(경제/영어)는 영어를 푼 사람이 한 명이라도 있을 때만 보여준다 — 다들 0이면 줄만 차지한다.
-  const showCat = rows.some(r => r.quizScores && r.quizScores.english > 0);
+  const hasEn = rows.some(r => r.quizScores && r.quizScores.english > 0);
+  const hasJp = rows.some(r => r.quizScores && r.quizScores.japanese > 0);
+  const showCat = hasEn || hasJp;
+  const catLine = qs => `경제 ${qs.economy.toLocaleString()}${hasEn ? ` · 영어 ${qs.english.toLocaleString()}` : ''}${hasJp ? ` · 일본어 ${(qs.japanese || 0).toLocaleString()}` : ''}`;
   return `<div class="scroll">
     ${rankSegHTML()}
     ${rows.length===0 ? `<div class="empty"><b>아직 랭킹 데이터가 없어요</b><span>오늘의 퀴즈를 풀어 랭킹에 참여해보세요</span></div>` :
@@ -1745,7 +1819,7 @@ function rankingHTML(){
       <div class="rank-row ${r.me?'me':''}" ${r.me?'data-myrank="1"':''}>
         <div class="rank-num">${i+1}</div>
         <div class="rank-avatar">${r.label[0]}</div>
-        <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}${showCat && r.quizScores ? `<span class="rank-cat">경제 ${r.quizScores.economy.toLocaleString()} · 영어 ${r.quizScores.english.toLocaleString()}</span>` : ''}</div>
+        <div class="rank-name">${r.label}${r.me?' (나)':''}${r.friend?' <span class="badge-friend">친구</span>':''}${showCat && r.quizScores ? `<span class="rank-cat">${catLine(r.quizScores)}</span>` : ''}</div>
         <div class="rank-score">${r.score.toLocaleString()}포인트</div>
         ${r.me?`<div class="rank-chev">${ICONS.chev}</div>`:''}
       </div>
@@ -1826,6 +1900,7 @@ function render(){
   else if(state.screen==='wrongnote') screenEl.innerHTML = wrongnoteHTML();
   else if(state.screen==='ranking') screenEl.innerHTML = rankingHTML();
   else if(state.screen==='promotion') screenEl.innerHTML = promotionHTML();
+  else if(state.screen==='jpbasic') screenEl.innerHTML = jpBasicHTML();
 
   renderTabbar();
   bindScreenEvents();
@@ -1838,7 +1913,7 @@ function render(){
 // 내용이 넘치면 루트 글자 크기(rem 기준 — 글자·여백·버튼이 함께 줄어든다)를 넘친 비율만큼 줄여 다시 맞춘다.
 // 최소 FIT_MIN_RATIO까지만 줄이고, 그래도 넘치면 기존처럼 화면 전체 스크롤이 최후의 안전장치가 된다.
 // 랭킹·오답노트처럼 원래 길어지는 목록 화면은 글자를 줄여도 다 안 들어가므로 대상에서 뺀다.
-const FIT_SCREENS = ['home', 'quiz', 'result', 'promotion', 'nickname'];
+const FIT_SCREENS = ['home', 'quiz', 'result', 'promotion', 'nickname', 'jpbasic'];
 const FIT_MIN_RATIO = 0.8; // 기본 16px 기준 12.8px까지
 
 function fitToScreen(){
@@ -1982,6 +2057,20 @@ function bindScreenEvents(){
       haptic('tickWeak');
       render();
     });
+  });
+  const jpBasicOpen = screenEl.querySelector('#jp-basic-open');
+  if(jpBasicOpen) jpBasicOpen.addEventListener('click', ()=>{ track('jpbasic_open'); go('jpbasic'); });
+  screenEl.querySelectorAll('[data-jptab]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      if(state.jpTab === el.dataset.jptab) return;
+      state.jpTab = el.dataset.jptab;
+      track('jpbasic_tab', { tab: state.jpTab });
+      haptic('tickWeak');
+      render();
+    });
+  });
+  screenEl.querySelectorAll('[data-say]').forEach(el=>{
+    el.addEventListener('click', ()=> speakJa(el.dataset.say));
   });
   screenEl.querySelectorAll('[data-period]').forEach(el=>{
     el.addEventListener('click', ()=> showRanking(el.dataset.period));

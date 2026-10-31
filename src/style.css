@@ -803,6 +803,7 @@ body{
 .rank-cat{display:block; font-size:0.7rem; font-weight:500; color:var(--ink-soft); margin-top:0.1rem;}
 .today-cat-economy{color:#3d5afe;}
 .today-cat-english{color:#0f8b8d;}
+.today-cat-japanese{color:#d6456b;}
 
 .rank-row{
   display:flex;
@@ -891,3 +892,61 @@ body{
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;}
 }
+
+/* ---- 일본어 기초(2026-10-31, 퀴즈 아님) — 탭마다 한 화면에 들어가게 rem 기준으로 크기를 잡는다(원칙 16, fitToScreen이 넘치면 줄임) ---- */
+.jp-basic-entry{
+  display:flex; align-items:center; gap:0.75rem; width:100%; text-align:left;
+  border:1px dashed var(--line); background:var(--surface-2); color:var(--ink);
+  border-radius:14px; padding:clamp(0.4rem, 1.3vh, 0.65rem) 0.9rem; cursor:pointer;
+}
+.jp-basic-entry:active{transform:scale(0.98);}
+.jp-basic-ic{
+  flex:none; width:2rem; height:2rem; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  background:#fbe4ea; color:#d6456b; font-weight:800; font-size:1.1rem;
+}
+.jp-basic-text{flex:1; min-width:0; display:flex; flex-direction:column;}
+.jp-basic-text b{font-size:0.95rem;}
+.jp-basic-text span{font-size:0.75rem; color:var(--ink-soft); margin-top:0.1rem;}
+
+.jp-title{margin:0 0 0.45rem; font-size:1.05rem; font-weight:800;}
+.jp-title span{display:block; margin-top:0.1rem; font-size:0.74rem; font-weight:500; color:var(--ink-soft);}
+.jp-tabs button{padding:clamp(0.3rem, 0.9vh, 0.42rem) 0.05rem; font-size:0.74rem; white-space:nowrap; letter-spacing:-0.03em;}
+.jp-sub{margin:0.45rem 0 0.25rem; font-size:0.78rem; font-weight:700;}
+.jp-sub i{font-style:normal; font-weight:500; color:var(--ink-soft); margin-left:0.3rem;}
+.jp-note{margin:0.5rem 0 0; font-size:0.76rem; color:var(--ink-soft); line-height:1.4;}
+
+.jp-grid{display:grid; grid-template-columns:repeat(5, 1fr); gap:clamp(0.18rem, 0.6vh, 0.3rem);}
+.jp-grid-6{grid-template-columns:repeat(6, 1fr);}
+.jp-cell{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:clamp(2.2rem, 6vh, 2.6rem);
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:10px; padding:0.12rem 0; line-height:1.15; cursor:pointer;
+}
+button.jp-cell:active{transform:scale(0.95); background:var(--accent-soft);}
+.jp-cell.alt{background:var(--surface-2);}
+.jp-cell.empty{border:none; background:transparent; cursor:default;}
+.jp-cell b{font-size:1.2rem; font-weight:700;}
+.jp-cell span{font-size:0.62rem; color:var(--ink-soft); white-space:nowrap;}
+
+.jp-rules{display:flex; flex-direction:column; gap:clamp(0.25rem, 0.9vh, 0.45rem);}
+.jp-rule{border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:0.45rem 0.7rem;}
+.jp-rule b{font-size:0.86rem;}
+.jp-rule p{margin:0.15rem 0 0.3rem; font-size:0.76rem; color:var(--ink-soft); line-height:1.35;}
+.jp-ex{display:flex; flex-wrap:wrap; gap:0.3rem;}
+.jp-ex-item{
+  display:flex; flex-direction:column; align-items:flex-start; border:none; background:var(--surface-2); color:var(--ink);
+  border-radius:8px; padding:0.2rem 0.5rem; cursor:pointer; line-height:1.25;
+}
+.jp-ex-ja{font-size:0.92rem; font-weight:700;}
+.jp-ex-ko{font-size:0.66rem; color:var(--ink-soft);}
+
+.jp-greets{display:flex; flex-direction:column; gap:clamp(0.2rem, 0.8vh, 0.38rem);}
+.jp-greet{
+  display:grid; grid-template-columns:1fr auto; column-gap:0.5rem; align-items:baseline; text-align:left;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:12px; padding:0.35rem 0.7rem; cursor:pointer;
+}
+.jp-greet:active{background:var(--accent-soft);}
+.jp-greet-ja{grid-column:1; grid-row:1; font-size:0.95rem; font-weight:700;}
+.jp-greet-mean{grid-column:2; grid-row:1; font-size:0.74rem; color:var(--ink-soft); text-align:right;}
+.jp-greet-ko{grid-column:1 / -1; grid-row:2; font-size:0.72rem; color:var(--ink-soft);}

@@ -34,14 +34,22 @@ const TOPIC_LABELS = {
   basic: '시장 원리', money: '금융·금리', life: '세금·연금', invest: '재테크',
   // 영어회화(2026-10-18 추가, requirements.md §3.22): 같은 앱·같은 랭킹/포인트에 합산하되 점수는 분야별로도 따로 보여준다.
   eng_daily: '일상 대화', eng_travel: '여행·식당', eng_work: '직장·이메일', eng_konglish: '콩글리시 바로잡기',
+  // 일본어회화(2026-10-31): 영어회화와 같은 구조. 주제 id는 jp_ 접두어(분야 구분 기준).
+  // 오답노트가 주제 이름으로 분야를 찾으므로(앱 TOPICS.find(name)) 영어 주제와 이름이 겹치면 안 된다.
+  jp_daily: '일본어 일상 대화', jp_travel: '일본어 여행·식당', jp_work: '일본어 직장·경어', jp_similar: '일본어 헷갈리는 표현',
 };
 // 분야(카테고리)별 주제. 분야별 점수(categoryScores, 랭킹의 quizScores)와 문제 생성 프롬프트를 나누는 기준이다.
 // DB 함수(aggregates.sql)는 주제 이름이 eng_로 시작하면 영어로 분류하므로, 영어 주제를 추가할 때는 eng_ 접두어를 지킨다.
 const CATEGORY_TOPICS = {
   economy: ['basic', 'money', 'life', 'invest'],
   english: ['eng_daily', 'eng_travel', 'eng_work', 'eng_konglish'],
+  japanese: ['jp_daily', 'jp_travel', 'jp_work', 'jp_similar'],
 };
-const topicCategory = topicId => (topicId.startsWith('eng_') ? 'english' : 'economy');
+const topicCategory = topicId => (topicId.startsWith('eng_') ? 'english' : topicId.startsWith('jp_') ? 'japanese' : 'economy');
+// 외국어 분야(영어·일본어): 정답이 하나로 분명한지 독립 검증하고, 정답 문장을 원어민 음성으로 들려준다.
+const LANGUAGE_CATEGORIES = ['english', 'japanese'];
+const isLanguageTopic = topicId => LANGUAGE_CATEGORIES.includes(topicCategory(topicId));
+const LANGUAGE_TOPICS = LANGUAGE_CATEGORIES.flatMap(c => CATEGORY_TOPICS[c]);
 
 const TOPIC_CONCEPTS = {
   basic: [
@@ -85,6 +93,27 @@ const TOPIC_CONCEPTS = {
     '음식·카페 콩글리시', '직장·학교 콩글리시(파이팅, 아르바이트 등)', '쇼핑·패션 콩글리시(아이쇼핑, 원피스 등)',
     '한국식으로 잘못 쓰는 영어 문장', '뜻이 다르게 쓰이는 외래어',
   ],
+  jp_daily: [
+    '인사 표현(おはよう, こんにちは, こんばんは)', '감사와 사과(ありがとう, すみません, ごめんなさい)', '자기소개(はじめまして, ~です)',
+    '부탁하기(~をください, ~お願いします)', '맞장구와 리액션(そうですか, なるほど, へえ)', '약속 잡기와 시간 말하기',
+    '가족·취미 이야기', '날씨와 계절 이야기', '되묻기(もう一度お願いします, ゆっくりお願いします)', '숫자와 날짜 말하기',
+    '안부 묻기(お元気ですか, 久しぶり)',
+  ],
+  jp_travel: [
+    '공항·입국심사', '호텔 체크인과 요청', '길 묻기(~はどこですか)', '전철·버스·택시 이용', '식당 예약과 주문(~をお願いします)',
+    '이자카야·카페 주문', '메뉴와 알레르기 말하기', '계산하기(お会計, 別々で)', '쇼핑·가격 묻기(いくらですか)',
+    '면세·환불·사이즈', '분실과 도움 요청(助けてください, なくしました)',
+  ],
+  jp_work: [
+    '직장 인사(お疲れ様です, お先に失礼します)', '자기소개와 명함 교환', '존댓말(です・ます체) 기본', '겸양어와 존경어 기초(いただく, くださる, おっしゃる)',
+    '쿠션어(恐れ入りますが, 申し訳ありませんが)', '부탁과 거절을 정중하게', '이메일 첫인사와 맺음말(お世話になっております)',
+    '전화 응대 표현', '회의·일정 표현', '사과와 감사 비즈니스 표현',
+  ],
+  jp_similar: [
+    '한국어와 비슷하지만 뜻이 다른 한자어(勉強, 大丈夫, 丁寧 등)', '모양이 비슷한 한자·가나 구별(ぬ/め, シ/ツ)', '장음·촉음 때문에 뜻이 달라지는 단어(おばさん/おばあさん)',
+    '조사 は/が, を, に/で 구별', 'わ/は, お/を 발음과 표기', '존댓말과 반말 구별', '동사 활용 기초(ます형, ない형, て형)',
+    '의성어·의태어와 자주 쓰는 관용 표현', '한국인이 자주 틀리는 일본어 표현',
+  ],
 };
 
 // 분야별 생성 프롬프트. 영어 문제는 "정답이 하나로 분명한가"가 가장 중요하다 — "더 자연스러운 표현"처럼
@@ -102,6 +131,13 @@ const CATEGORY_PROMPTS = {
       '질문과 해설은 한국어로, 영어 표현은 영어로 씁니다. 요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다.',
     task: '4지선다 영어회화 퀴즈 문제를(질문은 한국어, 보기는 영어 또는 상황에 맞게 한국어)',
   },
+  japanese: {
+    system: '당신은 일본어회화를 공부하는 한국 성인 초·중급자를 위한 일본어회화 퀴즈를 만드는 콘텐츠 작가입니다. 일본 원어민이 실제로 쓰는 자연스러운 표현만 사용하고, 일본어는 히라가나·가타카나 중심으로 쓰되 자주 쓰는 쉬운 한자만 섞습니다. ' +
+      '정답은 반드시 하나로 분명해야 합니다 — 오답 보기는 문법이 틀렸거나, 뜻이 다르거나, 존댓말·반말 등 그 상황에 명백히 맞지 않는 표현이어야 하고, 원어민 사이에서 맞다/틀리다가 갈릴 수 있는 미묘한 보기는 만들지 않습니다. ' +
+      '일본어는 처음 배우는 사람이 읽을 수 있게, 질문과 보기에 나오는 일본어 문장·표현 바로 뒤에 한글 발음을 괄호로 붙입니다(예: ありがとうございます (아리가토- 고자이마스)). ' +
+      '로마자(romaji)는 쓰지 않습니다. 질문과 해설은 한국어로, 일본어 표현은 일본어로 씁니다. 요청받은 문제 개수와 선택지 개수를 반드시 정확히 지킵니다.',
+    task: '4지선다 일본어회화 퀴즈 문제를(질문은 한국어, 보기는 한글 발음을 괄호로 붙인 일본어 또는 상황에 맞게 한국어)',
+  },
 };
 
 const QUESTION_STYLES = [
@@ -118,6 +154,14 @@ const ENGLISH_QUESTION_STYLES = [
   '영어 표현(구동사·관용구)의 뜻을 한국어 보기에서 고르는 문제',
   '한국인이 자주 틀리는 표현(콩글리시·직역)을 원어민 표현으로 바로잡는 문제',
 ];
+const JAPANESE_QUESTION_STYLES = [
+  '짧은 상황(한국어 설명 + 상대방의 일본어 한 문장)을 주고 가장 알맞은 일본어 대답을 고르는 문제',
+  '일본어 대화문의 빈칸에 들어갈 알맞은 표현을 고르는 문제',
+  '한국어 문장을 일본어로 말할 때 알맞은 표현을 고르는 문제',
+  '일본어 표현·단어의 뜻을 한국어 보기에서 고르는 문제',
+  '상황에 맞는 말투(존댓말/반말, 정중한 표현)를 고르는 문제',
+];
+const QUESTION_STYLES_BY_CATEGORY = { economy: QUESTION_STYLES, english: ENGLISH_QUESTION_STYLES, japanese: JAPANESE_QUESTION_STYLES };
 
 function pickRandom(list, n) {
   const pool = [...list];
@@ -189,18 +233,19 @@ async function verifyCalculationAnswer(q) {
 
 // 영어 문제는 원래 정답을 보여주지 않고 다시 풀게 해서, 정답이 하나로 분명한지 독립적으로 확인한다.
 // 정답이 둘 이상이거나 애매하면 -1을 내게 하고, 원래 정답과 다르거나 -1이면 그 문제는 버린다.
-async function verifyEnglishAnswer(q) {
+async function verifyEnglishAnswer(q, category = 'english') {
+  const japanese = category === 'japanese';
   const verifySchema = z.object({
     correct: z.number().int().min(-1).describe('정답 보기 인덱스(0부터). 정답이 둘 이상이거나 애매하면 -1'),
   });
-  const prompt = `아래 영어회화 퀴즈를 직접 풀어서 정답 인덱스를 구하세요. 보기 표현 자체가 자연스러운지뿐 아니라, 질문의 상황과 대화 앞뒤 문장(예: "공부를 충분히 못 했다"는 말)과 뜻이 맞는지도 반드시 확인하세요. 표현이 여러 뜻으로 쓰이는 경우(예: give someone a hand는 "도와주다"와 "박수를 쳐 주다" 둘 다 가능) 오답 보기 중 실제로도 맞는 뜻이 있는지, 오답으로 둔 영어 문장이 그 상황에서 실제로는 통하는 말인지도 확인하세요. 원어민 기준으로 정답이 하나로 분명하지 않으면(맞는 보기가 없거나 둘 이상이거나 애매하면) -1을 답하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
+  const prompt = (japanese ? '일본어 원어민 기준으로 판단하세요(존댓말·반말, 상황의 격식, 한글 발음 표기가 일본어와 맞는지도 확인). ' : '') + `아래 ${japanese ? '일본어' : '영어'}회화 퀴즈를 직접 풀어서 정답 인덱스를 구하세요. 보기 표현 자체가 자연스러운지뿐 아니라, 질문의 상황과 대화 앞뒤 문장(예: "공부를 충분히 못 했다"는 말)과 뜻이 맞는지도 반드시 확인하세요. 표현이 여러 뜻으로 쓰이는 경우(예: give someone a hand는 "도와주다"와 "박수를 쳐 주다" 둘 다 가능) 오답 보기 중 실제로도 맞는 뜻이 있는지, 오답으로 둔 영어 문장이 그 상황에서 실제로는 통하는 말인지도 확인하세요. 원어민 기준으로 정답이 하나로 분명하지 않으면(맞는 보기가 없거나 둘 이상이거나 애매하면) -1을 답하세요.\n\n질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${i}: ${c}`).join('\n')}`;
   try {
     const response = await client.messages.parse({
       model: 'claude-sonnet-5',
       max_tokens: 4000,
       // 검증은 짧은 판단이라 생각을 적게 하게 한다(비용 점검 2026-10-18 — 이 모델은 생각 토큰도 출력 요금으로 청구됨)
       output_config: { effort: 'low', format: zodOutputFormat(verifySchema) },
-      system: '당신은 영어회화 퀴즈를 감수하는 깐깐한 원어민 수준의 영어 교사입니다. 원래 제시된 정답은 참고하지 말고, 스스로 풀어서 정답 인덱스를 구하세요.',
+      system: `당신은 ${japanese ? '일본어' : '영어'}회화 퀴즈를 감수하는 깐깐한 원어민 수준의 ${japanese ? '일본어' : '영어'} 교사입니다. 원래 제시된 정답은 참고하지 말고, 스스로 풀어서 정답 인덱스를 구하세요.`,
       messages: [{ role: 'user', content: prompt }],
     });
     return response.parsed_output ? response.parsed_output.correct : null;
@@ -222,9 +267,9 @@ async function verifyEnglishTwice(q) {
 
 // 새로 만드는 영어 문제는 1회 검증(비용 점검 2026-10-18: 2회 검증은 애매한 문제를 더 걸러내지 못해 1회로 되돌림).
 // verifyEnglishTwice는 기존 문제 2차 재검사(RECHECK_ROUNDS)에만 남아 있다.
-async function verifyEnglishQuestions(questions) {
+async function verifyEnglishQuestions(questions, category = 'english') {
   const keep = await Promise.all(questions.map(async q => {
-    const verified = await verifyEnglishAnswer(q);
+    const verified = await verifyEnglishAnswer(q, category);
     if (verified === null) return true; // 검증 호출 자체가 실패한 경우는 통과(계산 문제 검증과 같은 정책)
     return verified === q.correct;
   }));
@@ -248,7 +293,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
   const label = TOPIC_LABELS[topicId];
   const concepts = pickRandom(TOPIC_CONCEPTS[topicId], Math.min(5, TOPIC_CONCEPTS[topicId].length));
   const category = topicCategory(topicId);
-  const styles = category === 'english' ? ENGLISH_QUESTION_STYLES : QUESTION_STYLES;
+  const styles = QUESTION_STYLES_BY_CATEGORY[category];
   const style = styles[Math.floor(Math.random() * styles.length)];
   const prompts = CATEGORY_PROMPTS[category];
   // difficulty를 넘기면 모든 문제를 그 난이도로, null이면(백그라운드 풀 채우기) 골고루 섞는다.
@@ -256,7 +301,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
     ? `난이도는 ${DIFF_KO[difficulty] || DIFF_KO.medium} 수준으로 만들고, difficulty 필드는 "${difficulty || 'medium'}"으로 표기하세요.`
     : '난이도는 easy/medium/hard를 골고루 섞어주세요.';
   const avoidBlock = avoidQuestions && avoidQuestions.length
-    ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요${topicCategory(topicId) === 'english' ? '(정답이 표시된 문제는 상황만 바꿔 같은 정답 표현을 다시 묻지도 마세요)' : ''}:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
+    ? `\n\n아래 문제들은 이미 출제됐습니다. 절대 그대로 반복하지 말고, 다루는 소재와 문구가 겹치지 않는 새 문제를 만들어주세요${isLanguageTopic(topicId) ? '(정답이 표시된 문제는 상황만 바꿔 같은 정답 표현을 다시 묻지도 마세요)' : ''}:\n${avoidQuestions.map(q => `- ${q}`).join('\n')}`
     : '';
 
   const userPrompt = `주제: ${label}\n이번에 활용할 세부 개념 후보: ${concepts.join(', ')} (이 중 자유롭게 골라 문제를 구성하세요)\n문제 스타일: ${style}\n\n${prompts.task} 정확히 ${count}개 만들어주세요. 각 문제는 선택지를 정확히 4개씩만 가져야 합니다. ${diffInstruction} 정답 해설은 존댓말 1~2문장으로 작성하세요. 보기 순서는 저장할 때 무작위로 섞이므로, 해설에서 "두 번째 보기"·"2번"·"B"처럼 보기 위치를 가리키지 말고 정답 내용(문구·숫자)으로 설명하세요.${avoidBlock}`;
@@ -276,11 +321,11 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
         const normalized = normalizeQuizSet(response.parsed_output, count);
         if (normalized) {
           if (!verify) return normalized;
-          if (category === 'english') {
-            // 영어는 모든 문제를 검증하므로 한두 개가 걸러지는 일이 흔하다 — 남은 문제만 돌려준다(전부 걸러지면 다시 생성).
-            const kept = await verifyEnglishQuestions(normalized.questions);
+          if (category === 'english' || category === 'japanese') {
+            // 외국어(영어·일본어)는 모든 문제를 검증하므로 한두 개가 걸러지는 일이 흔하다 — 남은 문제만 돌려준다(전부 걸러지면 다시 생성).
+            const kept = await verifyEnglishQuestions(normalized.questions, category);
             if (kept.length) return { questions: kept };
-            lastErr = new Error('english verification rejected all');
+            lastErr = new Error(`${category} verification rejected all`);
             continue;
           }
           const verified = await verifyCalculationQuestions(normalized.questions);
@@ -306,6 +351,7 @@ async function generateQuizSet(topicId, count, difficulty, avoidQuestions, { ver
 const POOL_TARGET_PER_TOPIC = 80; // 주제마다 최소 80문제(재테크는 CashQuiz에서 옮겨 온 290문제로 이미 넘음)
 // 영어는 인기가 많을 것으로 예상해 주제마다 130문제(2026-10-18, 80 → +50).
 const ENGLISH_POOL_TARGET = 130;
+// 일본어는 새로 시작하는 분야라 처음엔 주제마다 80문제(영어 130보다 적게)로 시작해 AI 비용을 아낀다. 반응을 보고 올린다.
 const poolTarget = topicId => (topicCategory(topicId) === 'english' ? ENGLISH_POOL_TARGET : POOL_TARGET_PER_TOPIC);
 const FILL_MAX_ROUNDS = 10; // fill 모드에서 주제당 생성 호출 상한(중복으로 계속 걸러져도 무한히 부르지 않게)
 let topupInFlight = false;
@@ -330,8 +376,8 @@ async function fetchAvoidQuestions(topicId) {
     .from('questions').select('q, choices, correct').eq('topic', topicId).eq('active', true)
     .order('created_at', { ascending: false }).limit(400);
   if (error) { console.error('avoid fetch error', topicId, error); return []; }
-  const english = topicCategory(topicId) === 'english';
-  return pickRandom(data.map(r => (english ? `${r.q} (정답: ${r.choices[r.correct]})` : r.q)), AVOID_SAMPLE_SIZE);
+  const english = isLanguageTopic(topicId);
+  return pickRandom(data.map(r => (english ?`${r.q} (정답: ${r.choices[r.correct]})` : r.q)), AVOID_SAMPLE_SIZE);
 }
 
 // 생성된 문제를 하나씩 넣되, 이미 있는 활성 문제와 비슷하면 건너뛴다. 한 개씩 넣으므로 같은 묶음 안의
@@ -1062,7 +1108,7 @@ async function reviewQuestionReport(q, selected, reason) {
     model: 'claude-sonnet-5',
     max_tokens: 8000,
     output_config: { effort: 'high', format: zodOutputFormat(reviewSchema) }, // 드물게 호출되고 보너스가 걸려 있어 정확도 우선
-    system: '당신은 경제 상식·영어회화 퀴즈의 오류 신고를 심사하는 공정한 검수자입니다. 정답이 하나로 분명하고 해설이 사실과 맞으면 ok, 그렇지 않으면 해당 오류 유형을 고릅니다.',
+    system: '당신은 경제 상식·영어회화·일본어회화 퀴즈의 오류 신고를 심사하는 공정한 검수자입니다. 정답이 하나로 분명하고 해설이 사실과 맞으면 ok, 그렇지 않으면 해당 오류 유형을 고릅니다.',
     messages: [{ role: 'user', content: prompt }],
   });
   if (!response.parsed_output) throw new Error('report review: no parsed_output');
@@ -1133,21 +1179,38 @@ const TTS_VOICES = {
   A: process.env.TTS_VOICE_A || 'en-US-Neural2-F',
   B: process.env.TTS_VOICE_B || 'en-US-Neural2-D',
 };
+// 일본어(2026-10-31): 여성 A / 남성 B. 환경변수 TTS_VOICE_JA_A / TTS_VOICE_JA_B로 바꿀 수 있다.
+const TTS_VOICES_JA = {
+  A: process.env.TTS_VOICE_JA_A || 'ja-JP-Neural2-B',
+  B: process.env.TTS_VOICE_JA_B || 'ja-JP-Neural2-C',
+};
+const TTS_LANG = { english: { code: 'en-US', voices: TTS_VOICES }, japanese: { code: 'ja-JP', voices: TTS_VOICES_JA } };
 const AUDIO_BUCKET = 'question-audio';
 const TTS_ENDPOINT = process.env.GOOGLE_TTS_ENDPOINT || 'https://texttospeech.googleapis.com/v1/text:synthesize'; // 테스트용으로만 바꾼다
 
 const escapeSsml = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // 문제에서 소리 내어 읽을 영어 줄을 뽑는다. 빈칸은 정답으로 채우고, 한국어는 넣지 않는다.
-async function buildSpeechLines(q) {
+const JA_CHAR = /[ぁ-んァ-ヶ一-龥]/; // 히라가나·가타카나·한자
+async function buildSpeechLines(q, category = 'english') {
+  const japanese = category === 'japanese';
+  const lang = japanese ? '일본어' : '영어';
   const schema = z.object({
     lines: z.array(z.object({
       speaker: z.enum(['A', 'B', 'N']).describe('대화의 A/B 화자, 대화가 아니면 N'),
-      text: z.string().describe('소리 내어 읽을 영어 문장(한국어 없이)'),
+      text: z.string().describe(`소리 내어 읽을 ${lang} 문장(한국어${japanese ? '·한글 발음·로마자' : ''} 없이)`),
     })).min(1).max(4),
   });
   const L = i => String.fromCharCode(65 + i);
-  const prompt = `아래 영어회화 퀴즈에서, 정답을 맞힌 뒤 원어민 발음으로 들려줄 영어 문장만 뽑아 주세요.\n` +
+  const prompt = japanese
+    ? `아래 일본어회화 퀴즈에서, 정답을 맞힌 뒤 일본 원어민 발음으로 들려줄 일본어 문장만 뽑아 주세요.\n` +
+      `- 대화문이면 빈칸(____)을 정답으로 채운 완성 대화를 A/B 화자별로 나눕니다(질문에 나온 일본어 대사도 포함).\n` +
+      `- 질문에 상대방의 일본어 말이 있고 정답이 그에 대한 대답이면, 상대방 말은 A, 정답 대답은 B로 나눕니다.\n` +
+      `- 표현의 뜻을 묻는 문제면 그 일본어 표현(과 예문이 있으면 예문)을 N으로 읽습니다.\n` +
+      `- 한국어 문장을 일본어로 옮기는 문제면 정답 일본어 문장을 N으로 읽습니다.\n` +
+      `- 괄호 안 한글 발음, 한국어, 로마자, 기호, 보기 번호는 모두 빼고 일본어 문장(가나·한자)만 씁니다.\n\n` +
+      `질문: ${q.q}\n보기:\n${q.choices.map((c, i) => `${L(i)}. ${c}`).join('\n')}\n정답: ${L(q.correct)}. ${q.choices[q.correct]}`
+    : `아래 영어회화 퀴즈에서, 정답을 맞힌 뒤 원어민 발음으로 들려줄 영어 문장만 뽑아 주세요.\n` +
     `- 대화문이면 빈칸(____)을 정답으로 채운 완성 대화를 A/B 화자별로 나눕니다(질문에 나온 영어 대사도 포함).\n` +    `- 대화 형식이 아니어도 질문에 상대방의 영어 말(예: 직원의 'Window or aisle seat?')이 있고 정답이 그에 대한 대답이면, 상대방 말은 A, 정답 대답은 B로 나눕니다(두 사람 목소리로 들려주기 위해).\n` +
     `- 표현의 뜻을 묻는 문제면 그 영어 표현(과 예문이 있으면 예문)을 N으로 읽습니다.\n` +
     `- 한국어 문장을 영어로 옮기는 문제면 정답 영어 문장을 N으로 읽습니다.\n` +
@@ -1160,10 +1223,10 @@ async function buildSpeechLines(q) {
     messages: [{ role: 'user', content: prompt }],
   });
   if (!response.parsed_output) throw new Error('speech lines: no parsed_output');
-  return response.parsed_output.lines.filter(l => /[A-Za-z]/.test(l.text));
+  return response.parsed_output.lines.filter(l => (japanese ? JA_CHAR : /[A-Za-z]/).test(l.text));
 }
 
-async function synthesizeLine(text, voice, lead = false) {
+async function synthesizeLine(text, voice, lead = false, languageCode = 'en-US') {
   const res = await fetch(`${TTS_ENDPOINT}?key=${GOOGLE_TTS_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1171,7 +1234,7 @@ async function synthesizeLine(text, voice, lead = false) {
       // 파일 첫 줄 앞에는 짧은 무음을 둔다 — 폰 스피커·블루투스가 재생 시작 순간을 놓쳐 첫 단어가
       // 잘리는 일이 있어서(No. 1120 "Let's"가 안 들림, 2026-10-21).
       input: { ssml: `<speak>${lead ? '<break time="400ms"/>' : ''}${escapeSsml(text)}<break time="450ms"/></speak>` },
-      voice: { languageCode: 'en-US', name: voice },
+      voice: { languageCode, name: voice },
       audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 }, // 학습용이라 아주 조금 천천히
     }),
   });
@@ -1187,10 +1250,12 @@ function ensureQuestionAudio(q) {
   if (q.audio_url) return Promise.resolve(q.audio_url);
   if (audioInFlight.has(q.id)) return audioInFlight.get(q.id);
   const job = (async () => {
-    const lines = q.speech_lines && q.speech_lines.length ? q.speech_lines : await buildSpeechLines(q);
+    const category = topicCategory(q.topic);
+    const lang = TTS_LANG[category];
+    const lines = q.speech_lines && q.speech_lines.length ? q.speech_lines : await buildSpeechLines(q, category);
     // 줄마다 따로 합성해 이어 붙인다(MP3 프레임은 그대로 이어 붙여도 재생된다). A/B는 다른 목소리.
     const parts = [];
-    for (const [i, l] of lines.entries()) parts.push(await synthesizeLine(l.text, l.speaker === 'B' ? TTS_VOICES.B : TTS_VOICES.A, i === 0));
+    for (const [i, l] of lines.entries()) parts.push(await synthesizeLine(l.text, l.speaker === 'B' ? lang.voices.B : lang.voices.A, i === 0, lang.code));
     const path = `q${q.no}.mp3`;
     const { error: upErr } = await supabase.storage.from(AUDIO_BUCKET)
       .upload(path, Buffer.concat(parts), { contentType: 'audio/mpeg', upsert: true });
@@ -1214,7 +1279,7 @@ app.post('/api/questions/audio', async (req, res) => {
     const { data: q, error } = await supabase.from('questions')
       .select('id, no, topic, q, choices, correct, speech_lines, audio_url').eq('id', questionId).maybeSingle();
     if (error) throw error;
-    if (!q || topicCategory(q.topic) !== 'english') { res.status(404).json({ error: 'not_found' }); return; }
+    if (!q || !isLanguageTopic(q.topic)) { res.status(404).json({ error: 'not_found' }); return; }
     res.json({ url: await ensureQuestionAudio(q) });
   } catch (err) {
     console.error('question audio failed:', err);
@@ -1234,7 +1299,7 @@ async function backfillAudio() {
   const skip = new Set();
   for (;;) {
     let query = supabase.from('questions').select('id, no, topic, q, choices, correct, speech_lines, audio_url')
-      .in('topic', CATEGORY_TOPICS.english).eq('active', true).is('audio_url', null).order('no').limit(20);
+      .in('topic', LANGUAGE_TOPICS).eq('active', true).is('audio_url', null).order('no').limit(20);
     if (skip.size) query = query.not('id', 'in', `(${[...skip].join(',')})`);
     const { data: rows, error } = await query;
     if (error) throw error;
@@ -1489,7 +1554,8 @@ app.get('/api/ranking', async (req, res) => {
       ]);
       if (profErr) throw profErr;
       if (catErr) console.error('category_quiz_points failed:', catErr); // 분야별 점수가 없어도 랭킹 자체는 보여준다
-      for (const c of catRows || []) quizScoresMap[c.user_key] = { economy: Number(c.economy), english: Number(c.english) };
+      // japanese 열은 DB 함수(aggregates.sql)를 갱신한 뒤부터 온다 — 없으면 0으로 본다.
+      for (const c of catRows || []) quizScoresMap[c.user_key] = { economy: Number(c.economy), english: Number(c.english), japanese: Number(c.japanese || 0) };
       for (const p of profiles) {
         nicknameMap[p.user_key] = p.nickname;
         referredByMap[p.user_key] = p.referred_by;
@@ -1509,7 +1575,7 @@ app.get('/api/ranking', async (req, res) => {
         friend: referredByMap[key] === userKey,
         label: nicknameMap[key],
         score: scores[key],
-        quizScores: quizScoresMap[key] || { economy: 0, english: 0 },
+        quizScores: quizScoresMap[key] || { economy: 0, english: 0, japanese: 0 },
       }))
       .sort((a, b) => b.score - a.score)
       // 화면에는 일간/주간/전체 모두 상위 10명만 보여준다(2026-10-21). DB에서는 20명을 받아 두어
