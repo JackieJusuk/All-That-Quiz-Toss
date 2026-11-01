@@ -23,7 +23,7 @@ CashQuiz-toss를 복제해 경제 상식 퀴즈로 바꾼 앱인토스 미니앱
 - `server/seed/invest_questions.json`: 재테크 주제 초기 문제(CashQuiz에서 이관, 서버 시작 시 DB에 없으면 자동 추가)
 - `supabase/schema.sql`: DB 스키마 (새 Supabase 프로젝트에서 1회 실행), `supabase/aggregates.sql`: 점수·랭킹 집계 SQL 함수(schema.sql 다음에 실행), `render.yaml`: Render 블루프린트
 - **집계는 DB에서**: Supabase 조회는 1회 최대 1,000행이라, 기록을 통째로 가져와 서버에서 더하지 말고 `aggregates.sql`의 함수(`supabase.rpc`)로 합산한다(`requirements.md` §5)
-- `src/main.js`, `src/style.css`, `index.html`: 프론트엔드 (앱인토스 미니앱, vanilla JS)
+- `src/main.js`, `src/style.css`, `index.html`: 프론트엔드 (앱인토스 미니앱, vanilla JS), `src/japanese.js`: 일본어회화 비상용 문제 + 일본어 기초(글자표·발음 규칙) 데이터(`requirements.md` §3.31)
 - `requirements.md`: 요구사항 명세서 — §13 설계 원칙은 항상 준수, §12는 남은 과제
 
 ## 배포 흐름

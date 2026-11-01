@@ -1,4 +1,4 @@
-# 앱인토스 콘솔 입력값 (2026-10-12, 영어회화 추가 2026-10-18)
+# 앱인토스 콘솔 입력값 (2026-10-12, 영어회화 추가 2026-10-18, 일본어회화 추가 2026-10-31)
 
 콘솔에 그대로 붙여 넣을 수 있게 정리한 값이다. 로고·스크린샷 파일은 이 폴더(`store-assets/`)에 있다.
 "경제"라는 단어는 쓰지 않는다(requirements.md 상단 appName 항목 — 경제만 다루는 앱이 아님).
@@ -7,13 +7,14 @@
 
 - **앱 이름**: 올댓퀴즈 (변경 없음)
 - **부제** (검색 결과에서 앱 이름 아래에 보임):
-  `매일 한 문제, 재테크·금융 상식부터 영어회화까지`
+  `매일 한 문제, 재테크·금융 상식부터 영어·일본어회화까지`
 - **상세 설명**:
 
   > 하루 한 문제로 알아두면 좋은 상식을 쌓아요.
   >
   > · 상식: 시장 원리, 금융·금리, 세금·연금, 재테크(주식·펀드·부동산)
   > · 영어회화: 일상 대화, 여행·식당, 직장·이메일, 콩글리시 바로잡기
+  > · 일본어회화: 일상 대화, 여행·식당, 직장·경어, 헷갈리는 표현 + 히라가나·발음을 배우는 "일본어 기초"
   > · 분야마다 등급이 따로 올라가고, 내 점수도 분야별로 보여줘요
   > · 문제를 풀면 해설과 함께 "이 문제 정답률"을 보여줘요. 다른 사람은 얼마나 맞혔는지 비교해 보세요
   > · 연속으로 맞히면 연속 정답 기록이 쌓이고, 등급이 오르면 축하해 드려요
@@ -22,7 +23,7 @@
   > · 일간·주간·전체 랭킹과 매주 우등생 시상으로 친구와 함께 도전해요
 
 - **검색 키워드** (콘솔이 허용하는 개수만큼 위에서부터):
-  퀴즈, 영어회화, 상식퀴즈, 영어퀴즈, 오늘의퀴즈, 재테크, 생활영어, 콩글리시, 주식, 부동산, 금융상식, 여행영어, 세금, 연금, 매일퀴즈, 포인트
+  퀴즈, 영어회화, 일본어회화, 일본어, 히라가나, 상식퀴즈, 영어퀴즈, 오늘의퀴즈, 재테크, 생활영어, 콩글리시, 주식, 부동산, 금융상식, 여행영어, 세금, 연금, 매일퀴즈, 포인트
 
 ## 2. 스크린샷
 
@@ -48,5 +49,5 @@
 | 보조 전환 1 | 보상형 광고 시청 완료 | `rewarded_ad_earned` (또는 템플릿 "인앱 광고 시청한 유저") |
 | 보조 전환 2 | 친구 초대 공유 | `share_invite` |
 
-그 밖에 기록되는 이벤트: `audio_play`(원어민 발음 듣기, 파라미터 `no`, 2026-10-21), `question_report`(오답 신고, 파라미터 `no`, 2026-10-19), `home_category`(홈 분야 전환, 파라미터 `category`: economy/english, 2026-10-18), `wrongnote_overcome`(오답 극복), `review_request`(리뷰 요청 화면 호출), `badge_earned`(새 배지, 파라미터 `badge`), `badge_sheet_open`(배지 모아보기), 화면 진입 `{화면}_screen`(home/quiz/result/ranking/wrongnote/promotion).
-`quiz_answer` 파라미터: `topic`(basic/money/life/invest, 영어 eng_daily/eng_travel/eng_work/eng_konglish), `difficulty`, `correct`(true/false), `combo`(연속 정답 수).
+그 밖에 기록되는 이벤트: `audio_play`(원어민 발음 듣기, 파라미터 `no`, 2026-10-21), `question_report`(오답 신고, 파라미터 `no`, 2026-10-19), `home_category`(홈 분야 전환, 파라미터 `category`: economy/english/japanese, 2026-10-18), `jpbasic_open`(홈의 "일본어 기초" 진입, 2026-10-31), `jpbasic_tab`(일본어 기초 탭 전환, 파라미터 `tab`: hira/dakuon/kata/rules/greet), `wrongnote_overcome`(오답 극복), `review_request`(리뷰 요청 화면 호출), `badge_earned`(새 배지, 파라미터 `badge`), `badge_sheet_open`(배지 모아보기), 화면 진입 `{화면}_screen`(home/quiz/result/ranking/wrongnote/promotion/jpbasic).
+`quiz_answer` 파라미터: `topic`(basic/money/life/invest, 영어 eng_daily/eng_travel/eng_work/eng_konglish, 일본어 jp_daily/jp_travel/jp_work/jp_similar), `difficulty`, `correct`(true/false), `combo`(연속 정답 수).
