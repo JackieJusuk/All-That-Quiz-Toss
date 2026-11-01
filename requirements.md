@@ -385,6 +385,7 @@
 - **일본어 기초 화면**(`state.screen === 'jpbasic'`, 퀴즈·점수·광고와 무관, 탭 5개 — 탭마다 한 화면에 들어가게 구성, `FIT_SCREENS` 포함): ① 히라가나 46자 ② 탁음·반탁음 25자 + 요음 33자 ③ 가타카나 46자 ④ 발음 규칙(장음·촉음 っ·발음 ん·조사 は/を/へ의 소리·헷갈리는 글자) ⑤ 기초 인사말 9개. 글자마다 한글 읽기(학습용 표기: 카·타·치·츠)와 로마자를 함께 보여 준다. 글자·예시를 누르면 기기의 일본어 음성(`speechSynthesis`, `ja-JP`, 속도 0.8)으로 읽어 주고, 지원하지 않는 기기에서는 소리 없이 표만 보인다. 데이터는 `src/japanese.js` `JP_BASIC`.
 - **분석 이벤트**: `home_category`(category에 japanese 추가), `jpbasic_open`, `jpbasic_tab`(`tab`), 화면 진입 `jpbasic_screen`, `quiz_answer`의 `topic`에 `jp_*` (`store-assets/listing.md` §3 갱신).
 - **검증(2026-10-31)**: Playwright(`vite dev` + `/api/**` mock, 서버 실패 시 비상용 문제 경로) — 360×640·384×701·390×844에서 일본어 홈(주제 4 + 기초 카드)과 일본어 기초 5개 탭 모두 **페이지 넘침 0~1px**(`fitToScreen`이 글자를 최대 0.83배까지만 줄임), 페이지 오류 0. 4개 주제 비상용 문제 출제·답 선택·해설 표시 확인. 글자 수 검산: 히라가나 46·가타카나 46·탁음 25·요음 33. `node --check server/index.js`, `vite build` 통과. **아직 확인하지 못한 것**: 실제 AI 문제 생성·검증·TTS 합성(샌드박스에 API 키 없음 — 배포 후 Render 로그의 `pool topup`·`audio backfill`로 확인), `speechSynthesis` 실기기 소리, 운영 DB에 SQL 적용 후 `similar_question('jp_daily', …)` 동작.
+- **음성 생성 시점(2026-11-01)**: 처음엔 음성이 풀 채우기가 전부 끝난 뒤에만 만들어져, 일본어 첫 채우기(약 30분) 동안 `audio_url`이 0개였다. 문제 묶음이 들어올 때마다 바로 음성을 만들도록 바꿨다(`ensurePoolTopUp` → `generateMissingAudio`, 이미 도는 중이면 건너뜀). 사용자가 발음 듣기를 먼저 누르면 그 자리에서 만들어 주는 경로(`/api/questions/audio`)는 처음부터 동작한다.
 - **비용 안내**: 서버 시작 시 `ensurePoolTopUp({ fill: true })`가 일본어 4개 주제 × 80문제를 한 번에 생성·검증한다(영어 최초 생성과 같은 성격의 1회성 — 생성 약 32회 + 검증 약 320회 호출). 이어서 음성 320개 합성(Google TTS 무료 한도 안쪽 예상).
 
 ## 4. 핵심 사용자 흐름 (현재)

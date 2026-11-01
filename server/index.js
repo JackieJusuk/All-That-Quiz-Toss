@@ -516,6 +516,9 @@ async function ensurePoolTopUp({ fill = false } = {}) {
         const generated = await generateQuizSet(topicId, need, null, avoid);
         const inserted = await insertDistinctQuestions(topicId, generated.questions);
         console.log(`pool topup${fill ? ' (fill)' : ''}: +${inserted.length}/${generated.questions.length} ${topicId} (was ${current}, target ${target})`);
+        // 새 외국어 문제의 음성은 풀 채우기가 전부 끝나길 기다리지 않고 묶음마다 바로 만든다(2026-11-01 — 일본어 첫 채우기가
+        // 30분 넘게 걸려 그동안 음성이 하나도 없었다). 이미 돌고 있으면 건너뛰고, 도는 중인 작업이 새 행도 집어 간다.
+        if (inserted.length && isLanguageTopic(topicId)) generateMissingAudio().catch(e => console.error('audio backfill error', e));
       }
     }
   } catch (e) {
